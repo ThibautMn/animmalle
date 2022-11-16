@@ -40,4 +40,7 @@ def format(formatage,tags):
         raiseError('mauvais format')
 
 def user_format(username):
-    return re.sub(' ', '+', username)
+    if username:
+        return re.sub(' ', '+', username)
+    else:
+        return ''

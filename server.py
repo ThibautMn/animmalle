@@ -1,4 +1,7 @@
+import sentry_sdk
+
 from flask import Flask, request, redirect, url_for, g, render_template
+from sentry_sdk.integrations.flask import FlaskIntegration
 from flask_mail import Mail
 from peewee import MySQLDatabase, Model
 from itsdangerous import (
@@ -10,6 +13,16 @@ import config
 from utils.auth import AuthUser
 
 import utils
+
+sentry_sdk.init(
+    dsn="https://6b346ae9962044e09bd97ee944ac3392@sentry.cevennes-parcnational.net/4",
+    integrations=[FlaskIntegration()],
+
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    # We recommend adjusting this value in production.
+    traces_sample_rate=1.0
+)
 
 mail = Mail()
 app = Flask('__name__')
