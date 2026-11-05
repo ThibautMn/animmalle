@@ -152,13 +152,19 @@ variante, matériel et type de pièce jointe facultatifs.
 
 ## Reprise des fichiers et différences d’export
 
-Les pages historiques restent intactes : les éditions vont dans `backend/pages`,
+Les pages et leurs éditions sont conservées dans `backend/pages`,
 avec une révision horodatée du contenu précédent et remplacement atomique du
 Markdown courant. Le HTML est toujours recalculé et nettoyé avant réponse. Les
-révisions historiques ne sont pas copiées, elles restent dans l’ancien dossier.
+révisions historiques sont conservées avec les pages dans `backend/pages`.
+
+Les ressources historiques ont été déplacées dans `backend/` : médias dans
+`uploads/`, pages et révisions dans `pages/`, pictogrammes dans
+`pictograms/`. Les clés YAML `uploads`, `pages` et `pictograms`
+pointent désormais vers ces dossiers, exclus de Git et à sauvegarder avec les
+nouveaux uploads et pages. Leur lecture ne dépend plus de `ancien_animalle/`.
 
 Les médias ne sont pas dans le dump SQL. Le backend lit leur nom de fichier
-uniquement dans les deux racines uploads configurées ; un chemin arbitraire du
+uniquement dans le dossier uploads configuré ; un chemin arbitraire du
 dump ne peut pas servir de fichier. Un fichier absent donne 404 ; les ZIP listent
 les identifiants absents dans `fichiers_absents.json`.
 
@@ -214,3 +220,23 @@ uploads téléchargés via ofetch conservent leur nom et leur extension. Aucun d
 schéma ou contenu métier modifié. Le test session/CSRF/CORS vérifie cet en-tête.
 Les 18 tests backend SQLite ont été relancés avec succès à l’étape 6 ; pas de
 nouvel accès PostgreSQL. La configuration réelle et le déploiement restent à valider.
+
+## Déplacement des ressources historiques — 5 novembre 2026
+
+Les trois dossiers ont été déplacés sans écrasement : 448 entrées pour les
+médias, 60 pour les pages et révisions, 17 pour les pictogrammes. Les inodes,
+tailles et dates de modification ont été comparés avant et après déplacement
+sur le même système de fichiers : aucune différence. Les chemins des deux YAML
+et les exclusions Git ont été vérifiés. Les 14 tests API SQLite ont réussi avec
+`PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -p test_api.py -v` ;
+`git diff --check` est sans erreur. Aucune base ni aucun serveur n’a été modifié.
+La correspondance exhaustive entre les médias et les références en base reste
+à vérifier avant la suppression complète du code historique.
+
+Les dossiers médias et pages sont désormais unifiés dans `backend/uploads/` et
+`backend/pages/`. Les clés et la logique de lecture de secours `legacy_*` ont été
+supprimées. Les 448 entrées médias et 60 entrées pages ont été déplacées sans
+écrasement, avec contrôle des inodes et tailles. Les révisions restent conservées.
+Validation après unification : 18 tests backend réussis avec
+`PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v`,
+contrôle des trois chemins des deux YAML et `git diff --check` sans erreur.

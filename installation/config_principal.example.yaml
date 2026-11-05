@@ -54,9 +54,7 @@ paths:
   # Relatifs à la racine du dépôt, indépendamment du répertoire courant.
   uploads: backend/uploads
   pages: backend/pages
-  legacy_uploads: ancien_animalle/static/upload
-  legacy_pages: ancien_animalle/static_pages
-  pictograms: ancien_animalle/static/ressources
+  pictograms: backend/pictograms
 mail:
   enabled: false
   host: smtp.example.org

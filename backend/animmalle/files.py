@@ -1,4 +1,4 @@
-"""Fichiers hors ressources publiques ; lecture historique, écriture en surcouche."""
+"""Fichiers hors ressources publiques ; médias, pages et révisions."""
 import hashlib
 import io
 import json
@@ -29,10 +29,10 @@ def media_path(item):
     name = Path(item.url).name
     if not name or not item.url:
         abort(404, description='Aucun fichier associé.')
-    for root in (paths()['uploads'], paths()['legacy_uploads']):
-        candidate = (root / name).resolve()
-        if candidate.is_relative_to(root) and candidate.is_file():
-            return candidate
+    root = paths()['uploads']
+    candidate = (root / name).resolve()
+    if candidate.is_relative_to(root) and candidate.is_file():
+        return candidate
     abort(404, description='Fichier absent ; les médias historiques doivent être disponibles.')
 
 
@@ -63,10 +63,10 @@ def store_upload(file):
             temporary.unlink(missing_ok=True)
 
 
-def page_directory(name, legacy=False):
+def page_directory(name):
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', name):
         abort(404)
-    root = paths()['legacy_pages' if legacy else 'pages']
+    root = paths()['pages']
     candidate = (root / name).resolve()
     if not candidate.is_relative_to(root):
         abort(404)
@@ -74,12 +74,11 @@ def page_directory(name, legacy=False):
 
 
 def read_page(name):
-    for legacy in (False, True):
-        directory = page_directory(name, legacy)
-        source = directory / 'current.md'
-        if source.is_file() and source.resolve().is_relative_to(directory):
-            content = source.read_text(encoding='utf-8')
-            return {'name': name, 'contenu': content, 'html': render(content)}
+    directory = page_directory(name)
+    source = directory / 'current.md'
+    if source.is_file() and source.resolve().is_relative_to(directory):
+        content = source.read_text(encoding='utf-8')
+        return {'name': name, 'contenu': content, 'html': render(content)}
     abort(404, description='Page introuvable.')
 
 

@@ -183,8 +183,10 @@ retenues. La phase `dependencies` installe également les dépendances API.
 Le YAML exemple est enrichi (backend, public, auth, proxy, gunicorn, paths et mail).
 Compléter les sections du YAML réel existant avant exploitation, en préservant
 ses identifiants PostgreSQL ; aucun secret réel n’a été modifié par l’étape 5.
-Les chemins vers les médias/pages historiques servent à la lecture ; les nouvelles
-écritures utilisent des dossiers ignorés hors de l’historique.
+Les médias et pages, importés ou nouveaux, utilisent les mêmes dossiers. Les
+ressources ont été déplacées dans `backend/uploads`, `backend/pages` et
+`backend/pictograms`, conformément aux chemins YAML réel et exemple. Ces dossiers
+locaux sont exclus de Git et doivent être inclus dans les sauvegardes.
 
 À la fin de l’étape 5, `deploy` et `all` restaient bloqués jusqu’aux choix
 frontend de l’étape 6. Aucun serveur, sudo, changement Nginx, restauration ou migration des

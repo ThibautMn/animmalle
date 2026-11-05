@@ -87,14 +87,14 @@ def load_settings(path=CONFIG_PATH):
         if '{login}' not in ldap['user_dn'] or type(ldap.get('port')) is not int or not 1 <= ldap['port'] <= 65535 or type(ldap.get('ssl')) is not bool or type(ldap.get('timeout')) is not int or not 1 <= ldap['timeout'] <= 60:
             raise ValueError('Configuration LDAP invalide.')
     root = Path(__file__).resolve().parents[2]
-    for key in ('uploads', 'pages', 'legacy_uploads', 'legacy_pages', 'pictograms'):
+    for key in ('uploads', 'pages', 'pictograms'):
         value = data['paths'].get(key)
         if not isinstance(value, str) or not value:
             raise ValueError(f'paths.{key} requis.')
         data['paths'][key] = (root / value).resolve()
-    legacy = root / 'ancien_animalle'
+    historical_root = root / 'ancien_animalle'
     for key in ('uploads', 'pages'):
-        if data['paths'][key].is_relative_to(legacy):
+        if data['paths'][key].is_relative_to(historical_root):
             raise ValueError('Les répertoires modifiables doivent être hors du dossier historique.')
     extensions = backend.get('allowed_extensions')
     if not isinstance(extensions, list) or not extensions or not all(isinstance(x, str) and x.isalnum() for x in extensions):

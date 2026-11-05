@@ -256,10 +256,10 @@ class ApiTests(unittest.TestCase):
         self.create_animation()
         self.assertEqual(self.mutate('delete', '/api/thesaurus/1').status_code, 409)
 
-    def test_pages_overlay_revisions_and_sanitization(self):
-        legacy = Path(self.settings['paths']['legacy_pages']) / 'notice'
-        legacy.mkdir(parents=True)
-        (legacy / 'current.md').write_text('Ancienne notice')
+    def test_pages_revisions_and_sanitization(self):
+        directory = Path(self.settings['paths']['pages']) / 'notice'
+        directory.mkdir(parents=True)
+        (directory / 'current.md').write_text('Ancienne notice')
         self.assertEqual(self.client.get('/api/pages/notice').json['contenu'], 'Ancienne notice')
         self.assertEqual(self.mutate('put', '/api/pages/notice', {'contenu': 'Test'}).status_code, 403)
         self.login('admin')
@@ -267,7 +267,9 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('<script', response.json['html'])
         self.assertNotIn('javascript:', response.json['html'])
-        self.assertEqual((legacy / 'current.md').read_text(), 'Ancienne notice')
+        self.assertEqual((directory / 'current.md').read_text(), response.json['contenu'])
+        revision = next(directory.glob('rev_*.md'))
+        self.assertEqual(revision.read_text(), 'Ancienne notice')
         self.assertEqual(len(list((Path(self.settings['paths']['pages']) / 'notice').glob('rev_*.md'))), 1)
         self.assertEqual(self.client.get('/api/pages/bad.name').status_code, 404)
 
