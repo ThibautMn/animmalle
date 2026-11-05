@@ -168,3 +168,21 @@ Le dump, le YAML réel et les données restent hors Git. Aucun sudo, changement
 Nginx, API ou frontend n'a été nécessaire à cette étape. Les médias référencés
 ne sont pas des fichiers contenus dans le dump et ne sont pas copiés ici.
 Les étapes 5 et 6 attendent une nouvelle demande explicite.
+
+## Étape 5 : backend API
+
+L’API Flask, Marshmallow et le point d’entrée Gunicorn sont implémentés ; voir
+[backend/README.md](../backend/README.md) pour les contrats, la configuration et
+les validations. Python 3.11 minimum est désormais requis par les versions stables
+retenues. La phase `dependencies` installe également les dépendances API.
+
+Le YAML exemple est enrichi (backend, public, auth, proxy, gunicorn, paths et mail).
+Compléter les sections du YAML réel existant avant exploitation, en préservant
+ses identifiants PostgreSQL ; aucun secret réel n’a été modifié par l’étape 5.
+Les chemins vers les médias/pages historiques servent à la lecture ; les nouvelles
+écritures utilisent des dossiers ignorés hors de l’historique.
+
+`deploy` et `all` restent bloqués jusqu’aux choix frontend et au déploiement de
+l’étape 6. Aucun serveur, sudo, changement Nginx, restauration ou migration des
+tables métier n’a été lancé à l’étape 5. Les tests PostgreSQL créent uniquement des
+schémas temporaires annulés, avec contrôle des données publiques avant/après.

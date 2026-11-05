@@ -18,7 +18,7 @@ Usage : installation/install.sh PHASE
   dependencies  Préparer les dépendances backend (Debian 12/13, Ubuntu 24.04)
   schema        Créer la base absente et appliquer Alembic (étape 3)
   restore       Reprendre les données du dump MariaDB sur une base vide (étape 4)
-  deploy        Déploiement Nginx/Gunicorn/Nuxt (étapes 5/6 à implémenter)
+  deploy        Déploiement Nginx/Gunicorn/Nuxt (frontend et déploiement attendus à l’étape 6)
   all           Installation complète (indisponible avant les étapes suivantes)
   --help        Afficher cette aide
 Aucune phase n'est exécutée par défaut. Ne pas lancer avec sudo.
@@ -33,7 +33,7 @@ esac
 [[ $EUID -ne 0 ]] || fail 'Lancer sous le compte applicatif, sans sudo.'
 case "$1" in
   deploy|all)
-    fail 'Déploiement indisponible : backend, frontend et configuration de production attendus aux étapes 5 et 6. Aucune modification effectuée.' ;;
+    fail 'Déploiement indisponible : frontend et configuration de production attendus à l’étape 6. Aucune modification effectuée.' ;;
   dependencies)
     [[ -r /etc/os-release ]] || fail 'Distribution non reconnue.'
     source /etc/os-release
@@ -44,7 +44,7 @@ case "$1" in
     authenticate_sudo
     sudo apt-get update
     sudo apt-get install -y python3 python3-venv
-    python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || fail 'Python >= 3.10 requis.'
+    python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' || fail 'Python >= 3.11 requis.'
     [[ -x "$VENV/bin/python" ]] || python3 -m venv "$VENV"
     "$VENV/bin/python" -m pip install --disable-pip-version-check -r "$PROJECT_DIR/backend/requirements.txt"
     "$VENV/bin/python" -m pip check

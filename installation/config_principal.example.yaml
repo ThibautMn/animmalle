@@ -1,8 +1,68 @@
 # Exemple sans secret réel. Copier en config_principal.yaml et protéger ses permissions.
-# Les autres paramètres applicatifs seront définis aux étapes suivantes.
+# Connexion et configuration backend ; les paramètres Nuxt/Nginx viendront à l’étape 6.
 postgresql:
   host: localhost
   port: 5432
   database: animmalle
   username: animmalle
   password: REMPLACER
+
+backend:
+  secret_key: REMPLACER_PAR_UN_SECRET_ALEATOIRE_DE_64_CARACTERES
+  cookie_secure: true
+  cookie_samesite: Lax
+  session_hours: 24
+  max_upload_mb: 64
+  allowed_extensions: [pdf, jpg, png, jpeg, mp3, mp4, wma, avi, wmh, m4v, ppt, pptx, odt, docx, xlsx, zip]
+public:
+  frontend_url: https://animmalle.example.org
+  api_url: https://api.animmalle.example.org
+# Ne faire confiance qu'aux relais qui isolent effectivement Gunicorn du public.
+proxy:
+  x_for: 0
+  x_proto: 0
+  x_host: 0
+  x_port: 0
+  x_prefix: 0
+gunicorn:
+  bind: 127.0.0.1:8000
+  workers: 2
+  timeout: 60
+auth:
+  mode: ldap
+  admin_groups: [admin-pedaparc, Administrateurs]
+  ldap:
+    host: ldap.example.org
+    port: 636
+    ssl: true
+    timeout: 5
+    base_dn: dc=example,dc=org
+    user_dn: 'EXAMPLE\{login}'
+    login_attribute: sAMAccountName
+    name_attribute: cn
+    group_attribute: memberOf
+    # Facultatif : compte de lecture pour l’autocomplétion /api/users.
+    service_bind_dn: ''
+    service_password: ''
+  # Alternative explicite mode: local ; aucun compte fourni par défaut.
+  users: []
+  # - login: administrateur
+  #   name: Nom historique exact (pour conserver l'attribution des animations)
+  #   password_hash: hachage Werkzeug generate_password_hash
+  #   groups: [Administrateurs]
+paths:
+  # Relatifs à la racine du dépôt, indépendamment du répertoire courant.
+  uploads: backend/uploads
+  pages: backend/pages
+  legacy_uploads: ancien_animalle/static/upload
+  legacy_pages: ancien_animalle/static_pages
+  pictograms: ancien_animalle/static/ressources
+mail:
+  enabled: false
+  host: smtp.example.org
+  port: 587
+  starttls: true
+  username: ''
+  password: ''
+  sender: animmalle@example.org
+  recipients: []
