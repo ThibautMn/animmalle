@@ -7,6 +7,11 @@ PROJECT_DIR="$(dirname -- "$SCRIPT_DIR")"
 VENV="$PROJECT_DIR/.venv"
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
+authenticate_sudo() {
+  command -v sudo >/dev/null || fail 'sudo est requis pour préparer PostgreSQL local.'
+  printf '%s\n' 'Authentification administrateur : saisir le mot de passe dans le terminal si sudo le demande.'
+  sudo -v
+}
 usage() {
   cat <<'HELP'
 Usage : installation/install.sh PHASE
@@ -36,7 +41,7 @@ case "$1" in
       debian:12|debian:13|ubuntu:24.04) ;;
       *) fail 'Distributions prises en charge : Debian 12/13, Ubuntu 24.04.' ;;
     esac
-    command -v sudo >/dev/null || fail 'sudo est requis pour les paquets système.'
+    authenticate_sudo
     sudo apt-get update
     sudo apt-get install -y python3 python3-venv
     python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || fail 'Python >= 3.10 requis.'
@@ -47,6 +52,9 @@ case "$1" in
     ;;
   schema|restore)
     [[ -x "$VENV/bin/python" ]] || fail 'Préparer les dépendances avec la phase dependencies.'
+    if [[ "$1" == schema ]]; then
+      authenticate_sudo
+    fi
     "$VENV/bin/python" "$SCRIPT_DIR/lib/database.py" "$1"
     ;;
 esac

@@ -14,6 +14,8 @@ def run(phase):
     from sqlalchemy import create_engine, inspect, text
     from animmalle.config import CONFIG_PATH, load_database_url
 
+    if not CONFIG_PATH.is_file():
+        raise ValueError('Créer installation/config_principal.yaml depuis le modèle et protéger ses permissions (600).')
     permissions = CONFIG_PATH.stat()
     if permissions.st_uid != os.getuid() or stat.S_IMODE(permissions.st_mode) & 0o077:
         raise ValueError('Le YAML doit appartenir au compte courant et avoir les permissions 600 ou 400.')
@@ -30,6 +32,12 @@ def run(phase):
             return
         # Le dump connu est MariaDB : aucun SQL source ne doit être envoyé à PostgreSQL.
         raise ValueError('Dump présent : conversion et validation requises à l’étape 4. Aucun import effectué.')
+
+    if url.host in {'localhost', '127.0.0.1', '::1'} and url.port == 5432:
+        print('Démarrage du service PostgreSQL local.', flush=True)
+        result = subprocess.run(['sudo', 'systemctl', 'start', 'postgresql'], check=False)
+        if result.returncode:
+            raise ValueError('Impossible de démarrer PostgreSQL local ; vérifier le service et le cluster.')
 
     admin = create_engine(url.set(database='postgres'), isolation_level='AUTOCOMMIT')
     try:

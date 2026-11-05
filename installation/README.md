@@ -20,11 +20,17 @@ les versions avec `backend/requirements.txt`, puis contrôle leur compatibilité
 Aucune nouvelle bibliothèque n'est introduite à cette étape. Les versions sont
 celles documentées à l'étape 1 ; aucune installation n'a été vérifiée ici.
 
-Avant `schema`, PostgreSQL doit être installé, joignable et doté d'un rôle
+Avant `schema`, PostgreSQL doit être installé et doté d'un rôle
 applicatif avec LOGIN. Ce rôle doit posséder la base existante et les droits DDL,
 ou le droit CREATEDB si la base manque. La base de maintenance `postgres` doit
 être accessible avec les mêmes identifiants. Le script ne crée pas de rôle et
-n'installe ni ne démarre PostgreSQL. Ces prérequis devront être contrôlés à
+n'installe pas PostgreSQL. La phase `schema` appelle `sudo -v` : sudo demande
+le mot de passe directement dans le terminal si nécessaire. Pour une connexion
+locale (`localhost`, `127.0.0.1` ou `::1`) sur le port 5432, le script lance
+ensuite `sudo systemctl start postgresql`. Les autres serveurs doivent être
+joignables sans cette intervention. Le mot de passe sudo n'est jamais lu ni
+stocké par le script ; les migrations restent sous le compte applicatif.
+Ces prérequis devront être contrôlés à
 l'étape 3 avant exécution. Le droit CREATEDB pourra être retiré après création.
 
 Copier manuellement `config_principal.example.yaml` en `config_principal.yaml`,
@@ -69,3 +75,32 @@ Aucun sudo, installation, serveur, création de base ou import n'a été exécut
 Les distributions annoncées, les droits réels, les migrations PostgreSQL et les
 relances sur une base existante restent à vérifier à l'étape 3. Le script n'est
 pas encore un installateur complet de production.
+
+## Tentative de l'étape 3 — 5 novembre 2026
+
+L'étape 3 est autorisée. Le venv du projet a été créé et les dépendances backend
+installées ; `pip check` et les quatre tests backend hors ligne réussissent.
+La phase `schema` a été lancée mais s'arrête avant connexion : le YAML réel est
+absent. PostgreSQL 17/main est installé mais arrêté ; sudo exige une saisie
+interactive indisponible pour l'agent. Aucune base, donnée ou configuration
+système n'a été modifiée. Fournir le YAML protégé et un serveur PostgreSQL
+joignable avant de reprendre cette phase. La validation PostgreSQL réelle et
+la vérification des relances restent à faire ; aucun dump n'a été restauré.
+
+## Authentification sudo interactive
+
+Depuis un terminal, lancer sans préfixe sudo :
+
+```sh
+./installation/install.sh schema
+```
+
+Saisir le mot de passe lorsque sudo le demande. Si l'authentification échoue,
+le script s'arrête avant les opérations sur la base. Un ticket sudo encore
+valide peut éviter une nouvelle demande de mot de passe. Le YAML protégé et
+le rôle PostgreSQL restent nécessaires ; ils ne sont pas créés automatiquement.
+
+Validation de cette modification : syntaxe Bash valide, trois tests de parcours
+avec sudo/Python simulés et quatre tests backend hors ligne réussis. Commande
+des nouveaux tests : `.venv/bin/python -m unittest discover -s installation/tests -v`.
+Aucun vrai sudo, démarrage de service ou accès à la base dans ces tests.
