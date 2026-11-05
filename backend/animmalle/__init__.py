@@ -67,6 +67,7 @@ def create_app(config_path=CONFIG_PATH, *, engine=None):
         if origin == settings['public']['frontend_url'].rstrip('/'):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRF-Token'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
             response.vary.add('Origin')

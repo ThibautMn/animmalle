@@ -3,7 +3,7 @@
 L’étape 5 fournit une API JSON Flask, les validations et sérialisations Marshmallow,
 les services SQLAlchemy, les sessions authentifiées et un point d’entrée Gunicorn.
 Les neuf tables et la migration `0001_initial` restent inchangées. Les données
-restaurées aux étapes précédentes sont conservées. Le frontend attend l’étape 6.
+restaurées aux étapes précédentes sont conservées. Le frontend est implémenté à l’étape 6 (voir `frontend/README.md`).
 
 Organisation : `animmalle/models.py` définit les modèles, `schemas.py` les contrats
 JSON, `services.py` les transactions métier, `routes.py` les routes, `auth.py`
@@ -205,3 +205,12 @@ La validation HTTP passe par le client Flask, sans serveur réseau.
 Restent à vérifier en environnement : configuration réelle des origines et cookies,
 connexion LDAP/CA, SMTP si activé, disponibilité des médias, ouverture des ODT dans
 la suite bureautique cible, puis intégration frontend et déploiement Nginx/Nuxt.
+
+
+## Adaptation pour le frontend — étape 6
+
+Le CORS expose `Content-Disposition` à l’origine frontend autorisée afin que les
+uploads téléchargés via ofetch conservent leur nom et leur extension. Aucun droit,
+schéma ou contenu métier modifié. Le test session/CSRF/CORS vérifie cet en-tête.
+Les 18 tests backend SQLite ont été relancés avec succès à l’étape 6 ; pas de
+nouvel accès PostgreSQL. La configuration réelle et le déploiement restent à valider.

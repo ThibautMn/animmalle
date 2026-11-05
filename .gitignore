@@ -20,3 +20,8 @@ frontend/node_modules/
 
 REPRISE.md
 backend/pages/
+
+frontend/.nuxt/
+frontend/.output/
+frontend/test-results/
+installation/generated/

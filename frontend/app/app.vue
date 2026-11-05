@@ -1,0 +1,93 @@
+<script setup>
+import { useSessionStore } from '~/stores/session'
+const session = useSessionStore()
+const api = useApi()
+const route = useRoute()
+const error = ref('')
+const busy = ref(true)
+const login = ref('')
+const password = ref('')
+async function connect() {
+  busy.value = true
+  error.value = ''
+  try {
+    if (!session.csrf_token) session.apply(await api('/auth/session'))
+    session.apply(
+      await api('/auth/login', {
+        method: 'POST',
+        body: { login: login.value, password: password.value }
+      })
+    )
+    password.value = ''
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
+async function logout() {
+  error.value = ''
+  try {
+    await api('/auth/logout', { method: 'POST' })
+    session.clear()
+    await navigateTo('/')
+  } catch (e) {
+    error.value = e.message
+  }
+}
+onMounted(async () => {
+  try {
+    session.apply(await api('/auth/session'))
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
+})
+</script>
+<template>
+  <a class="skip" href="#content">Aller au contenu</a>
+  <header>
+    <NuxtLink class="brand" to="/"
+      >Anim’Malle <small>Parc national des Cévennes</small></NuxtLink
+    >
+    <div v-if="session.user">
+      {{ session.user.name }} <PButton label="Se déconnecter" @click="logout" />
+    </div>
+  </header>
+  <nav v-if="session.user" aria-label="Navigation principale">
+    <NuxtLink to="/">Accueil</NuxtLink
+    ><NuxtLink to="/animations">Pédathèque</NuxtLink
+    ><NuxtLink to="/materials">Médiathèque</NuxtLink
+    ><NuxtLink to="/outils">Outils facilitateurs</NuxtLink
+    ><NuxtLink to="/stats">Statistiques</NuxtLink
+    ><NuxtLink v-if="session.is_admin" to="/thesaurus">Thésaurus</NuxtLink>
+  </nav>
+  <main id="content">
+    <p v-if="error" role="alert" class="error">{{ error }}</p>
+    <p v-if="busy" role="status">Chargement de la session…</p>
+    <section v-else-if="!session.user" class="login card">
+      <p class="eyebrow">Bienvenue dans la malle pédagogique</p>
+      <h1>Partager les savoirs,<br />faire découvrir le vivant.</h1>
+      <p>
+        Connectez-vous pour consulter et enrichir les ressources de l’équipe.
+      </p>
+      <form @submit.prevent="connect">
+        <label
+          >Identifiant<input
+            v-model="login"
+            autocomplete="username"
+            required /></label
+        ><label
+          >Mot de passe<input
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            required /></label
+        ><PButton type="submit" label="Se connecter" :disabled="busy" />
+      </form>
+    </section>
+    <NuxtPage v-else :key="route.path" />
+  </main>
+  <footer>Anim’Malle · Les ressources pédagogiques des Cévennes</footer>
+</template>

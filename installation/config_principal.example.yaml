@@ -1,5 +1,5 @@
 # Exemple sans secret réel. Copier en config_principal.yaml et protéger ses permissions.
-# Connexion et configuration backend ; les paramètres Nuxt/Nginx viendront à l’étape 6.
+# Configuration centrale : backend, Nuxt et Nginx. Ne jamais publier ce fichier.
 postgresql:
   host: localhost
   port: 5432
@@ -66,3 +66,16 @@ mail:
   password: ''
   sender: animmalle@example.org
   recipients: []
+
+# Nuxt CSR avec serveur Node ; le serveur lit le YAML au démarrage.
+nuxt:
+  port: 3000
+nginx:
+  # Relais TLS amont local (ex. proxy institutionnel sur la même machine).
+  # Il doit préserver Host et n’exposer que les deux noms publics déclarés.
+  listen: 127.0.0.1:8080
+  upstream_tls: true
+  # Pour terminer TLS dans Nginx : upstream_tls: false, listen: 0.0.0.0:443,
+  # puis renseigner des certificats existants (non créés par l’installation).
+  certificate: /etc/ssl/animmalle/fullchain.pem
+  certificate_key: /etc/ssl/animmalle/privkey.pem

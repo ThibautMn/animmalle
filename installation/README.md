@@ -1,4 +1,8 @@
-# Installation — étape 2
+# Installation — étapes 2 à 6
+
+État courant : backend et frontend implémentés. Voir la section « Déploiement —
+étape 6 » en fin de document. Les sections précédentes conservent le journal
+des opérations réellement effectuées aux étapes antérieures.
 
 `install.sh` est créé mais **n'a pas été exécuté**. Les phases sont explicites,
 sans action par défaut. Les chemins sont résolus depuis le script, quel que soit
@@ -61,7 +65,7 @@ La phase `restore` laisse la base intacte si le dump est absent. Elle convertit
 les données du format MariaDB étudié, sans exécuter le SQL source. Voir la
 validation de l'étape 4 ci-dessous ; aucun `pg_restore` n'est utilisé.
 
-`deploy` et `all` s'arrêtent avant toute modification. Leur implémentation attend
+À l’étape 2, `deploy` et `all` s’arrêtaient avant toute modification. Leur implémentation attendait alors
 les étapes 5/6 : manifestes et verrouillage frontend, point d'entrée Gunicorn,
 mode Nuxt, clés YAML de production et topologie de proxy. Le déploiement devra
 installer les dépendances frontend compatibles, générer Nginx pour les adresses
@@ -182,7 +186,81 @@ ses identifiants PostgreSQL ; aucun secret réel n’a été modifié par l’é
 Les chemins vers les médias/pages historiques servent à la lecture ; les nouvelles
 écritures utilisent des dossiers ignorés hors de l’historique.
 
-`deploy` et `all` restent bloqués jusqu’aux choix frontend et au déploiement de
-l’étape 6. Aucun serveur, sudo, changement Nginx, restauration ou migration des
+À la fin de l’étape 5, `deploy` et `all` restaient bloqués jusqu’aux choix
+frontend de l’étape 6. Aucun serveur, sudo, changement Nginx, restauration ou migration des
 tables métier n’a été lancé à l’étape 5. Les tests PostgreSQL créent uniquement des
 schémas temporaires annulés, avec contrôle des données publiques avant/après.
+
+
+## Déploiement — étape 6
+
+Le frontend est une application Nuxt CSR avec serveur Node Nitro. Il lit le YAML
+central au démarrage et n’expose que l’adresse publique API. Voir
+[le frontend](../frontend/README.md) pour les versions et les vérifications.
+L’installateur comporte maintenant les phases suivantes, sans phase par défaut :
+
+| Phase | Opération |
+| --- | --- |
+| `dependencies` | Python/venv et dépendances backend (apt/sudo) |
+| `frontend` | Node compatible requis, `npm ci`, tests unitaires et build Nuxt |
+| `schema` | Provisionnement non destructeur et Alembic |
+| `restore` | Import contrôlé seulement sur base vide |
+| `prepare` | Rendu Nginx/systemd dans `installation/generated`, sans sudo |
+| `deploy` | Applique les fichiers préparés puis redémarre les services |
+| `all` | Enchaîne dependencies, frontend, schema, restore, deploy |
+
+Les phases frontend/prepare/deploy/all **n’ont pas été exécutées via le script**
+à cette étape. npm install, tests et build ont été exécutés directement ; la
+préparation du déploiement est testée avec des configurations synthétiques.
+Aucun sudo, rechargement Nginx, démarrage de service applicatif permanent,
+migration ou restauration exécuté à l’étape 6.
+
+Compléter le YAML réel existant depuis l’exemple, en conservant les identifiants
+PostgreSQL. `nuxt.port` définit le port Node local ; `gunicorn.bind` doit être
+`127.0.0.1:PORT`, différent du port Node. Node doit être dans le PATH au moment de
+la préparation : le chemin absolu est incorporé dans l’unité systemd. Le compte
+applicatif courant devient le compte de service ; il doit lire le YAML protégé,
+écrire dans les dossiers backend configurés et traverser le chemin du dépôt.
+Les chemins de déploiement doivent être sans espace ni caractères spéciaux.
+
+Nginx, systemd, PostgreSQL et Node sont des prérequis système ; l’installateur ne
+choisit pas de dépôt tiers Node et ne crée aucun certificat. Seule la phase
+`dependencies` installe Python via apt. Les deux noms DNS publics distincts doivent
+pointer vers l’infrastructure de déploiement. Le générateur prend en charge des
+origines sans port explicite, sous le même schéma HTTP ou HTTPS.
+
+Deux topologies :
+
+- Relais TLS amont local : `nginx.upstream_tls: true`, Nginx écoute exclusivement
+  sur `127.0.0.1:8080` et le relais de la même machine route les deux noms publics
+  vers Nginx en conservant Host. Nginx impose le schéma des origines du YAML.
+  Une terminaison amont sur une autre machine demande une adaptation explicite
+  des interfaces et du filtrage réseau ; elle n’est pas générée automatiquement.
+- TLS terminé par Nginx : `upstream_tls: false`, `listen: 0.0.0.0:443`, chemins
+  `certificate` et `certificate_key` existants et lisibles par Nginx. Les deux
+  domaines doivent être couverts par le certificat. Pour un environnement HTTP
+  isolé, utiliser des origines HTTP et un port Nginx adapté.
+
+Le frontend est proxifié vers Nuxt, exclusivement `/api/` vers Gunicorn sur le
+nom API ; les autres chemins du nom API répondent 404. Aucun dossier du dépôt,
+upload, YAML ou dump n’est servi directement par Nginx. Les en-têtes Host,
+X-Forwarded-Host/Proto/Port/For sont écrasés par Nginx. Configurer la section
+backend `proxy` à **un** relais de confiance pour ces en-têtes seulement si
+Gunicorn est effectivement isolé sur la boucle locale. X-Forwarded-For contient
+l’adresse vue par Nginx : avec un relais amont, l’IP d’origine n’est pas conservée.
+
+`prepare` valide les paramètres, puis produit des fichiers sans secrets.
+`deploy` sauvegarde le fichier Nginx existant en `.previous`, installe le nouveau,
+exécute `nginx -t` et restaure le précédent si cette validation échoue. Les unités
+systemd précédentes sont aussi sauvegardées. La validation globale Nginx peut
+échouer à cause d’un autre site : consulter les journaux et corriger avant relance.
+Les sorties des commandes système sont masquées en cas d’erreur pour éviter une
+exposition accidentelle ; les journaux restent consultables depuis le terminal.
+
+Après validation, deploy installe/active `animmalle-backend.service` et
+`animmalle-frontend.service`, les redémarre, puis recharge Nginx. Il ne restaure
+pas automatiquement les services si un démarrage échoue après cette validation :
+consulter `journalctl -u animmalle-backend -u animmalle-frontend` et les sauvegardes.
+La configuration réelle reste à compléter et le déploiement complet n’a pas été
+validé sur la machine. Les 12 tests installation passent, dont trois sur le rendu
+Nginx/systemd (routage, secrets exclus, contraintes TLS et entrées invalides).

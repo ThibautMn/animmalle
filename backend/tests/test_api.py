@@ -139,6 +139,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/animations', json=self.animation_data()).status_code, 403)
         response = self.client.get('/api/animations', headers={'Origin': 'http://front.test'})
         self.assertEqual(response.headers['Access-Control-Allow-Origin'], 'http://front.test')
+        self.assertEqual(response.headers['Access-Control-Expose-Headers'], 'Content-Disposition')
         self.assertEqual(self.client.get('/api/animations', headers={'Origin': 'http://evil.test'}).status_code, 403)
         response = self.mutate('post', '/api/auth/logout')
         self.assertEqual(response.status_code, 204)

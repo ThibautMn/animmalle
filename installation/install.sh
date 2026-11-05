@@ -16,10 +16,12 @@ usage() {
   cat <<'HELP'
 Usage : installation/install.sh PHASE
   dependencies  Préparer les dépendances backend (Debian 12/13, Ubuntu 24.04)
+  frontend      Installer les dépendances verrouillées et construire Nuxt (Node >= 22.22.3 compatible)
+  prepare       Générer Nginx/systemd sans les appliquer
   schema        Créer la base absente et appliquer Alembic (étape 3)
   restore       Reprendre les données du dump MariaDB sur une base vide (étape 4)
-  deploy        Déploiement Nginx/Gunicorn/Nuxt (frontend et déploiement attendus à l’étape 6)
-  all           Installation complète (indisponible avant les étapes suivantes)
+  deploy        Installer Nginx/systemd et redémarrer les services applicatifs
+  all           dependencies, frontend, schema, restore puis deploy
   --help        Afficher cette aide
 Aucune phase n'est exécutée par défaut. Ne pas lancer avec sudo.
 HELP
@@ -27,13 +29,35 @@ HELP
 [[ $# -eq 1 ]] || { usage; exit 2; }
 case "$1" in
   --help|-h) usage; exit 0 ;;
-  dependencies|schema|restore|deploy|all) ;;
+  dependencies|frontend|prepare|schema|restore|deploy|all) ;;
   *) usage; exit 2 ;;
 esac
 [[ $EUID -ne 0 ]] || fail 'Lancer sous le compte applicatif, sans sudo.'
 case "$1" in
-  deploy|all)
-    fail 'Déploiement indisponible : frontend et configuration de production attendus à l’étape 6. Aucune modification effectuée.' ;;
+  all)
+    for phase in dependencies frontend schema restore deploy; do
+      "$SCRIPT_DIR/install.sh" "$phase"
+    done
+    ;;
+  frontend)
+    command -v node >/dev/null || fail 'Installer Node 24 LTS (>= 24.15), puis relancer.'
+    command -v npm >/dev/null || fail 'npm est requis.'
+    node -e 'const [a,b,c] = process.versions.node.split(".").map(Number); process.exit((a === 22 && (b > 22 || b === 22 && c >= 3)) || (a === 24 && b >= 15) || a >= 26 ? 0 : 1)' || fail 'Node incompatible avec Nuxt ; utiliser Node 24 LTS >= 24.15.'
+    cd "$PROJECT_DIR/frontend"
+    npm ci
+    npm run test
+    npm run build
+    ;;
+  prepare|deploy)
+    [[ -x "$VENV/bin/python" ]] || fail 'Préparer les dépendances backend.'
+    if [[ "$1" == deploy ]]; then
+      authenticate_sudo
+      command -v nginx >/dev/null || fail 'Installer Nginx avant deploy.'
+      "$VENV/bin/python" "$SCRIPT_DIR/lib/deploy.py" apply
+    else
+      "$VENV/bin/python" "$SCRIPT_DIR/lib/deploy.py" prepare
+    fi
+    ;;
   dependencies)
     [[ -r /etc/os-release ]] || fail 'Distribution non reconnue.'
     source /etc/os-release
@@ -48,7 +72,7 @@ case "$1" in
     [[ -x "$VENV/bin/python" ]] || python3 -m venv "$VENV"
     "$VENV/bin/python" -m pip install --disable-pip-version-check -r "$PROJECT_DIR/backend/requirements.txt"
     "$VENV/bin/python" -m pip check
-    printf '%s\n' 'Dépendances backend préparées. Dépendances frontend différées : manifeste absent.'
+    printf '%s\n' 'Dépendances backend préparées. Utiliser la phase frontend pour Nuxt.'
     ;;
   schema|restore)
     [[ -x "$VENV/bin/python" ]] || fail 'Préparer les dépendances avec la phase dependencies.'
