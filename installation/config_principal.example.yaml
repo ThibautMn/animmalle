@@ -1,0 +1,8 @@
+# Exemple sans secret réel. Copier en config_principal.yaml et protéger ses permissions.
+# Les autres paramètres applicatifs seront définis aux étapes suivantes.
+postgresql:
+  host: localhost
+  port: 5432
+  database: animmalle
+  username: animmalle
+  password: REMPLACER
