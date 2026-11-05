@@ -17,7 +17,7 @@ usage() {
 Usage : installation/install.sh PHASE
   dependencies  Préparer les dépendances backend (Debian 12/13, Ubuntu 24.04)
   schema        Créer la base absente et appliquer Alembic (étape 3)
-  restore       Vérifier la possibilité de reprise du dump (étape 4 à implémenter)
+  restore       Reprendre les données du dump MariaDB sur une base vide (étape 4)
   deploy        Déploiement Nginx/Gunicorn/Nuxt (étapes 5/6 à implémenter)
   all           Installation complète (indisponible avant les étapes suivantes)
   --help        Afficher cette aide

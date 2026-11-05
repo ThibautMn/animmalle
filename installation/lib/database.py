@@ -59,8 +59,20 @@ def run(phase):
         if not dump.exists():
             print('Dump absent : aucune restauration effectuée.')
             return
-        # Le dump connu est MariaDB : aucun SQL source ne doit être envoyé à PostgreSQL.
-        raise ValueError('Dump présent : conversion et validation requises à l’étape 4. Aucun import effectué.')
+        from restore import read_dump, restore
+
+        tables, next_ids = read_dump(dump)
+        engine = create_engine(url, hide_parameters=True)
+        try:
+            with engine.begin() as connection:
+                imported = restore(connection, tables, next_ids)
+            if imported:
+                for name, rows in sorted(tables.items()):
+                    print(f'{name} : {len(rows)} lignes restaurées et vérifiées.')
+                print('Import validé et transaction enregistrée ; séquences recalées.')
+        finally:
+            engine.dispose()
+        return
 
     local = url.host in {'localhost', '127.0.0.1', '::1'} and url.port == 5432
     if local:

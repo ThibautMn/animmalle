@@ -57,12 +57,9 @@ restaure aucune donnée. La création de base et les migrations sont deux opéra
 séparées : en cas d'échec des migrations, la base créée peut subsister ; corriger
 la cause avant de relancer. Éviter les exécutions concurrentes.
 
-La phase `restore` laisse la base intacte si le dump est absent. Si le dump est
-présent, elle s'arrête sans l'importer : le dump connu est MariaDB, incompatible
-avec une restauration PostgreSQL directe. L'étape 4 devra implémenter la
-conversion, la vérification du schéma, le contrôle des données métier existantes,
-une importation transactionnelle conservant les identifiants et le recalage des
-séquences. Aucun `pg_restore` aveugle ni exécution du SQL MariaDB n'est prévu.
+La phase `restore` laisse la base intacte si le dump est absent. Elle convertit
+les données du format MariaDB étudié, sans exécuter le SQL source. Voir la
+validation de l'étape 4 ci-dessous ; aucun `pg_restore` n'est utilisé.
 
 `deploy` et `all` s'arrêtent avant toute modification. Leur implémentation attend
 les étapes 5/6 : manifestes et verrouillage frontend, point d'entrée Gunicorn,
@@ -127,3 +124,47 @@ aucune table supplémentaire hors version Alembic. La comparaison Alembic avec
 les modèles, types et valeurs par défaut activés, ne relève aucune différence.
 L'étape 3 est validée pour la création du schéma ; la relance réelle de
 l'installateur n'a pas été testée par l'agent. Aucun dump n'a été restauré.
+
+
+## Étape 4 — reprise effectuée le 5 novembre 2026
+
+`./installation/install.sh restore` importe maintenant le dump MariaDB étudié
+via `lib/restore.py`, sans dépendance supplémentaire ni exécution de ses ordres
+CREATE/DROP/USE/SET. Le parseur accepte les INSERT VALUES de cet export, leurs
+échappements MariaDB et les apostrophes doublées ; ce n'est pas un convertisseur
+SQL universel. Un format différent doit être étudié avant utilisation.
+
+Avant connexion : contrôle des neuf tables, colonnes, types, dates, longueurs,
+NULL, identifiants, unicités et références. Sur PostgreSQL : verrouillage exclusif
+des tables métier (attente limitée à dix secondes), contrôle de la révision
+`0001_initial`, de l'inventaire et des différences Alembic avec les modèles.
+Si une table contient des données, aucun import n'est effectué. Exécuter cette
+phase hors utilisation applicative : les verrous bloquent aussi les lectures.
+
+L'import conserve toutes les valeurs et compare chaque ligne relue avec la
+source avant validation. Les huit séquences utilisent ALTER SEQUENCE RESTART,
+transactionnel, au maximum de l'id suivant et de l'AUTO_INCREMENT exporté
+(notamment 94 pour le thésaurus). Les contraintes restent actives. Toute erreur
+annule données et recalage des séquences ; aucune table n'est supprimée.
+
+Vérifications réellement exécutées :
+
+- Neuf tests installation, dont quatre tests de conversion : échappements,
+  Unicode, chaînes vides/NULL, commentaires, entrées incorrectes, doublons et
+  références orphelines. Quatre tests backend réussis.
+- Test PostgreSQL réel : import complet dans une transaction, comparaison de
+  toutes les lignes, vérification des huit prochains identifiants, refus d'un
+  second import, puis rollback. Les neuf tables sont redevenues vides et les
+  séquences ont retrouvé leur état initial.
+- Import définitif avec `./installation/install.sh restore` : 3 894 lignes
+  enregistrées et vérifiées dans les neuf tables. Relance réelle réussie :
+  « Base déjà alimentée : aucune restauration effectuée. »
+- Syntaxe Bash et `git diff --check` valides. Les accès réels PostgreSQL ont été
+  exécutés hors sandbox, après échec de connexion en sandbox.
+
+Répartition : 105 animations, 19 commentaires, 452 matériels pédagogiques,
+560 séquences, 85 entrées du thésaurus et 2 673 associations.
+Le dump, le YAML réel et les données restent hors Git. Aucun sudo, changement
+Nginx, API ou frontend n'a été nécessaire à cette étape. Les médias référencés
+ne sont pas des fichiers contenus dans le dump et ne sont pas copiés ici.
+Les étapes 5 et 6 attendent une nouvelle demande explicite.
