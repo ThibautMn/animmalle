@@ -56,3 +56,27 @@ Le YAML et le rôle PostgreSQL doivent toujours être renseignés/provisionnés.
 Trois tests simulant les commandes externes et les quatre tests backend passent ;
 syntaxe Bash valide. La base et le service réels n'ont pas été modifiés.
 L'étape 3 reste à terminer après exécution interactive et vérification du schéma.
+
+## Création automatique du rôle local
+
+À la demande de l'utilisateur, la phase schema crée désormais le rôle du YAML
+(animmalle par défaut) et sa base via sudo -u postgres psql pour localhost:5432.
+Le rôle obtient LOGIN et le mot de passe YAML ; la base lui appartient.
+Rôles et bases existants restent inchangés. Aucun droit CREATEDB n'est nécessaire
+pour ce nouveau rôle local. Les serveurs distants restent préprovisionnés.
+Cinq tests installation avec commandes simulées et quatre tests backend passent,
+syntaxe Bash valide. Aucun vrai sudo ou accès PostgreSQL n'a été exécuté.
+Reprendre via ./installation/install.sh schema depuis un terminal utilisateur,
+puis vérifier le schéma réel. L'étape 4 reste en attente d'autorisation.
+
+## Étape 3 : vérification PostgreSQL après exécution utilisateur
+
+Après confirmation de l'utilisateur, vérification réelle en lecture seule hors
+sandbox (connexion refusée depuis la sandbox) : connexion réussie, révision
+Alembic `0001_initial`, neuf tables métier présentes, aucune table supplémentaire
+hors alembic_version, aucune donnée métier et aucune différence entre le schéma
+et les modèles (types et valeurs par défaut compris).
+La création du schéma de l'étape 3 est validée. Le script n'a pas été relancé
+par l'agent ; l'idempotence sur PostgreSQL réel reste à vérifier séparément.
+Aucun dump n'a été restauré. Attendre la demande explicite de l'étape 4 avant
+la conversion et l'alimentation depuis le dump MariaDB.

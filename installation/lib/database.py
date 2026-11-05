@@ -10,6 +10,35 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
 
 
+def provision_local_database(url):
+    """Créer seulement les objets absents via le compte administrateur local."""
+    from psycopg import sql
+
+    role = sql.Literal(url.username).as_string()
+    password = sql.Literal(url.password).as_string()
+    database = sql.Literal(url.database).as_string()
+    # Les valeurs sont des littéraux SQL échappés ; format(%I/%L) construit
+    # ensuite les commandes. Le secret transite par stdin, jamais par argv.
+    statements = f"""
+SELECT pg_advisory_lock(173528, 3);
+SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', {role}, {password})
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {role})
+\u005cgexec
+SELECT format('CREATE DATABASE %I OWNER %I', {database}, {role})
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = {database})
+\u005cgexec
+"""
+    result = subprocess.run(
+        ['sudo', '-u', 'postgres', 'psql', '-X', '--no-password',
+         '--host=/var/run/postgresql', f'--port={url.port}', '--dbname=postgres',
+         '--set=ON_ERROR_STOP=1', '--quiet'],
+        input=statements, capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise ValueError('Échec de préparation du rôle ou de la base ; vérifier le compte postgres, le socket local et les droits sudo. Détails masqués pour protéger les secrets.')
+    print('Rôle et base PostgreSQL disponibles ; objets existants conservés.')
+
+
 def run(phase):
     from sqlalchemy import create_engine, inspect, text
     from animmalle.config import CONFIG_PATH, load_database_url
@@ -33,25 +62,28 @@ def run(phase):
         # Le dump connu est MariaDB : aucun SQL source ne doit être envoyé à PostgreSQL.
         raise ValueError('Dump présent : conversion et validation requises à l’étape 4. Aucun import effectué.')
 
-    if url.host in {'localhost', '127.0.0.1', '::1'} and url.port == 5432:
+    local = url.host in {'localhost', '127.0.0.1', '::1'} and url.port == 5432
+    if local:
         print('Démarrage du service PostgreSQL local.', flush=True)
         result = subprocess.run(['sudo', 'systemctl', 'start', 'postgresql'], check=False)
         if result.returncode:
             raise ValueError('Impossible de démarrer PostgreSQL local ; vérifier le service et le cluster.')
+        provision_local_database(url)
 
-    admin = create_engine(url.set(database='postgres'), isolation_level='AUTOCOMMIT')
-    try:
-        with admin.connect() as connection:
-            exists = connection.execute(
-                text('SELECT 1 FROM pg_database WHERE datname = :name'),
-                {'name': url.database},
-            ).scalar()
-            if not exists:
-                quoted = connection.dialect.identifier_preparer.quote_identifier(url.database)
-                connection.exec_driver_sql(f'CREATE DATABASE {quoted}')
-                print('Base applicative créée.')
-    finally:
-        admin.dispose()
+    else:
+        admin = create_engine(url.set(database='postgres'), isolation_level='AUTOCOMMIT')
+        try:
+            with admin.connect() as connection:
+                exists = connection.execute(
+                    text('SELECT 1 FROM pg_database WHERE datname = :name'),
+                    {'name': url.database},
+                ).scalar()
+                if not exists:
+                    quoted = connection.dialect.identifier_preparer.quote_identifier(url.database)
+                    connection.exec_driver_sql(f'CREATE DATABASE {quoted}')
+                    print('Base applicative créée.')
+        finally:
+            admin.dispose()
 
     engine = create_engine(url)
     try:

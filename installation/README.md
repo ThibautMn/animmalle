@@ -20,18 +20,27 @@ les versions avec `backend/requirements.txt`, puis contrôle leur compatibilité
 Aucune nouvelle bibliothèque n'est introduite à cette étape. Les versions sont
 celles documentées à l'étape 1 ; aucune installation n'a été vérifiée ici.
 
-Avant `schema`, PostgreSQL doit être installé et doté d'un rôle
-applicatif avec LOGIN. Ce rôle doit posséder la base existante et les droits DDL,
-ou le droit CREATEDB si la base manque. La base de maintenance `postgres` doit
-être accessible avec les mêmes identifiants. Le script ne crée pas de rôle et
-n'installe pas PostgreSQL. La phase `schema` appelle `sudo -v` : sudo demande
-le mot de passe directement dans le terminal si nécessaire. Pour une connexion
-locale (`localhost`, `127.0.0.1` ou `::1`) sur le port 5432, le script lance
-ensuite `sudo systemctl start postgresql`. Les autres serveurs doivent être
-joignables sans cette intervention. Le mot de passe sudo n'est jamais lu ni
-stocké par le script ; les migrations restent sous le compte applicatif.
-Ces prérequis devront être contrôlés à
-l'étape 3 avant exécution. Le droit CREATEDB pourra être retiré après création.
+Avant `schema`, PostgreSQL et son client `psql` doivent être installés.
+La phase appelle `sudo -v` : sudo demande le mot de passe dans le terminal.
+Pour une connexion locale (`localhost`, `127.0.0.1` ou `::1`) sur 5432,
+elle démarre le service via `sudo systemctl start postgresql`, puis utilise
+`sudo -u postgres psql` avec le socket `/var/run/postgresql` et le port 5432.
+Le compte système postgres et son accès administratif local doivent fonctionner.
+Le rôle du YAML (`animmalle` par défaut) est créé avec LOGIN et le mot de passe
+configuré seulement s'il manque. La base absente est créée avec ce rôle comme
+propriétaire ; aucun privilège superutilisateur ou CREATEDB ne lui est accordé.
+Les rôles et bases existants sont conservés, sans changement de mot de passe,
+de propriétaire ou de droits. Un mot de passe existant différent du YAML fera
+donc échouer la connexion et nécessitera une correction explicite.
+Le secret SQL transite par l'entrée standard de psql ; sa sortie est capturée
+et n'est jamais affichée en cas d'erreur. Ne pas activer la journalisation SQL
+complète pendant le provisionnement. Le mot de passe sudo reste géré par sudo.
+
+Pour un serveur distant ou un autre port, le rôle doit être préprovisionné avec
+LOGIN, les droits de propriétaire et, si la base manque, CREATEDB. La base de
+maintenance postgres doit alors être accessible avec ces identifiants. Aucun
+provisionnement via sudo local n'est tenté sur ce serveur.
+Les migrations s'exécutent sous le compte applicatif avec les identifiants YAML.
 
 Copier manuellement `config_principal.example.yaml` en `config_principal.yaml`,
 renseigner la connexion et protéger le fichier : propriétaire égal au compte
@@ -98,9 +107,23 @@ Depuis un terminal, lancer sans préfixe sudo :
 Saisir le mot de passe lorsque sudo le demande. Si l'authentification échoue,
 le script s'arrête avant les opérations sur la base. Un ticket sudo encore
 valide peut éviter une nouvelle demande de mot de passe. Le YAML protégé et
-le rôle PostgreSQL restent nécessaires ; ils ne sont pas créés automatiquement.
+le serveur PostgreSQL restent nécessaires ; le rôle local absent est créé automatiquement.
 
 Validation de cette modification : syntaxe Bash valide, trois tests de parcours
 avec sudo/Python simulés et quatre tests backend hors ligne réussis. Commande
 des nouveaux tests : `.venv/bin/python -m unittest discover -s installation/tests -v`.
 Aucun vrai sudo, démarrage de service ou accès à la base dans ces tests.
+
+Validation du provisionnement local : deux tests supplémentaires vérifient les
+commandes envoyées, la protection du secret et le traitement des erreurs avec
+sudo/psql simulés. Les cinq tests installation et quatre tests backend passent.
+Aucun provisionnement réel n'a été exécuté lors de cette modification.
+
+## Validation réelle du schéma — après exécution utilisateur
+
+Vérification PostgreSQL en transaction de lecture seule : connexion réussie,
+révision `0001_initial`, neuf tables métier attendues présentes et vides,
+aucune table supplémentaire hors version Alembic. La comparaison Alembic avec
+les modèles, types et valeurs par défaut activés, ne relève aucune différence.
+L'étape 3 est validée pour la création du schéma ; la relance réelle de
+l'installateur n'a pas été testée par l'agent. Aucun dump n'a été restauré.
