@@ -1,79 +1,145 @@
 # Exemple sans secret réel. Copier en config_principal.yaml et protéger ses permissions.
 # Configuration centrale : backend, Nuxt et Nginx. Ne jamais publier ce fichier.
+# Base PostgreSQL de la nouvelle application ; ces paramètres ne concernent pas la base MySQL historique.
 postgresql:
+  # Nom DNS ou adresse IP du serveur PostgreSQL ; localhost pour une base sur cette machine.
   host: localhost
+  # Port TCP PostgreSQL, généralement 5432.
   port: 5432
+  # Nom de la base utilisée par le backend et les migrations.
   database: animmalle
+  # Rôle PostgreSQL utilisé pour se connecter à cette base.
   username: animmalle
+  # Mot de passe du rôle PostgreSQL ; secret à conserver uniquement dans le fichier local.
   password: REMPLACER
 
+# Paramètres Flask : sessions, cookies et fichiers téléversés.
 backend:
+  # Clé secrète aléatoire signant les sessions : au moins 32 caractères, idéalement 64. La changer invalide les sessions.
   secret_key: REMPLACER_PAR_UN_SECRET_ALEATOIRE_DE_64_CARACTERES
+  # true : le navigateur transmet le cookie de session uniquement en HTTPS ; false pour un accès HTTP local.
   cookie_secure: true
+  # Politique du cookie entre sites : Lax, Strict ou None. None exige cookie_secure: true.
   cookie_samesite: Lax
+  # Durée de validité des sessions permanentes, en heures (1 à 1024).
   session_hours: 24
+  # Taille maximale du corps d’une requête, en Mio (1 à 1024), notamment pour les téléversements.
   max_upload_mb: 64
+  # Extensions autorisées pour les fichiers téléversés, sans point ; privilégier les minuscules.
   allowed_extensions: [pdf, jpg, png, jpeg, mp3, mp4, wma, avi, wmh, m4v, ppt, pptx, odt, docx, xlsx, zip]
+# Origines publiques utilisées par le navigateur et le contrôle des origines : protocole et hôte, avec port éventuel, sans chemin.
 public:
+  # Adresse publique du frontend Nuxt ; remplacer le domaine exemple par le domaine réel.
   frontend_url: https://animmalle.example.org
+  # Adresse publique distincte de l’API Flask ; remplacer le domaine exemple par le domaine réel.
   api_url: https://api.animmalle.example.org
 # Ne faire confiance qu'aux relais qui isolent effectivement Gunicorn du public.
+# Confiance accordée aux en-têtes de proxy par Flask : nombre de relais fiables pour chaque en-tête ; 0 ignore cet en-tête.
 proxy:
+  # Nombre de valeurs fiables de X-Forwarded-For pour déterminer l’adresse IP du client.
   x_for: 0
+  # Nombre de valeurs fiables de X-Forwarded-Proto pour déterminer le protocole public HTTP ou HTTPS.
   x_proto: 0
+  # Nombre de valeurs fiables de X-Forwarded-Host pour déterminer l’hôte public.
   x_host: 0
+  # Nombre de valeurs fiables de X-Forwarded-Port pour déterminer le port public.
   x_port: 0
+  # Nombre de valeurs fiables de X-Forwarded-Prefix pour déterminer le préfixe de chemin public.
   x_prefix: 0
+# Serveur de production du backend Flask, placé derrière Nginx.
 gunicorn:
+  # Adresse IP et port d’écoute de Gunicorn ; 127.0.0.1 limite l’accès à cette machine.
   bind: 127.0.0.1:8000
+  # Nombre de processus de traitement Gunicorn, entier positif à adapter aux ressources disponibles.
   workers: 2
+  # Délai en secondes avant que Gunicorn ne remplace un processus silencieux, entier positif.
   timeout: 60
+# Authentification des utilisateurs et attribution des droits administrateur.
 auth:
+  # Méthode active : ldap pour l’annuaire, local pour les comptes définis dans users.
   mode: ldap
+  # Noms des groupes donnant les droits administrateur ; doivent correspondre aux groupes des utilisateurs.
   admin_groups: [admin-pedaparc, Administrateurs]
+  # Connexion à l’annuaire, utilisée en mode ldap ; les connexions exigent TLS et un certificat serveur valide.
   ldap:
+    # Nom DNS ou adresse IP de l’annuaire, correspondant au certificat présenté par le serveur.
     host: ldap.example.org
+    # Port TCP LDAP : généralement 636 pour LDAPS, ou 389 pour LDAP avec StartTLS.
     port: 636
+    # true : TLS dès la connexion (LDAPS) ; false : le backend impose une négociation StartTLS avant authentification.
     ssl: true
+    # Délai maximal de connexion et de réception LDAP, en secondes (1 à 60).
     timeout: 5
+    # Racine de recherche des utilisateurs dans l’annuaire, au format DN LDAP.
     base_dn: dc=example,dc=org
+    # Modèle d’identité de connexion : {login} sera remplacé par le login saisi, par exemple DOMAINE\{login}.
     user_dn: 'EXAMPLE\{login}'
+    # Attribut recherché pour identifier le login, par exemple sAMAccountName dans Active Directory.
     login_attribute: sAMAccountName
+    # Attribut contenant le nom utilisateur ; préserver les noms historiques pour conserver les attributions.
     name_attribute: cn
+    # Attribut contenant les DN des groupes ; le premier composant de chaque DN fournit le nom du groupe.
     group_attribute: memberOf
     # Facultatif : compte de lecture pour l’autocomplétion /api/users.
+    # Identité complète du compte de lecture pour l’autocomplétion ; vide pour ne pas utiliser ce compte.
     service_bind_dn: ''
+    # Mot de passe secret du compte de lecture ; requis avec service_bind_dn pour l’autocomplétion LDAP.
     service_password: ''
   # Alternative explicite mode: local ; aucun compte fourni par défaut.
+  # Comptes du mode local : liste obligatoire et non vide dans ce mode ; ignorée en mode ldap.
   users: []
+  # login : identifiant unique utilisé pour la connexion locale.
   # - login: administrateur
+  # name : nom unique, identique au nom historique pour préserver les attributions.
   #   name: Nom historique exact (pour conserver l'attribution des animations)
+  # password_hash : hachage produit par Werkzeug generate_password_hash ; jamais un mot de passe en clair.
   #   password_hash: hachage Werkzeug generate_password_hash
+  # groups : liste des groupes du compte, comparée à admin_groups pour les droits administrateur.
   #   groups: [Administrateurs]
+# Répertoires de ressources ; chemins relatifs à la racine du dépôt ou chemins absolus, indépendants du répertoire courant.
 paths:
   # Relatifs à la racine du dépôt, indépendamment du répertoire courant.
+  # Répertoire des fichiers téléversés ; doit rester hors du dossier historique ancien_animalle.
   uploads: backend/uploads
+  # Répertoire des pages éditables ; doit rester hors du dossier historique ancien_animalle.
   pages: backend/pages
+  # Répertoire des pictogrammes utilisés par l’application.
   pictograms: backend/pictograms
+# Notifications SMTP ; les destinataires doivent être renseignés explicitement avant activation.
 mail:
+  # true active l’envoi ; false le désactive sans supprimer les paramètres SMTP.
   enabled: false
+  # Nom DNS ou adresse IP du relais SMTP.
   host: smtp.example.org
+  # Port TCP SMTP, généralement 587 avec StartTLS ou 25 pour un relais interne ; TLS implicite sur 465 non pris en charge.
   port: 587
+  # true négocie TLS avant l’authentification SMTP ; false conserve une connexion sans chiffrement TLS.
   starttls: true
+  # Identifiant SMTP ; laisser vide si le relais accepte l’envoi sans authentification.
   username: ''
+  # Mot de passe SMTP, utilisé lorsque username est renseigné ; secret à ne pas publier.
   password: ''
+  # Adresse d’expédition, éventuellement avec un nom sous la forme Nom <adresse@domaine>.
   sender: animmalle@example.org
+  # Liste des adresses destinataires des notifications ; au moins une adresse est requise si enabled vaut true.
   recipients: []
 
 # Nuxt CSR avec serveur Node ; le serveur lit le YAML au démarrage.
+# Serveur Node du frontend Nuxt ; seul le serveur lit le YAML, aucun secret ne doit parvenir au navigateur.
 nuxt:
+  # Port interne du serveur Nuxt derrière Nginx, compris entre 1024 et 65535.
   port: 3000
+# Point d’entrée HTTP(S) : distribue les requêtes vers Nuxt et Gunicorn selon leurs domaines publics.
 nginx:
   # Relais TLS amont local (ex. proxy institutionnel sur la même machine).
   # Il doit préserver Host et n’exposer que les deux noms publics déclarés.
+  # Adresse IP et port d’écoute Nginx ; avec upstream_tls: true, utiliser 127.0.0.1 pour le relais TLS local.
   listen: 127.0.0.1:8080
+  # true : un proxy local en amont termine TLS et préserve Host ; false : Nginx assure lui-même le HTTPS des origines HTTPS.
   upstream_tls: true
   # Pour terminer TLS dans Nginx : upstream_tls: false, listen: 0.0.0.0:443,
   # puis renseigner des certificats existants (non créés par l’installation).
+  # Chemin du certificat TLS PEM avec sa chaîne, déjà présent ; utilisé lorsque Nginx termine TLS.
   certificate: /etc/ssl/animmalle/fullchain.pem
+  # Chemin de la clé privée TLS correspondante, déjà présente et protégée ; utilisée lorsque Nginx termine TLS.
   certificate_key: /etc/ssl/animmalle/privkey.pem
