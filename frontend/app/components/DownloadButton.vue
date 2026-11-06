@@ -2,6 +2,7 @@
 import { downloadFilename } from '../../lib/forms.mjs'
 const props = defineProps({
   path: String,
+  icon: String,
   filename: String,
   label: { type: String, default: 'Télécharger' }
 })
@@ -38,9 +39,13 @@ async function download() {
   <span
     ><PButton
       type="button"
-      :label="label"
+      :label="icon ? undefined : label"
+      :aria-label="label"
+      :title="label"
+      :class="{ 'icon-button': icon }"
       :disabled="busy"
       @click="download"
-    /><span v-if="error" role="alert" class="error">{{ error }}</span></span
+      ><ActionIcon v-if="icon" :name="icon" /></PButton
+    ><span v-if="error" role="alert" class="error">{{ error }}</span></span
   >
 </template>

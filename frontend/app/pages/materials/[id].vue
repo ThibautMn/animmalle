@@ -20,7 +20,7 @@ const item = ref({
 })
 const draft = ref(null)
 const file = ref(null)
-const editing = ref(creating)
+const editing = ref(creating || (session.is_admin && route.query.edit === '1'))
 const busy = ref(true)
 const error = ref('')
 const path = `/materials/${route.params.id}`

@@ -5,6 +5,9 @@ import json
 import os
 import re
 import tempfile
+import shutil
+import subprocess
+import mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
 from zipfile import ZipFile, ZIP_STORED, ZIP_DEFLATED
@@ -145,3 +148,38 @@ def export_archive(title, data, materials, sections):
         archive.writestr('fichiers_absents.json', json.dumps(missing))
     output.seek(0)
     return output
+
+
+def preview_file(item):
+    """Renvoie un média natif ou un PDF temporaire, sans toucher à l'original."""
+    source = media_path(item)
+    mime = mimetypes.guess_type(source.name)[0] or 'application/octet-stream'
+    if mime in {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'} or mime.startswith(('audio/', 'video/')):
+        return source, mime
+    if source.suffix.lower() not in {'.odt', '.ods', '.odp', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.rtf'}:
+        abort(415, description='Aperçu indisponible pour ce format. Utilisez le téléchargement.')
+    executable = shutil.which('libreoffice') or shutil.which('soffice')
+    if not executable:
+        abort(503, description='LibreOffice doit être installé sur le serveur pour cet aperçu.')
+    with tempfile.TemporaryDirectory(prefix='animmalle-preview-') as directory:
+        root = Path(directory)
+        profile = root / 'profile'
+        user = profile / 'user'
+        user.mkdir(parents=True)
+        # Désactiver les macros dans le profil dédié à cette conversion.
+        (user / 'registrymodifications.xcu').write_text(
+            '<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry">'
+            '<item oor:path="/org.openoffice.Office.Common/Security/Scripting">'
+            '<prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop>'
+            '</item></oor:items>', encoding='utf-8')
+        try:
+            subprocess.run(
+                [executable, f'-env:UserInstallation={profile.as_uri()}', '--headless',
+                 '--convert-to', 'pdf', '--outdir', str(root), str(source)],
+                check=True, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (subprocess.SubprocessError, OSError):
+            abort(422, description='La conversion du document a échoué. Utilisez le téléchargement.')
+        output = root / (source.stem + '.pdf')
+        if not output.is_file():
+            abort(422, description='Aucun aperçu PDF produit. Utilisez le téléchargement.')
+        return io.BytesIO(output.read_bytes()), 'application/pdf'

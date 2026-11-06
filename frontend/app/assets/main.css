@@ -280,3 +280,61 @@ th {
   height: 65vh;
   border: 1px solid #ccd5ca;
 }
+
+.resource-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.resource-list .card {
+  padding: 16px 20px;
+  min-width: 0;
+}
+.resource-list h2 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.resource-actions {
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 8px;
+}
+.resource-details {
+  display: grid;
+  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr);
+  gap: 5px 16px;
+  margin: 12px 0;
+  font-size: 0.9rem;
+}
+.resource-details dt {
+  font-weight: 600;
+}
+.resource-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.preview-dialog {
+  width: min(1000px, 92vw);
+  max-height: 90vh;
+  padding: 20px;
+  border: 1px solid #ccd5ca;
+  border-radius: 12px;
+}
+.preview-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+@media (max-width: 600px) {
+  .resource-details {
+    grid-template-columns: 1fr;
+  }
+  .resource-details dd {
+    margin-bottom: 8px;
+  }
+}

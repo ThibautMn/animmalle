@@ -48,6 +48,17 @@ async function search(reset = false) {
     if (current === requestId) busy.value = false
   }
 }
+async function remove(item) {
+  if (!window.confirm('Supprimer cette notice et détacher ses associations ?'))
+    return
+  try {
+    await api(`/materials/${item.id}`, { method: 'DELETE' })
+    if (items.value.length === 1 && page.value > 1) page.value--
+    await search()
+  } catch (e) {
+    error.value = e.message
+  }
+}
 async function turn(delta) {
   page.value += delta
   await search()
@@ -134,7 +145,7 @@ onMounted(async () => {
   <p v-if="error" role="alert" class="error">{{ error }}</p>
   <p v-if="busy" role="status">Recherche en cours…</p>
   <p v-else aria-live="polite">{{ total }} ressource(s) · page {{ page }}</p>
-  <div class="grid">
+  <div :class="animations ? 'grid' : 'resource-list'">
     <article v-for="item in items" :key="item.id" class="card">
       <span v-if="animations" class="badge">{{
         { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
@@ -144,7 +155,74 @@ onMounted(async () => {
           item.titre || item.nom
         }}</NuxtLink>
       </h2>
-      <p>{{ item.description?.slice(0, 220) }}</p>
+      <template v-if="!animations">
+        <div class="actions resource-actions">
+          <MediaPreview v-if="item.has_file" :id="item.id" icon />
+          <DownloadButton
+            v-if="item.has_file"
+            :path="`/materials/${item.id}/file`"
+            label="Télécharger la pièce jointe"
+            icon="download"
+          />
+          <DownloadButton
+            :path="`/materials/${item.id}/download`"
+            :filename="`${item.nom}.zip`"
+            label="Exporter en ZIP"
+            icon="zip"
+          />
+          <NuxtLink
+            v-if="session.is_admin"
+            class="button icon-button"
+            :to="`/materials/${item.id}?edit=1`"
+            title="Modifier la ressource"
+            aria-label="Modifier la ressource"
+            ><ActionIcon name="edit"
+          /></NuxtLink>
+          <PButton
+            v-if="session.is_admin"
+            class="danger icon-button"
+            title="Supprimer la ressource"
+            aria-label="Supprimer la ressource"
+            @click="remove(item)"
+            ><ActionIcon name="delete"
+          /></PButton>
+        </div>
+        <dl class="resource-details">
+          <template
+            v-for="[key, label] in [
+              ['description', 'Description / Consigne'],
+              ['variante', 'Variante'],
+              ['materiel', 'Matériel'],
+              ['localisation', 'Localisation']
+            ]"
+            :key="key"
+          >
+            <dt>{{ label }}</dt>
+            <dd class="prose">{{ item[key] || 'Non renseigné' }}</dd>
+          </template>
+          <dt>Thématiques</dt>
+          <dd>
+            {{
+              item.thematiques.map(catalog.label).join(' · ') ||
+              'Non renseignées'
+            }}
+          </dd>
+          <dt>Difficulté</dt>
+          <dd>{{ catalog.label(item.difficulte_id) || 'Non renseignée' }}</dd>
+          <dt>Type de pièce jointe</dt>
+          <dd>
+            {{
+              catalog.label(item.fk_type_mat_outil_id) ||
+              catalog.label(item.fk_type_mat_id)
+            }}
+          </dd>
+          <dt>Modifiée le</dt>
+          <dd>{{ item.date_modif || 'Non renseigné' }}</dd>
+          <dt>Pièce jointe</dt>
+          <dd>{{ item.has_file ? 'Disponible' : 'Aucune' }}</dd>
+        </dl>
+      </template>
+      <p v-else>{{ item.description?.slice(0, 220) }}</p>
       <p class="muted">
         {{ item.auteurs || catalog.label(item.fk_type_mat_id) }}
       </p>

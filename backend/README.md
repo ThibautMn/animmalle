@@ -134,7 +134,7 @@ l’ancien dans le client. `POST /api/auth/logout` ferme la session.
 | `POST /materials/{id}/file` | Ajout/remplacement de pièce jointe administrateur |
 | `GET /materials/{id}/file` | Pièce jointe en téléchargement authentifié |
 | `GET /materials/{id}/download` | Fiche ODT et pièce jointe en ZIP |
-| `GET, POST /thesaurus`, `DELETE /thesaurus/{id}` | Lecture ; administration des mots-clés |
+| `GET, POST /thesaurus`, `PUT, DELETE /thesaurus/{id}` | Lecture ; administration des mots-clés |
 | `GET /thesaurus/{id}/pictogram` | PNG historique, si présent |
 | `GET, PUT /pages/{name}` | Markdown, HTML nettoyé, documents ; édition administrateur |
 | `GET /authors?q=…`, `GET /users?q=…` | Suggestions d’auteurs et utilisateurs (2 caractères pour users) |
@@ -273,3 +273,29 @@ supprimées. Les 448 entrées médias et 60 entrées pages ont été déplacées
 Validation après unification : 18 tests backend réussis avec
 `PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v`,
 contrôle des trois chemins des deux YAML et `git diff --check` sans erreur.
+
+Modification du thésaurus : `PUT /api/thesaurus/{id}` accepte uniquement le
+`label` (1 à 80 caractères), pour un administrateur authentifié avec CSRF.
+Les identifiants, codes et références sont conservés.
+
+### Aperçus de pièces jointes
+
+`GET /api/materials/<id>/preview` renvoie les images PNG/JPEG/GIF/WebP,
+les PDF, les médias audio et vidéo, ou convertit les documents ODT/ODS/ODP,
+DOC/DOCX, XLS/XLSX, PPT/PPTX et RTF en PDF. La route suit l’authentification
+existante et n’expose pas les chemins des fichiers.
+
+La conversion nécessite l’exécutable système `libreoffice` ou `soffice` dans
+le PATH du service backend, avec les modules Writer/Calc/Impress correspondants.
+Aucune bibliothèque Python UNO supplémentaire n’est nécessaire.
+Chaque conversion utilise un répertoire et un profil temporaires distincts,
+avec les macros désactivées et un délai maximal de 60 secondes. Les originaux
+sont conservés ; les aperçus ne sont pas mis en cache. Un format non pris en
+charge renvoie 415, un LibreOffice absent 503 et une conversion impossible 422.
+Référence : https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_params.html
+
+Validation : 24 tests backend réussis via
+`PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v`,
+dont aperçu PDF natif, conversion simulée et erreurs de conversion/disponibilité.
+Une conversion réelle ODT vers PDF avec LibreOffice a également réussi sur un
+document temporaire, hors du bac à sable qui empêchait son démarrage.

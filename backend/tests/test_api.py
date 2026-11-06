@@ -231,6 +231,35 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
         self.assertTrue(list(Path(self.settings['paths']['uploads']).glob('*.pdf')))
 
+    def test_material_preview(self):
+        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+                             data={'data': json.dumps(self.material_data()),
+                                   'file': (io.BytesIO(b'%PDF test'), 'test.pdf')})
+        key = result.json['id']
+        response = self.client.get(f'/api/materials/{key}/preview')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, 'application/pdf')
+        self.assertEqual(response.data, b'%PDF test')
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        response.close()
+        self.login('admin')
+        self.mutate('post', f'/api/materials/{key}/file',
+                    data={'file': (io.BytesIO(b'office'), 'test.odt')})
+        with patch('animmalle.files.shutil.which', return_value=None):
+            self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+        with patch('animmalle.files.shutil.which', return_value='/usr/bin/libreoffice'):
+            with patch('animmalle.files.subprocess.run') as convert:
+                def produce(command, **kwargs):
+                    output = Path(command[command.index('--outdir') + 1])
+                    (output / (Path(command[-1]).stem + '.pdf')).write_bytes(b'%PDF converted')
+                convert.side_effect = produce
+                response = self.client.get(f'/api/materials/{key}/preview')
+                self.assertEqual(response.data, b'%PDF converted')
+                response.close()
+            with patch('animmalle.files.subprocess.run'):
+                self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 422)
+        self.assertEqual(self.client.get('/api/materials/999999/preview').status_code, 404)
+
     def test_material_relations_and_invalid_upload(self):
         result = self.mutate('post', '/api/materials', self.material_data())
         key = result.json['id']
@@ -255,6 +284,22 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('delete', f"/api/thesaurus/{created.json['id']}").status_code, 204)
         self.create_animation()
         self.assertEqual(self.mutate('delete', '/api/thesaurus/1').status_code, 409)
+
+    def test_thesaurus_update_label(self):
+        path = '/api/thesaurus/1'
+        self.assertEqual(self.mutate('put', path, {'label': 'Renommé'}).status_code, 403)
+        self.login('admin')
+        before = next(item for item in self.client.get('/api/thesaurus').json['items'] if item['id'] == 1)
+        response = self.mutate('put', path, {'label': 'Renommé'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {**before, 'label': 'Renommé'})
+        self.assertEqual(self.mutate('put', path, {'label': ''}).status_code, 422)
+        self.assertEqual(self.mutate('put', path, {'label': 'x' * 81}).status_code, 422)
+        self.assertEqual(self.mutate('put', path, {'label': 'Renommé', 'code': 'changed'}).status_code, 422)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/99999', {'label': 'Absent'}).status_code, 404)
+        duplicate = self.mutate('post', '/api/thesaurus', {'label': 'Autre entrée', 'reference': 'ref.thematiques'})
+        self.assertEqual(duplicate.status_code, 201)
+        self.assertEqual(self.mutate('put', path, {'label': 'Autre entrée'}).status_code, 409)
 
     def test_pages_revisions_and_sanitization(self):
         directory = Path(self.settings['paths']['pages']) / 'notice'

@@ -131,3 +131,32 @@ modérées**, sans alerte élevée/critique. Elles remontent via Nitro : deepmer
 4.3.1 ; les correctifs glob 14 et minimatch 11 changent de majeure. Aucun override
 incompatible ni rétrogradation Nuxt automatique appliqué. Réévaluer à la prochaine
 mise à jour Nitro ; ne pas présenter cet audit comme vierge.
+
+Sur la page thésaurus, « Modifier » ouvre une édition du libellé de l’entrée
+ou de la catégorie. « Enregistrer » sauvegarde via PUT ; « Annuler » abandonne
+la saisie. Les boutons restent compacts et les lignes espacées.
+
+Validation de cette modification : compilation du composant Vue réussie et
+19 tests API réussis sur SQLite temporaire, dont droits, renommage, validation
+et doublons. Le rendu et le parcours navigateur restent à vérifier.
+
+L’encart supérieur du thésaurus crée uniquement des catégories (libellé et code
+obligatoires). Chaque catégorie propose « Ajouter une entrée » après la liste des entrées : le formulaire
+s’ouvre dans son encart et rattache automatiquement l’entrée à cette catégorie.
+Le code de l’entrée reste facultatif ; « Annuler » ferme le formulaire.
+Validation : compilation du script et du template Vue réussie avec
+`@vue/compiler-sfc`. Le rendu et le parcours navigateur restent à vérifier.
+
+### Médiathèque : encarts et actions
+
+Les ressources et outils sont affichés dans des encarts pleine largeur avec les
+champs de la notice. Les icônes proposent l’aperçu en modale, le téléchargement
+original et l’export ZIP. La modification et la suppression sont visibles pour
+les administrateurs ; la suppression demande confirmation et conserve les
+fichiers. Le lien de modification ouvre directement le formulaire.
+
+L’aperçu utilise une URL Blob authentifiée et un dialogue natif (fermeture par
+bouton ou Échap). Aucun serveur de visualisation externe n’est utilisé.
+Validation : construction Nuxt avec Node 24.18.0 et `npm test` réussis.
+La construction échoue avec le Node 18 fourni par défaut, trop ancien.
+La présentation n’a pas été vérifiée visuellement dans un navigateur.
