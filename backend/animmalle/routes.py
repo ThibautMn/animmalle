@@ -261,6 +261,15 @@ def upload_material(key):
     return svc.material_dict(item)
 
 
+@api.get('/materials/<int:key>/preview')
+def preview_material(key):
+    source, mime = files.preview_file(svc.get(MatPeda, key))
+    response = send_file(source, mimetype=mime, download_name='apercu.pdf' if mime == 'application/pdf' else None)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 @api.get('/materials/<int:key>/file')
 def download_material(key):
     source = files.media_path(svc.get(MatPeda, key))
@@ -288,6 +297,16 @@ def create_tag():
     g.db.add(item)
     g.db.commit()
     return ThesaurusSchema().dump(item), 201
+
+
+@api.put('/thesaurus/<int:key>')
+def update_tag(key):
+    require_admin()
+    item = svc.get(Thesaurus, key)
+    data = payload(ThesaurusSchema(only=('label',)))
+    item.label = data['label']
+    g.db.commit()
+    return ThesaurusSchema().dump(item)
 
 
 @api.delete('/thesaurus/<int:key>')
