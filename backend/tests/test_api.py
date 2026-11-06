@@ -346,6 +346,67 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.json['items'], ['alice'])
         self.assertEqual(self.client.get('/api/users?q=a').status_code, 422)
 
+    def test_ldap_without_tls_authentication_and_directory(self):
+        from animmalle.auth import authenticate, directory_users
+        config = yaml.safe_load((ROOT / 'installation/config_principal.example.yaml').read_text())['auth']
+        config['ldap'].update(ssl=False, start_tls=False, port=389,
+                              service_bind_dn='reader', service_password='test')
+        self.app.extensions['settings']['auth'] = config
+        entry = MagicMock()
+        entry.entry_attributes_as_dict = {'cn': ['Alice'], 'memberOf': []}
+        entry.__getitem__.return_value = 'Alice'
+        with self.app.app_context(), patch('ldap3.Connection') as factory, patch('ldap3.Server') as server, patch('ldap3.Tls') as tls:
+            connection = factory.return_value
+            connection.bind.return_value = True
+            connection.search.return_value = True
+            connection.entries = [entry]
+            self.assertEqual(authenticate('alice', 'test'), {'name': 'Alice', 'groups': []})
+            self.assertEqual(directory_users('al'), ['Alice'])
+            connection.start_tls.assert_not_called()
+            tls.assert_not_called()
+            self.assertEqual(connection.bind.call_count, 2)
+            for call in server.call_args_list:
+                self.assertFalse(call.kwargs['use_ssl'])
+                self.assertIsNone(call.kwargs['tls'])
+
+    def test_ldap_start_tls_configuration_validation(self):
+        settings = copy.deepcopy(self.settings)
+        settings['auth'] = yaml.safe_load((ROOT / 'installation/config_principal.example.yaml').read_text())['auth']
+        for value in (True, False):
+            settings['auth']['ldap']['start_tls'] = value
+            self.config_path.write_text(yaml.safe_dump(settings))
+            self.assertIs(load_settings(self.config_path)['auth']['ldap']['start_tls'], value)
+        settings['auth']['ldap']['start_tls'] = 'false'
+        self.config_path.write_text(yaml.safe_dump(settings))
+        with self.assertRaisesRegex(ValueError, 'start_tls'):
+            load_settings(self.config_path)
+        del settings['auth']['ldap']['start_tls']
+        self.config_path.write_text(yaml.safe_dump(settings))
+        load_settings(self.config_path)
+
+    def test_ldap_tls_failure_survives_unbind_failure(self):
+        import ldap3
+        from werkzeug.exceptions import ServiceUnavailable
+        from animmalle.auth import authenticate, directory_users
+        config = yaml.safe_load((ROOT / 'installation/config_principal.example.yaml').read_text())['auth']
+        config['ldap'].update(ssl=False, service_bind_dn='reader', service_password='test')
+        self.app.extensions['settings']['auth'] = config
+        with self.app.app_context(), patch('ldap3.Connection') as factory:
+            connection = factory.return_value
+            connection.start_tls.side_effect = ldap3.core.exceptions.LDAPStartTLSError('certificate failure')
+            connection.unbind.side_effect = ldap3.core.exceptions.LDAPSocketSendError('socket closed')
+            for operation in (lambda: authenticate('alice', 'test'), lambda: directory_users('al')):
+                with self.assertRaises(ServiceUnavailable):
+                    operation()
+            connection.bind.assert_not_called()
+
+    def test_ldap_custom_ca_preserves_certificate_validation(self):
+        import ssl
+        from animmalle.auth import directory_tls
+        with patch('ldap3.Tls') as tls:
+            directory_tls({'ca_certs_file': '/test/authority.pem'})
+            tls.assert_called_once_with(validate=ssl.CERT_REQUIRED, ca_certs_file='/test/authority.pem')
+
     def test_configuration_validation(self):
         import runpy
         with patch('animmalle.config.load_settings', return_value=load_settings(self.config_path)):

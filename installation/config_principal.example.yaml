@@ -60,14 +60,20 @@ auth:
   mode: ldap
   # Noms des groupes donnant les droits administrateur ; doivent correspondre aux groupes des utilisateurs.
   admin_groups: [admin-pedaparc, Administrateurs]
-  # Connexion à l’annuaire, utilisée en mode ldap ; les connexions exigent TLS et un certificat serveur valide.
+  # Connexion à l’annuaire ; LDAPS et StartTLS vérifient le certificat serveur.
   ldap:
     # Nom DNS ou adresse IP de l’annuaire, correspondant au certificat présenté par le serveur.
     host: ldap.example.org
-    # Port TCP LDAP : généralement 636 pour LDAPS, ou 389 pour LDAP avec StartTLS.
+    # Port TCP LDAP : généralement 636 pour LDAPS, ou 389 pour LDAP avec ou sans StartTLS.
     port: 636
-    # true : TLS dès la connexion (LDAPS) ; false : le backend impose une négociation StartTLS avant authentification.
+    # true : TLS dès la connexion (LDAPS) ; false : LDAP, avec StartTLS selon start_tls.
     ssl: true
+    # Utilisé seulement si ssl: false. false autorise LDAP sans chiffrement.
+    # Absent : true, pour conserver le comportement des configurations existantes.
+    start_tls: true
+    # Facultatif : chaîne des autorités de confiance en PEM (jamais une clé privée).
+    # Chemin absolu ou relatif à la racine du dépôt ; vide utilise la confiance système.
+    ca_certs_file: ''
     # Délai maximal de connexion et de réception LDAP, en secondes (1 à 60).
     timeout: 5
     # Racine de recherche des utilisateurs dans l’annuaire, au format DN LDAP.

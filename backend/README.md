@@ -42,8 +42,12 @@ PostgreSQL restauré. Le YAML reste privé avec des permissions 600.
   les noms historiques exacts pour conserver les droits d’auteur. Les cookies
   contiennent des données signées, pas de mot de passe. Les groupes sont figés
   jusqu’à la prochaine connexion ou l’expiration de session.
-- `auth.ldap` : LDAPS avec validation du certificat, ou StartTLS si `ssl: false`.
-  La CA doit être reconnue par le système. `service_bind_dn` et `service_password`
+- `auth.ldap` : LDAPS, StartTLS ou LDAP sans chiffrement selon les clés suivantes.
+  Avec `ssl: false`, `start_tls: false` permet explicitement LDAP sans chiffrement
+  (port 389) ; les mots de passe transitent alors en clair. Sans cette clé,
+  StartTLS reste actif. Avec `ssl: true`, LDAPS est utilisé indépendamment de
+  `start_tls`. La CA doit être reconnue pour les modes TLS.
+  `service_bind_dn` et `service_password`
   permettent l’autocomplétion des utilisateurs de l’annuaire ; sinon les auteurs
   déjà présents servent de suggestions. Aucune requête LDAP anonyme.
 - `paths` : chemins relatifs à la racine du dépôt ou absolus. Les nouveaux fichiers
@@ -70,6 +74,35 @@ Commandes depuis la racine, une fois le YAML complété :
 La deuxième commande démarre un serveur : elle est fournie pour l’exploitation,
 **elle n’a pas été exécutée**. Aucun service système ni Nginx n’a été installé ou
 rechargé à l’étape 5 ; le déploiement complet attend les choix Nuxt de l’étape 6.
+
+## Certificat LDAP interne
+
+Pour un annuaire sans TLS, configurer `ssl: false`, `start_tls: false`,
+`port: 389` dans `auth.ldap`, puis redémarrer Flask. Ces paramètres s’appliquent
+à la connexion utilisateur et à l’autocomplétion. Le YAML privé a été ajusté
+sur ces trois clés uniquement, en préservant les autres valeurs.
+Validation : 22 tests backend réussis, dont l’authentification et la recherche
+LDAP sans négociation TLS (annuaire simulé) et la validation du nouveau booléen.
+La connexion avec un compte réel reste à vérifier après redémarrage.
+
+Si la connexion échoue avec `CERTIFICATE_VERIFY_FAILED` et
+`unable to get local issuer certificate`, fournir la chaîne d’autorités PEM
+approuvée par l’administrateur de l’annuaire dans `auth.ldap.ca_certs_file` du
+YAML central. Le chemin peut être absolu ou relatif à la racine du dépôt.
+Cette clé est facultative ; absente ou vide, elle conserve la confiance système.
+Ne fournir aucune clé privée et conserver ce fichier local hors Git. La validation
+du certificat et du nom du serveur reste obligatoire. Redémarrer Flask après
+modification du YAML ; le débogueur utilise `--no-reload`.
+
+Diagnostic du 5 novembre 2026 : connexion TCP à l’annuaire configuré réussie,
+échec StartTLS avant authentification faute d’autorité locale reconnue. Aucun
+identifiant envoyé. L’authentification réelle reste à vérifier après fourniture
+du certificat d’autorité. La fermeture d’une connexion TLS en échec ne masque
+plus la réponse 503 si le socket est déjà fermé.
+Validation : les 20 tests backend passent avec
+`PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v`,
+dont les cas de fermeture après échec TLS et d’autorité personnalisée avec
+validation obligatoire du certificat. `git diff --check` sans erreur.
 
 ## Contrat API
 

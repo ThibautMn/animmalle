@@ -86,7 +86,18 @@ def load_settings(path=CONFIG_PATH):
             raise ValueError('Attribut LDAP invalide.')
         if '{login}' not in ldap['user_dn'] or type(ldap.get('port')) is not int or not 1 <= ldap['port'] <= 65535 or type(ldap.get('ssl')) is not bool or type(ldap.get('timeout')) is not int or not 1 <= ldap['timeout'] <= 60:
             raise ValueError('Configuration LDAP invalide.')
+        if type(ldap.get('start_tls', True)) is not bool:
+            raise ValueError('auth.ldap.start_tls doit être un booléen.')
     root = Path(__file__).resolve().parents[2]
+    if auth['mode'] == 'ldap':
+        ca_file = auth['ldap'].get('ca_certs_file')
+        if ca_file not in (None, ''):
+            if not isinstance(ca_file, str) or not ca_file.strip():
+                raise ValueError('auth.ldap.ca_certs_file doit être un chemin de certificat PEM.')
+            ca_path = (root / ca_file).resolve()
+            if not ca_path.is_file():
+                raise ValueError('auth.ldap.ca_certs_file : fichier introuvable.')
+            auth['ldap']['ca_certs_file'] = str(ca_path)
     for key in ('uploads', 'pages', 'pictograms'):
         value = data['paths'].get(key)
         if not isinstance(value, str) or not value:

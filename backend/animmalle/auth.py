@@ -6,6 +6,20 @@ from flask import current_app, g, request, session, abort
 from werkzeug.security import check_password_hash
 
 
+def directory_tls(cfg):
+    import ldap3
+    return ldap3.Tls(validate=ssl.CERT_REQUIRED, ca_certs_file=cfg.get('ca_certs_file') or None)
+
+
+def close_directory(connection):
+    import ldap3
+    if connection is not None:
+        try:
+            connection.unbind()
+        except (ldap3.core.exceptions.LDAPException, OSError):
+            pass
+
+
 def authenticate(login, password):
     config = current_app.extensions['settings']['auth']
     if config['mode'] == 'local':
@@ -20,10 +34,11 @@ def authenticate(login, password):
     connection = None
     try:
         server = ldap3.Server(cfg['host'], port=cfg['port'], use_ssl=cfg['ssl'],
-                              tls=ldap3.Tls(validate=ssl.CERT_REQUIRED), connect_timeout=cfg['timeout'])
+                              tls=directory_tls(cfg) if cfg['ssl'] or cfg.get('start_tls', True) else None,
+                              connect_timeout=cfg['timeout'])
         connection = ldap3.Connection(server, user=cfg['user_dn'].replace('{login}', escape_rdn(login)),
                                       password=password, receive_timeout=cfg['timeout'], auto_referrals=False)
-        if not cfg['ssl']:
+        if not cfg['ssl'] and cfg.get('start_tls', True):
             connection.open()
             if not connection.start_tls():
                 abort(503, description='Connexion TLS à l’annuaire impossible.')
@@ -43,8 +58,7 @@ def authenticate(login, password):
     except (ldap3.core.exceptions.LDAPException, ValueError, OSError):
         abort(503, description='Annuaire indisponible.')
     finally:
-        if connection:
-            connection.unbind()
+        close_directory(connection)
 
 
 def install_auth(app):
@@ -96,10 +110,11 @@ def directory_users(prefix):
     connection = None
     try:
         server = ldap3.Server(cfg['host'], port=cfg['port'], use_ssl=cfg['ssl'],
-                              tls=ldap3.Tls(validate=ssl.CERT_REQUIRED), connect_timeout=cfg['timeout'])
+                              tls=directory_tls(cfg) if cfg['ssl'] or cfg.get('start_tls', True) else None,
+                              connect_timeout=cfg['timeout'])
         connection = ldap3.Connection(server, user=cfg['service_bind_dn'], password=cfg['service_password'],
                                       receive_timeout=cfg['timeout'], auto_referrals=False)
-        if not cfg['ssl']:
+        if not cfg['ssl'] and cfg.get('start_tls', True):
             connection.open()
             if not connection.start_tls():
                 abort(503, description='Connexion TLS à l’annuaire impossible.')
@@ -113,5 +128,4 @@ def directory_users(prefix):
     except (ldap3.core.exceptions.LDAPException, ValueError, OSError):
         abort(503, description='Annuaire indisponible.')
     finally:
-        if connection:
-            connection.unbind()
+        close_directory(connection)

@@ -28,3 +28,5 @@ installation/generated/
 
 # Ressources historiques migrées, conservées localement
 backend/pictograms/
+
+.vscode/
