@@ -66,6 +66,8 @@ def load_settings(path=CONFIG_PATH):
     auth = data['auth']
     if auth.get('mode') not in ('ldap', 'local') or not isinstance(auth.get('admin_groups'), list) or not all(isinstance(x, str) for x in auth['admin_groups']):
         raise ValueError('Configuration auth invalide.')
+    if 'thesaurus_groups' in auth and (not isinstance(auth['thesaurus_groups'], list) or not all(isinstance(x, str) for x in auth['thesaurus_groups'])):
+        raise ValueError('auth.thesaurus_groups invalide.')
     if auth['mode'] == 'local':
         if not isinstance(auth.get('users'), list) or not auth['users']:
             raise ValueError('auth.users requis en mode local (mots de passe hachés).')

@@ -273,6 +273,23 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
         self.assertEqual(self.client.get(f"/api/animations/{anim['id']}").json['sequences'][0]['materiel'], [])
 
+    def test_thesaurus_reserved_to_thesaurus_groups(self):
+        auth = self.client.application.extensions['settings']['auth']
+        auth['admin_groups'] = ['admin', 'autre']
+        auth['thesaurus_groups'] = ['admin']
+        auth['users'][2]['groups'] = ['autre']
+        self.login('bob')
+        self.assertTrue(self.client.get('/api/auth/session').json['is_admin'])
+        self.assertFalse(self.client.get('/api/auth/session').json['can_edit_thesaurus'])
+        data = {'label': 'Tag', 'reference': 'ref.thematiques'}
+        self.assertEqual(self.mutate('post', '/api/thesaurus', data).status_code, 403)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'Autre'}).status_code, 403)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/6').status_code, 403)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 403)
+        self.login('admin')
+        self.assertTrue(self.client.get('/api/auth/session').json['can_edit_thesaurus'])
+        self.assertEqual(self.mutate('post', '/api/thesaurus', data).status_code, 201)
+
     def test_thesaurus_duplicates_references_and_delete(self):
         self.assertEqual(self.mutate('post', '/api/thesaurus', {'label': 'Tag', 'reference': 'ref.thematiques'}).status_code, 403)
         self.login('admin')

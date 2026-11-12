@@ -95,8 +95,8 @@ onMounted(load)
 </script>
 <template>
   <h1>Le thésaurus</h1>
-  <p v-if="!session.is_admin" role="alert">
-    Cette page est réservée aux administrateurs.
+  <p v-if="!session.can_edit_thesaurus" role="alert">
+    Cette page est réservée aux membres du groupe autorisé à modifier le thésaurus.
   </p>
   <template v-else
     ><p v-if="error" role="alert" class="error">{{ error }}</p>

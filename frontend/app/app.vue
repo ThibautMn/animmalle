@@ -59,7 +59,7 @@ onMounted(async () => {
       <NuxtLink to="/materials">Médiathèque</NuxtLink>
       <NuxtLink to="/outils">Outils facilitateurs</NuxtLink>
       <NuxtLink to="/stats">Statistiques</NuxtLink>
-      <NuxtLink v-if="session.is_admin" to="/thesaurus">Thésaurus</NuxtLink>
+      <NuxtLink v-if="session.can_edit_thesaurus" to="/thesaurus">Thésaurus</NuxtLink>
     </nav>
     <div v-if="session.user" class="userbox">
       <span class="avatar" aria-hidden="true">{{ initials }}</span>

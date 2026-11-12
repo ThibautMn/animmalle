@@ -8,7 +8,7 @@ from sqlalchemy import select, delete, text, or_, func
 from sqlalchemy.orm import load_only
 from werkzeug.utils import secure_filename
 
-from .auth import authenticate, login_user, require_admin
+from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, require_admin, require_thesaurus_editor
 from .models import (Animation, MatPeda, Thesaurus, Commentaire,
                      RelMatPedaSequence, RelMatPedaThematique, RelAnimTag)
 from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSchema,
@@ -62,7 +62,7 @@ def health():
 @api.get('/auth/session')
 def auth_session():
     user = session.get('user')
-    return {'user': user, 'is_admin': bool(user and set(user['groups']) & set(current_app.extensions['settings']['auth']['admin_groups'])),
+    return {'user': user, 'is_admin': is_admin(user), 'can_edit_thesaurus': can_edit_thesaurus(user),
             'csrf_token': session['csrf_token']}
 
 
@@ -314,7 +314,7 @@ def thesaurus():
 
 @api.post('/thesaurus')
 def create_tag():
-    require_admin()
+    require_thesaurus_editor()
     data = payload(ThesaurusSchema())
     if data['reference']:
         if not g.db.scalar(select(Thesaurus.id).where(Thesaurus.reference == '', Thesaurus.code == data['reference'])):
@@ -334,7 +334,7 @@ def label_shared(item):
 
 @api.put('/thesaurus/<int:key>')
 def update_tag(key):
-    require_admin()
+    require_thesaurus_editor()
     item = svc.get(Thesaurus, key)
     data = payload(ThesaurusSchema(only=('label',)))
     files.rename_pictogram(item, data['label'], shared=label_shared(item))
@@ -345,7 +345,7 @@ def update_tag(key):
 
 @api.delete('/thesaurus/<int:key>')
 def remove_tag(key):
-    require_admin()
+    require_thesaurus_editor()
     item = svc.get(Thesaurus, key)
     if item.reference == '' and g.db.scalar(select(Thesaurus.id).where(Thesaurus.reference == item.code)):
         abort(409, description='Catégorie encore utilisée.')
@@ -436,7 +436,7 @@ def pictogram(key):
 
 @api.put('/thesaurus/<int:key>/pictogram')
 def put_pictogram(key):
-    require_admin()
+    require_thesaurus_editor()
     item = svc.get(Thesaurus, key)
     file = request.files.get('file')
     if not file:
@@ -447,7 +447,7 @@ def put_pictogram(key):
 
 @api.delete('/thesaurus/<int:key>/pictogram')
 def delete_pictogram(key):
-    require_admin()
+    require_thesaurus_editor()
     files.pictogram_path(svc.get(Thesaurus, key)).unlink()
     return '', 204
 

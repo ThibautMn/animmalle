@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 
 export const useSessionStore = defineStore('session', {
-  state: () => ({ user: null, is_admin: false, csrf_token: '', ready: false }),
+  state: () => ({ user: null, is_admin: false, can_edit_thesaurus: false, csrf_token: '', ready: false }),
   actions: {
     apply(data) {
       this.user = data.user
       this.is_admin = data.is_admin
+      this.can_edit_thesaurus = data.can_edit_thesaurus
       this.csrf_token = data.csrf_token
       this.ready = true
     },

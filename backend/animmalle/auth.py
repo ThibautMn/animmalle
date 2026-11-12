@@ -82,7 +82,8 @@ def install_auth(app):
         if not user:
             abort(401, description='Authentification requise.')
         g.user = user
-        g.is_admin = bool(set(user['groups']) & set(app.extensions['settings']['auth']['admin_groups']))
+        g.is_admin = is_admin(user)
+        g.can_edit_thesaurus = can_edit_thesaurus(user)
 
 
 def login_user(user):
@@ -90,6 +91,20 @@ def login_user(user):
     session['user'] = user
     session['csrf_token'] = secrets.token_urlsafe(32)
     session.permanent = True
+
+
+def is_admin(user):
+    return bool(user and set(user['groups']) & set(current_app.extensions['settings']['auth']['admin_groups']))
+
+
+def can_edit_thesaurus(user):
+    auth = current_app.extensions['settings']['auth']
+    return bool(user and set(user['groups']) & set(auth.get('thesaurus_groups', auth['admin_groups'])))
+
+
+def require_thesaurus_editor():
+    if not g.can_edit_thesaurus:
+        abort(403, description='Droits de modification du thésaurus requis.')
 
 
 def require_admin():

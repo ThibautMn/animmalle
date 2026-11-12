@@ -64,6 +64,7 @@ async function fixture(page, admin = true) {
         return response({
           user: { name: 'Alice', groups: [] },
           is_admin: admin,
+          can_edit_thesaurus: admin,
           csrf_token: 'rotated-token'
         })
       }
@@ -71,6 +72,7 @@ async function fixture(page, admin = true) {
         return response({
           user: logged ? { name: 'Alice' } : null,
           is_admin: admin,
+          can_edit_thesaurus: admin,
           csrf_token: 'initial-token'
         })
       if (path === '/thesaurus') return response({ items: tags })
