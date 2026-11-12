@@ -145,7 +145,7 @@ onMounted(async () => {
   <p v-if="error" role="alert" class="error">{{ error }}</p>
   <p v-if="busy" role="status">Recherche en cours…</p>
   <p v-else aria-live="polite">{{ total }} ressource(s) · page {{ page }}</p>
-  <div :class="animations ? 'grid' : 'resource-list'">
+  <div :class="['resource-list', animations && 'cards-grid']">
     <article v-for="item in items" :key="item.id" class="card">
       <span v-if="animations" class="badge">{{
         { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
@@ -222,7 +222,7 @@ onMounted(async () => {
           <dd>{{ item.has_file ? 'Disponible' : 'Aucune' }}</dd>
         </dl>
       </template>
-      <p v-else>{{ item.description?.slice(0, 220) }}</p>
+      <p v-else class="prose">{{ item.description || 'Non renseignée' }}</p>
       <p class="muted">
         {{ item.auteurs || catalog.label(item.fk_type_mat_id) }}
       </p>

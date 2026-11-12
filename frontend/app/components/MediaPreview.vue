@@ -50,8 +50,7 @@ onBeforeUnmount(() => {
       :class="{ 'icon-button': icon }"
       :disabled="busy"
       @click="preview"
-      ><ActionIcon v-if="icon" name="preview"
-    /></PButton>
+      ><slot><ActionIcon v-if="icon" name="preview" /></slot></PButton>
     <dialog
       ref="dialog"
       class="preview-dialog"

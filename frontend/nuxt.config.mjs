@@ -16,6 +16,7 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'Anim’Malle',
+      link: [{ rel: 'icon', type: 'image/png', href: '/favicon.png' }],
       htmlAttrs: { lang: 'fr' },
       meta: [
         {

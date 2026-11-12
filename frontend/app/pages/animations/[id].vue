@@ -28,6 +28,7 @@ const comments = ref([])
 const comment = ref('')
 const author = ref('')
 const suggestions = ref([])
+const mediaItems = ref({})
 const error = ref('')
 const busy = ref(true)
 const editing = ref(creating)
@@ -47,6 +48,15 @@ async function load() {
       item.value = await api(path)
       comments.value = (await api(`${path}/comments`)).items
       author.value = item.value.auteurs
+      const mediaIds = [...new Set(item.value.sequences.flatMap(seq => seq.materiel))]
+      await Promise.all(mediaIds.map(async id => {
+        try {
+          const media = await api(`/materials/${id}`)
+          mediaItems.value[id] = media
+        } catch {
+          mediaItems.value[id] = { id, nom: 'Média indisponible' }
+        }
+      }))
     }
     draft.value = structuredClone(toRaw(item.value))
     // La durée est envoyée par son champ dédié ; le backend l’ajoute aux tags.
@@ -289,15 +299,9 @@ onMounted(load)
           <h4>{{ label }}</h4>
           <p class="prose">{{ seq[key] }}</p>
         </div>
-        <p>
-          Médias :
-          <NuxtLink
-            v-for="id in seq.materiel"
-            :key="id"
-            :to="`/materials/${id}`"
-            >Ressource {{ id }} ·
-          </NuxtLink>
-        </p>
+        <h4>Médias</h4>
+        <SequenceMedia v-if="seq.materiel.length" :items="seq.materiel.map(id => mediaItems[id])" />
+        <p v-else>Aucun média associé.</p>
       </section>
       <form
         v-if="session.is_admin"

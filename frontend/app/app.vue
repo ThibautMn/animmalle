@@ -49,27 +49,31 @@ onMounted(async () => {
   <a class="skip" href="#content">Aller au contenu</a>
   <header>
     <NuxtLink class="brand" to="/"
-      >Anim’Malle <small>Parc national des Cévennes</small></NuxtLink
+      ><span
+        >Anim’Malle <small>Parc national des Cévennes</small></span
+      ></NuxtLink
     >
-    <div v-if="session.user">
-      {{ session.user.name }} <PButton label="Se déconnecter" @click="logout" />
+    <nav v-if="session.user" class="topnav" aria-label="Navigation principale">
+      <NuxtLink to="/">Accueil</NuxtLink>
+      <NuxtLink to="/animations">Pédathèque</NuxtLink>
+      <NuxtLink to="/materials">Médiathèque</NuxtLink>
+      <NuxtLink to="/outils">Outils facilitateurs</NuxtLink>
+      <NuxtLink to="/stats">Statistiques</NuxtLink>
+      <NuxtLink v-if="session.is_admin" to="/thesaurus">Thésaurus</NuxtLink>
+    </nav>
+    <div v-if="session.user" class="userbox">
+      <span class="avatar" aria-hidden="true">{{ initials }}</span>
+      <span class="name">{{ firstName }}</span>
+      <PButton class="linkbtn" label="Se déconnecter" @click="logout" />
     </div>
   </header>
-  <nav v-if="session.user" aria-label="Navigation principale">
-    <NuxtLink to="/">Accueil</NuxtLink
-    ><NuxtLink to="/animations">Pédathèque</NuxtLink
-    ><NuxtLink to="/materials">Médiathèque</NuxtLink
-    ><NuxtLink to="/outils">Outils facilitateurs</NuxtLink
-    ><NuxtLink to="/stats">Statistiques</NuxtLink
-    ><NuxtLink v-if="session.is_admin" to="/thesaurus">Thésaurus</NuxtLink>
-  </nav>
   <main id="content">
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="busy" role="status">Chargement de la session…</p>
     <section v-else-if="!session.user" class="login card">
       <p class="eyebrow">Bienvenue dans la malle pédagogique</p>
-      <h1>Partager les savoirs,<br />faire découvrir le vivant.</h1>
-      <p>
+      <h1>Content de vous revoir.</h1>
+      <p class="muted">
         Connectez-vous pour consulter et enrichir les ressources de l’équipe.
       </p>
       <form @submit.prevent="connect">
@@ -89,5 +93,8 @@ onMounted(async () => {
     </section>
     <NuxtPage v-else :key="route.path" />
   </main>
-  <footer>Anim’Malle · Les ressources pédagogiques des Cévennes</footer>
+  <footer>
+    <span>Anim’Malle · Les ressources pédagogiques des Cévennes</span
+    ><span>Bonne animation !</span>
+  </footer>
 </template>

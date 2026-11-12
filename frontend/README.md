@@ -11,6 +11,8 @@ Vue 2 historiques, sans modifier `ancien_animalle/`.
   mutation ni upload n’est réessayé automatiquement.
 - Pédathèque : filtres par auteur, statut et mots-clés, pertinence, pagination,
   raccourci « Mes animations », consultation et impression.
+  Chaque animation occupe un encart pleine largeur par ligne, avec son titre
+  et sa description complète, dont les retours à la ligne sont conservés.
 - Création et remplacement complet des animations, brouillon / à valider,
   séquences ordonnées, références et associations de médias. Les identifiants
   existants sont conservés et les champs calculés sont exclus des PUT.
@@ -160,3 +162,32 @@ bouton ou Échap). Aucun serveur de visualisation externe n’est utilisé.
 Validation : construction Nuxt avec Node 24.18.0 et `npm test` réussis.
 La construction échoue avec le Node 18 fourni par défaut, trop ancien.
 La présentation n’a pas été vérifiée visuellement dans un navigateur.
+
+Pédathèque : compilation du script et du template de `CatalogList.vue` réussie
+avec `@vue/compiler-sfc` après le passage aux encarts par ligne et l’affichage
+des descriptions complètes. Le rendu navigateur reste à vérifier.
+
+Dans la fiche d’une animation, chaque séquence affiche d’abord les médias de
+type image/photo dans une grille de quatre vignettes par ligne. Cliquer sur
+une vignette ouvre l’aperçu en modale. Les médias de type son/audio/musique
+suivent avec leur lecteur audio intégré. Les autres médias restent en liste à
+puces avec un lien et une icône œil sans fond ouvrant l’aperçu en modale.
+Le regroupement utilise le libellé du type dans le thésaurus. Les fichiers sont
+chargés par requête authentifiée et leurs URL Blob libérées à la fermeture de
+la fiche. Une erreur de chargement est affichée à côté du titre concerné.
+Les formats non pris en charge affichent le message du composant d’aperçu existant.
+Une séquence sans média affiche « Aucun média associé. »
+Le lien affiche le titre du média (`nom`), chargé une fois par ressource de la
+fiche. Si la notice ne peut pas être
+chargée, le lien affiche « Média indisponible ».
+Validation : `npm run build` et `npm test` réussis avec Node 24.18.0.
+Le rendu et l’ouverture des aperçus restent à vérifier dans un navigateur.
+
+Sous chaque vignette, le titre apparaît en petit et centré avec une icône de
+téléchargement sans fond juste à droite, utilisant le fichier original et son
+nom fourni par l’API. Validation : `npm run build` réussi avec Node 24.18.0 ;
+le rendu navigateur reste à vérifier.
+
+Chaque son affiche sur une même ligne le lecteur audio, le titre à sa droite,
+puis une icône sans fond pour télécharger le fichier original.
+Validation : `npm run build` réussi avec Node 24.18.0 ; rendu navigateur à vérifier.

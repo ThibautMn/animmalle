@@ -30,3 +30,4 @@ installation/generated/
 backend/pictograms/
 
 .vscode/
+.claude/
