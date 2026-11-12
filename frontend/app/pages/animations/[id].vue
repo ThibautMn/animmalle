@@ -6,7 +6,7 @@ import {
   sequenceRefs,
   newSequence,
   animationPayload,
-  moveSequence
+  moveSequence,
 } from '../../../lib/forms.mjs'
 const window = globalThis.window
 const route = useRoute()
@@ -21,7 +21,7 @@ const item = ref({
   fk_duree_id: null,
   tags: [],
   sequences: [],
-  ...Object.fromEntries(animationFields.map(([key]) => [key, '']))
+  ...Object.fromEntries(animationFields.map(([key]) => [key, ''])),
 })
 const draft = ref(null)
 const comments = ref([])
@@ -31,12 +31,14 @@ const suggestions = ref([])
 const mediaItems = ref({})
 const error = ref('')
 const busy = ref(true)
+const reassignDialog = ref(null)
+const menu = ref(null)
 const editing = ref(creating)
 const canEdit = computed(
   () =>
     creating ||
     session.is_admin ||
-    (item.value.auteurs === session.user?.name && item.value.statut !== 1)
+    (item.value.auteurs === session.user?.name && item.value.statut !== 1),
 )
 const path = `/animations/${route.params.id}`
 async function load() {
@@ -48,20 +50,24 @@ async function load() {
       item.value = await api(path)
       comments.value = (await api(`${path}/comments`)).items
       author.value = item.value.auteurs
-      const mediaIds = [...new Set(item.value.sequences.flatMap(seq => seq.materiel))]
-      await Promise.all(mediaIds.map(async id => {
-        try {
-          const media = await api(`/materials/${id}`)
-          mediaItems.value[id] = media
-        } catch {
-          mediaItems.value[id] = { id, nom: 'Média indisponible' }
-        }
-      }))
+      const mediaIds = [
+        ...new Set(item.value.sequences.flatMap((seq) => seq.materiel)),
+      ]
+      await Promise.all(
+        mediaIds.map(async (id) => {
+          try {
+            const media = await api(`/materials/${id}`)
+            mediaItems.value[id] = media
+          } catch {
+            mediaItems.value[id] = { id, nom: 'Média indisponible' }
+          }
+        }),
+      )
     }
     draft.value = structuredClone(toRaw(item.value))
     // La durée est envoyée par son champ dédié ; le backend l’ajoute aux tags.
     const durationIds = new Set(
-      catalog.family('ref.duree').map((tag) => tag.id)
+      catalog.family('ref.duree').map((tag) => tag.id),
     )
     draft.value.tags = draft.value.tags.filter((id) => !durationIds.has(id))
   } catch (e) {
@@ -75,11 +81,13 @@ async function save() {
   error.value = ''
   try {
     const body = animationPayload(draft.value)
-    const durationIds = new Set(catalog.family('ref.duree').map(tag => tag.id))
-    body.tags = body.tags.filter(id => !durationIds.has(id))
+    const durationIds = new Set(
+      catalog.family('ref.duree').map((tag) => tag.id),
+    )
+    body.tags = body.tags.filter((id) => !durationIds.has(id))
     const result = await api(creating ? '/animations' : path, {
       method: creating ? 'POST' : 'PUT',
-      body
+      body,
     })
     if (creating) {
       editing.value = false
@@ -109,7 +117,7 @@ async function action(suffix, method, body) {
 async function remove() {
   if (
     !window.confirm(
-      'Supprimer définitivement cette animation et ses commentaires ?'
+      'Supprimer définitivement cette animation et ses commentaires ?',
     )
   )
     return
@@ -128,6 +136,35 @@ function removeSequence(index) {
   if (window.confirm('Retirer cette séquence de l’animation ?'))
     draft.value.sequences.splice(index, 1)
 }
+async function searchUsers() {
+  try {
+    suggestions.value = (
+      await api('/users', { query: { q: author.value } })
+    ).items
+  } catch (e) {
+    error.value = e.message
+  }
+}
+async function reassign() {
+  await action('/author', 'PUT', { auteurs: author.value })
+  if (!error.value) reassignDialog.value.close()
+}
+function openReassign() {
+  menu.value.open = false
+  reassignDialog.value.showModal()
+}
+function removeFromMenu() {
+  menu.value.open = false
+  remove()
+}
+async function publishComment() {
+  await action('/comments', 'POST', { commentaire: comment.value })
+  if (!error.value) comment.value = ''
+}
+function removeComment(id) {
+  if (window.confirm('Supprimer ce commentaire ?'))
+    action(`/comments/${id}`, 'DELETE')
+}
 function cancel() {
   draft.value = structuredClone(toRaw(item.value))
   editing.value = false
@@ -135,7 +172,7 @@ function cancel() {
 onBeforeRouteLeave(
   () =>
     !editing.value ||
-    window.confirm('Quitter sans enregistrer les modifications ?')
+    window.confirm('Quitter sans enregistrer les modifications ?'),
 )
 onMounted(load)
 </script>
@@ -163,7 +200,7 @@ onMounted(load)
             'ref.thematiques',
             'ref.lieux',
             'ref.saison',
-            'ref.public'
+            'ref.public',
           ]"
           :key="group"
           v-model="draft.tags"
@@ -241,141 +278,477 @@ onMounted(load)
         />
       </fieldset>
     </form>
-    <template v-else
-      ><div class="toolbar">
-        <h1>{{ item.titre }}</h1>
-        <span class="badge">{{
-          { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
-        }}</span>
-      </div>
-      <p>
-        {{ item.auteurs }} · {{ item.date_modif }} ·
-        {{ catalog.label(item.fk_duree_id) }}
-      </p>
-      <div class="actions">
-        <PButton
-          v-if="canEdit"
-          label="Modifier"
-          :disabled="busy"
-          @click="editing = true"
-        /><DownloadButton
-          :path="`${path}/download`"
-          :filename="`${item.titre}.zip`"
-          label="Exporter en ZIP / ODT"
-        /><PButton
-          class="secondary"
-          label="Imprimer"
-          @click="window.print()"
-        /><PButton
-          v-if="session.is_admin && item.statut !== 1"
-          label="Valider"
-          :disabled="busy"
-          @click="action('/validate', 'POST')"
-        /><PButton
-          v-if="canEdit"
-          class="danger"
-          label="Supprimer"
-          :disabled="busy"
-          @click="remove"
-        />
-      </div>
-      <p>Lieu : {{ item.lieu }}</p>
-      <p class="pictos">
-        <PictoIcon v-for="tag in item.tags" :id="tag" :key="tag" :size="40" />
-      </p>
-      <p>{{ item.tags.map(catalog.label).filter(Boolean).join(' · ') }}</p>
-      <section v-for="[key, label] in animationFields" :key="key" class="card">
-        <h2>{{ label }}</h2>
-        <p class="prose">{{ item[key] || 'Non renseigné' }}</p>
-      </section>
-      <h2>Les séquences</h2>
-      <section
-        v-for="(seq, index) in item.sequences"
-        :key="seq.id"
-        class="card"
-      >
-        <h3>{{ index + 1 }}. {{ seq.titre }}</h3>
-        <p>
-          {{ sequenceRefs.map(([key]) => catalog.label(seq[key])).join(' · ') }}
-        </p>
-        <div v-for="[key, label] in sequenceFields" :key="key">
-          <h4>{{ label }}</h4>
-          <p class="prose">{{ seq[key] }}</p>
+    <template v-else>
+      <header class="fiche-head">
+        <div class="fiche-title">
+          <h1>{{ item.titre }}</h1>
+          <span class="badge" :class="`statut-${item.statut}`">{{
+            { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
+          }}</span>
         </div>
-        <h4>Médias</h4>
-        <SequenceMedia v-if="seq.materiel.length" :items="seq.materiel.map(id => mediaItems[id])" />
-        <p v-else>Aucun média associé.</p>
-      </section>
-      <form
-        v-if="session.is_admin"
-        class="card"
-        @submit.prevent="action('/author', 'PUT', { auteurs: author })"
-      >
+        <p class="muted">
+          {{ item.auteurs }} · modifiée le {{ item.date_modif }}
+        </p>
+        <div class="actions">
+          <PButton
+            v-if="canEdit"
+            label="Modifier"
+            :disabled="busy"
+            @click="editing = true"
+          /><PButton
+            v-if="session.is_admin && item.statut !== 1"
+            label="Valider"
+            :disabled="busy"
+            @click="action('/validate', 'POST')"
+          /><DownloadButton
+            :path="`${path}/download`"
+            :filename="`${item.titre}.zip`"
+            label="Exporter en ZIP / ODT"
+            icon="zip"
+          /><PButton
+            class="icon-button"
+            aria-label="Imprimer"
+            title="Imprimer"
+            @click="window.print()"
+            ><ActionIcon name="print"
+          /></PButton>
+          <details v-if="canEdit || session.is_admin" ref="menu" class="more">
+            <summary
+              class="icon-button"
+              aria-label="Autres actions"
+              title="Autres actions"
+            >
+              <ActionIcon name="more" />
+            </summary>
+            <ul>
+              <li v-if="session.is_admin">
+                <button type="button" :disabled="busy" @click="openReassign">
+                  Réattribuer la fiche…
+                </button>
+              </li>
+              <li v-if="canEdit">
+                <button
+                  type="button"
+                  class="danger-item"
+                  :disabled="busy"
+                  @click="removeFromMenu"
+                >
+                  Supprimer l’animation
+                </button>
+              </li>
+            </ul>
+          </details>
+        </div>
+      </header>
+      <div class="fiche-layout">
+        <aside class="fiche-aside">
+          <AnimationSummary :item="item" />
+          <SequenceToc :sequences="item.sequences" />
+        </aside>
+        <div class="fiche-main">
+          <section
+            v-for="[key, label] in animationFields.slice(0, 2)"
+            v-show="item[key]"
+            :key="key"
+            class="card"
+          >
+            <h2>{{ label }}</h2>
+            <p class="prose">{{ item[key] }}</p>
+          </section>
+          <section
+            v-if="animationFields.slice(2).some(([key]) => item[key])"
+            class="card"
+          >
+            <details
+              v-for="[key, label] in animationFields.slice(2)"
+              v-show="item[key]"
+              :key="key"
+              open
+            >
+              <summary>{{ label }}</summary>
+              <p class="prose">{{ item[key] }}</p>
+            </details>
+          </section>
+          <h2>Les séquences</h2>
+          <ol class="timeline">
+            <li
+              v-for="(seq, index) in item.sequences"
+              :id="`seq-${index + 1}`"
+              :key="seq.id"
+              class="sequence"
+            >
+              <span class="step" aria-hidden="true">{{ index + 1 }}</span>
+              <article class="card">
+                <header>
+                  <h3>{{ seq.titre }}</h3>
+                  <ul class="chips" aria-label="Caractéristiques">
+                    <li
+                      v-for="[key, , label] in sequenceRefs"
+                      v-show="seq[key]"
+                      :key="key"
+                      :class="{ 'chip-duration': key === 'fk_duree_id' }"
+                      :title="label"
+                    >
+                      {{ catalog.label(seq[key]) }}
+                    </li>
+                  </ul>
+                </header>
+                <div v-show="seq.description">
+                  <h4>Déroulement</h4>
+                  <p class="prose">{{ seq.description }}</p>
+                </div>
+                <div
+                  v-if="seq.objectifs || seq.materiel_div"
+                  class="sequence-extra"
+                >
+                  <div v-show="seq.objectifs">
+                    <h4>Objectifs</h4>
+                    <p class="prose">{{ seq.objectifs }}</p>
+                  </div>
+                  <div v-show="seq.materiel_div">
+                    <h4>Matériel complémentaire</h4>
+                    <p class="prose">{{ seq.materiel_div }}</p>
+                  </div>
+                </div>
+                <div v-if="seq.materiel.length">
+                  <h4>Médias</h4>
+                  <SequenceMedia
+                    :items="seq.materiel.map((id) => mediaItems[id])"
+                  />
+                </div>
+              </article>
+            </li>
+          </ol>
+          <details class="comments card">
+            <summary>
+              <h2>Commentaires ({{ comments.length }})</h2>
+            </summary>
+            <article v-for="entry in comments" :key="entry.id" class="comment">
+              <header>
+                <strong>{{ entry.auteur }}</strong>
+                <span class="muted">{{ entry.date }}</span>
+                <PButton
+                  v-if="session.is_admin || entry.auteur === session.user.name"
+                  class="icon-button comment-delete"
+                  aria-label="Supprimer le commentaire"
+                  title="Supprimer le commentaire"
+                  :disabled="busy"
+                  @click="removeComment(entry.id)"
+                  ><ActionIcon name="delete"
+                /></PButton>
+              </header>
+              <p class="prose">{{ entry.commentaire }}</p>
+            </article>
+            <p v-if="!comments.length" class="muted">Aucun commentaire.</p>
+            <form @submit.prevent="publishComment">
+              <label
+                >Votre commentaire<textarea
+                  v-model="comment"
+                  required
+                  maxlength="100000"
+                /></label
+              ><PButton type="submit" label="Publier" :disabled="busy" />
+            </form>
+          </details>
+        </div>
+      </div>
+    </template>
+    <dialog v-if="session.is_admin" ref="reassignDialog" class="reassign">
+      <form @submit.prevent="reassign">
         <h2>Réattribuer la fiche</h2>
         <label
           >Auteur<input
             v-model="author"
             list="users"
             required
-            maxlength="200" /></label
-        ><PButton
-          type="button"
-          class="secondary"
-          label="Chercher dans l’annuaire"
-          :disabled="author.trim().length < 2 || busy"
-          @click="
-            async () => {
-              try {
-                suggestions = (await api('/users', { query: { q: author } }))
-                  .items
-              } catch (e) {
-                error = e.message
-              }
-            }
-          "
-        /><datalist id="users">
-          <option
-            v-for="name in suggestions"
-            :key="name"
-            :value="name"
-          /></datalist
-        ><PButton type="submit" label="Réattribuer" :disabled="busy" />
-      </form>
-      <section>
-        <h2>Commentaires</h2>
-        <article v-for="entry in comments" :key="entry.id" class="card">
-          <strong>{{ entry.auteur }}</strong> · {{ entry.date }}
-          <p class="prose">{{ entry.commentaire }}</p>
+            maxlength="200"
+            @input="author.trim().length >= 2 && searchUsers()"
+        /></label>
+        <datalist id="users">
+          <option v-for="name in suggestions" :key="name" :value="name" />
+        </datalist>
+        <div class="actions">
+          <PButton type="submit" label="Réattribuer" :disabled="busy" />
           <PButton
-            v-if="session.is_admin || entry.auteur === session.user.name"
-            class="danger"
-            label="Supprimer le commentaire"
-            :disabled="busy"
-            @click="
-              () => {
-                if (window.confirm('Supprimer ce commentaire ?'))
-                  action(`/comments/${entry.id}`, 'DELETE')
-              }
-            "
+            type="button"
+            class="secondary"
+            label="Annuler"
+            @click="reassignDialog.close()"
           />
-        </article>
-        <form
-          @submit.prevent="
-            async () => {
-              await action('/comments', 'POST', { commentaire: comment })
-              if (!error) comment = ''
-            }
-          "
-        >
-          <label
-            >Votre commentaire<textarea
-              v-model="comment"
-              required
-              maxlength="100000"
-            /></label
-          ><PButton type="submit" label="Publier" :disabled="busy" />
-        </form>
-      </section>
-    </template>
+        </div>
+      </form>
+    </dialog>
   </template>
 </template>
+<style scoped>
+.fiche-head {
+  margin: 12px 0 20px;
+}
+.fiche-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.fiche-title h1 {
+  margin: 0;
+}
+.fiche-head p {
+  margin: 4px 0 12px;
+}
+.fiche-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+.fiche-main {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+.fiche-aside {
+  grid-column: 2;
+  grid-row: 1;
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 16px;
+}
+.fiche-aside .card {
+  margin: 0;
+}
+.timeline {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  left: 17px;
+  width: 2px;
+  background: var(--c-primary-light);
+}
+.sequence {
+  position: relative;
+  padding-left: 52px;
+  scroll-margin-top: 16px;
+}
+.step {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  font-weight: 700;
+  box-shadow: 0 0 0 4px var(--c-bg);
+}
+.sequence h3 {
+  margin: 0 0 8px;
+}
+.sequence h4 {
+  margin: 14px 0 4px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chips li {
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-dark);
+  font-size: 0.85rem;
+}
+.chips .chip-duration {
+  background: var(--c-primary-mid);
+  font-weight: 600;
+}
+.sequence-extra {
+  display: grid;
+  gap: 4px 24px;
+  margin-top: 14px;
+  padding: 4px 14px 10px;
+  border-radius: var(--radius);
+  background: var(--c-soft);
+  font-size: 0.95rem;
+}
+@media (max-width: 600px) {
+  .sequence {
+    padding-left: 44px;
+  }
+  .step {
+    width: 30px;
+    height: 30px;
+  }
+  .timeline::before {
+    left: 14px;
+  }
+}
+details + details {
+  margin-top: 12px;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .fiche-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .fiche-main,
+  .fiche-aside {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+  }
+}
+@media print {
+  .fiche-layout {
+    display: block;
+  }
+}
+.statut-1 {
+  background: #e3f4e4;
+  color: #1e6b2a;
+}
+.fiche-head :deep(.icon-button) {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary-dark);
+}
+.fiche-head :deep(.icon-button.danger) {
+  background: var(--c-primary-soft);
+  color: var(--c-danger);
+}
+.fiche-head .actions {
+  align-items: center;
+  gap: 8px;
+}
+.more {
+  position: relative;
+}
+.more summary {
+  display: grid;
+  place-items: center;
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.more summary::-webkit-details-marker {
+  display: none;
+}
+.more ul {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  min-width: 220px;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+}
+.more li button {
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+.more li button:hover:not(:disabled) {
+  background: var(--c-primary-soft);
+}
+.more .danger-item {
+  color: var(--c-danger);
+}
+.reassign {
+  width: min(440px, 92vw);
+  padding: 24px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+}
+.reassign h2 {
+  margin-top: 0;
+}
+.reassign .actions {
+  margin-top: 16px;
+}
+.comments > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.comments > summary::-webkit-details-marker {
+  display: none;
+}
+.comments > summary h2 {
+  display: inline;
+  margin: 0;
+  font-size: 1.1rem;
+}
+.comments > summary::before {
+  content: '▸ ';
+}
+.comments[open] > summary::before {
+  content: '▾ ';
+}
+.comment {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-line);
+}
+.comment header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.comment .prose {
+  margin: 6px 0 0;
+}
+.comment-delete {
+  margin-left: auto;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px;
+  background: transparent;
+  color: var(--c-danger);
+}
+@media print {
+  .fiche-aside {
+    position: static;
+  }
+  .fiche-aside .toc,
+  .comments,
+  .more,
+  .reassign {
+    display: none;
+  }
+  .sequence {
+    break-inside: avoid;
+  }
+}
+</style>

@@ -17,6 +17,13 @@ const tags = ref([]);
 const types = ref([]);
 const author = ref(route.query.auteur || "");
 const authors = ref([]);
+const author_open = ref(false);
+const author_matches = computed(() => {
+  const q = author.value.trim().toLowerCase();
+  return authors.value
+    .filter((name) => name.toLowerCase().includes(q) && name !== author.value)
+    .slice(0, 10);
+});
 const search_text = ref("");
 const statuses = ref([]);
 const page = ref(1);
@@ -129,11 +136,30 @@ onMounted(async () => {
       /></label>
       <div v-if="animations" class="author-row">
         <label
-          >Auteur<input v-model="author" list="authors" /><datalist
-            id="authors"
+          >Auteur<span class="author-combo"
+            ><input
+              v-model="author"
+              autocomplete="off"
+              @focus="author_open = true"
+              @input="author_open = true"
+              @blur="author_open = false"
+              @keydown.esc="author_open = false"
+            />
+            <ul v-if="author_open && author_matches.length" class="author-popup">
+              <li
+                v-for="name in author_matches"
+                :key="name"
+                @mousedown.prevent="
+                  () => {
+                    author = name;
+                    author_open = false;
+                  }
+                "
+              >
+                {{ name }}
+              </li>
+            </ul></span
           >
-            <option v-for="name in authors" :key="name" :value="name" />
-          </datalist>
         </label>
         <PButton
           type="button"
