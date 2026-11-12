@@ -102,148 +102,221 @@ onMounted(load)
     ><p v-if="error" role="alert" class="error">{{ error }}</p>
     <form class="card" @submit.prevent="create">
       <h2>Ajouter une catégorie</h2>
-      <label>Libellé *<input v-model="draft.label" required maxlength="80" :disabled="busy" /></label>
-      <label>Code *<input v-model="draft.code" required maxlength="200" :disabled="busy" /></label>
-      <PButton type="submit" label="Ajouter la catégorie" :disabled="busy" />
+      <div class="inline-form">
+        <label>Libellé *<input v-model="draft.label" required maxlength="80" :disabled="busy" /></label>
+        <label>Code *<input v-model="draft.code" required maxlength="200" :disabled="busy" /></label>
+        <PButton
+          type="submit"
+          class="bare-icon"
+          title="Ajouter la catégorie"
+          aria-label="Ajouter la catégorie"
+          :disabled="busy"
+          ><ActionIcon name="add"
+        /></PButton>
+      </div>
     </form>
     <section v-for="group in catalog.family('')" :key="group.id" class="card">
       <div class="toolbar">
-        <h2>
-          {{ group.label }} <small>{{ group.code }}</small>
-        </h2>
-        <PButton
-          class="secondary delete-button"
-          label="Modifier"
-          :disabled="busy"
-          @click="edit(group)"
-        />
-        <PButton
-          class="danger delete-button"
-          label="Supprimer la catégorie"
-          :disabled="busy"
-          @click="remove(group)"
-        />
+        <div class="row-actions">
+          <PButton
+            class="bare-icon"
+            title="Ajouter une entrée"
+            :aria-label="`Ajouter une entrée dans ${group.label}`"
+            :aria-expanded="addingGroupId === group.id"
+            :disabled="busy"
+            @click="addEntry(group)"
+            ><ActionIcon name="add"
+          /></PButton>
+          <PButton
+            class="bare-icon"
+            title="Modifier la catégorie"
+            :aria-label="`Modifier la catégorie ${group.label}`"
+            :disabled="busy"
+            @click="edit(group)"
+            ><ActionIcon name="edit"
+          /></PButton>
+          <PButton
+            class="bare-icon danger"
+            title="Supprimer la catégorie"
+            :aria-label="`Supprimer la catégorie ${group.label}`"
+            :disabled="busy"
+            @click="remove(group)"
+            ><ActionIcon name="delete"
+          /></PButton>
+        </div>
+        <h2>{{ group.label }}</h2>
       </div>
       <form
         v-if="editingId === group.id"
-        class="edit-entry"
+        class="edit-entry inline-form"
         @submit.prevent="save"
       >
         <label
           >Libellé de la catégorie
-          <input
-            v-model="editedLabel"
-            required
-            maxlength="80"
-            :disabled="busy"
-          />
+          <input v-model="editedLabel" required maxlength="80" :disabled="busy" />
         </label>
         <PButton
           type="submit"
-          class="delete-button"
-          label="Enregistrer"
+          class="bare-icon"
+          title="Enregistrer"
+          aria-label="Enregistrer"
           :disabled="busy"
-        />
+          ><ActionIcon name="check"
+        /></PButton>
         <PButton
           type="button"
-          class="secondary delete-button"
-          label="Annuler"
+          class="bare-icon"
+          title="Annuler"
+          aria-label="Annuler"
           :disabled="busy"
           @click="editingId = null"
-        />
+          ><ActionIcon name="close"
+        /></PButton>
       </form>
-      <ul class="thesaurus-entries">
-        <li v-for="item in catalog.family(group.code)" :key="item.id">
-          <form
-            v-if="editingId === item.id"
-            class="edit-entry"
-            @submit.prevent="save"
-          >
-            <label
-              >Libellé de l’entrée
-              <input
-                v-model="editedLabel"
-                required
-                maxlength="80"
-                :disabled="busy"
-              />
-            </label>
-            <PButton
-              type="submit"
-              class="delete-button"
-              label="Enregistrer"
-              :disabled="busy"
-            />
-            <PButton
-              type="button"
-              class="secondary delete-button"
-              label="Annuler"
-              :disabled="busy"
-              @click="editingId = null"
-            />
-          </form>
-          <template v-else>
-            {{ item.label }}
-            <PButton
-              class="secondary delete-button"
-              label="Modifier"
-              :disabled="busy"
-              @click="edit(item)"
-            />
-            <PButton
-              class="secondary delete-button"
-              label="Supprimer"
-              :disabled="busy"
-              @click="remove(item)"
-            />
-          </template>
-        </li>
-      </ul>
-        <PButton
-          type="button"
-          class="secondary delete-button"
-          label="Ajouter une entrée"
-          :disabled="busy"
-          :aria-expanded="addingGroupId === group.id"
-          @click="addEntry(group)"
-        />
       <form
         v-if="addingGroupId === group.id"
         class="edit-entry"
         @submit.prevent="createEntry(group)"
       >
         <h3>Ajouter une entrée dans {{ group.label }}</h3>
-        <label>Libellé *<input v-model="entryDraft.label" required maxlength="80" :disabled="busy" /></label>
-        <label>Code<input v-model="entryDraft.code" maxlength="200" :disabled="busy" /></label>
-        <PButton type="submit" label="Ajouter" :disabled="busy" />
-        <PButton
-          type="button"
-          class="secondary"
-          label="Annuler"
-          :disabled="busy"
-          @click="addingGroupId = null"
-        />
+        <div class="inline-form">
+          <label>Libellé *<input v-model="entryDraft.label" required maxlength="80" :disabled="busy" /></label>
+          <label>Code<input v-model="entryDraft.code" maxlength="200" :disabled="busy" /></label>
+          <PButton
+            type="submit"
+            class="bare-icon"
+            title="Ajouter"
+            aria-label="Ajouter"
+            :disabled="busy"
+            ><ActionIcon name="check"
+          /></PButton>
+          <PButton
+            type="button"
+            class="bare-icon"
+            title="Annuler"
+            aria-label="Annuler"
+            :disabled="busy"
+            @click="addingGroupId = null"
+            ><ActionIcon name="close"
+          /></PButton>
+        </div>
       </form>
+      <ul class="thesaurus-entries">
+        <li v-for="item in catalog.family(group.code)" :key="item.id">
+          <form
+            v-if="editingId === item.id"
+            class="edit-entry inline-form"
+            @submit.prevent="save"
+          >
+            <label
+              >Libellé de l’entrée
+              <input v-model="editedLabel" required maxlength="80" :disabled="busy" />
+            </label>
+            <PButton
+              type="submit"
+              class="bare-icon"
+              title="Enregistrer"
+              aria-label="Enregistrer"
+              :disabled="busy"
+              ><ActionIcon name="check"
+            /></PButton>
+            <PButton
+              type="button"
+              class="bare-icon"
+              title="Annuler"
+              aria-label="Annuler"
+              :disabled="busy"
+              @click="editingId = null"
+              ><ActionIcon name="close"
+            /></PButton>
+          </form>
+          <template v-else>
+            <span class="row-actions">
+              <PictoDialog :item="item" />
+              <PButton
+                class="bare-icon"
+                title="Modifier le libellé"
+                :aria-label="`Modifier ${item.label}`"
+                :disabled="busy"
+                @click="edit(item)"
+                ><ActionIcon name="edit"
+              /></PButton>
+              <PButton
+                class="bare-icon danger"
+                title="Supprimer"
+                :aria-label="`Supprimer ${item.label}`"
+                :disabled="busy"
+                @click="remove(item)"
+                ><ActionIcon name="delete"
+              /></PButton>
+            </span>
+            <span class="entry-label"
+              ><PictoIcon :id="item.id" :size="24" /> {{ item.label }}</span
+            >
+          </template>
+        </li>
+      </ul>
     </section>
   </template>
 </template>
 
 <style scoped>
+.toolbar {
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbar h2 {
+  margin: 0;
+}
+
 .edit-entry {
   margin-block: 8px;
 }
 
-.delete-button {
-  padding: 5px 10px;
-  font-size: 0.85rem;
-  line-height: 1.3;
+.inline-form {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.inline-form label {
+  flex: 1 1 0;
+  max-width: 54ch;
+  min-width: 0;
+  margin: 0;
+}
+
+.inline-form button {
+  flex: none;
+  margin-bottom: 7px;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.thesaurus-entries {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
 }
 
 .thesaurus-entries li {
-  padding-block: 4px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 2px;
+  border-bottom: 1px solid var(--c-line);
 }
 
-.thesaurus-entries .delete-button {
-  margin-left: 8px;
+.entry-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>

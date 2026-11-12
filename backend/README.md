@@ -135,7 +135,9 @@ l’ancien dans le client. `POST /api/auth/logout` ferme la session.
 | `GET /materials/{id}/file` | Pièce jointe en téléchargement authentifié |
 | `GET /materials/{id}/download` | Fiche ODT et pièce jointe en ZIP |
 | `GET, POST /thesaurus`, `PUT, DELETE /thesaurus/{id}` | Lecture ; administration des mots-clés |
-| `GET /thesaurus/{id}/pictogram` | PNG historique, si présent |
+| `GET /thesaurus/{id}/pictogram` | PNG du terme (thématiques, lieux, saisons), si présent |
+| `PUT /thesaurus/{id}/pictogram` | Administrateur : ajoute ou remplace le PNG (champ multipart `file`, 1 Mo max). Le fichier est `<libellé>.png` ; renommer le terme renomme le fichier |
+| `DELETE /thesaurus/{id}/pictogram` | Administrateur : retire le PNG (supprimer le terme le retire aussi) |
 | `GET, PUT /pages/{name}` | Markdown, HTML nettoyé, documents ; édition administrateur |
 | `GET /authors?q=…`, `GET /users?q=…` | Suggestions d’auteurs et utilisateurs (2 caractères pour users) |
 | `GET /stats` | Séries cumulées historiques selon la dernière date de modification |

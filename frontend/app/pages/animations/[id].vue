@@ -280,6 +280,9 @@ onMounted(load)
         />
       </div>
       <p>Lieu : {{ item.lieu }}</p>
+      <p class="pictos">
+        <PictoIcon v-for="tag in item.tags" :id="tag" :key="tag" :size="40" />
+      </p>
       <p>{{ item.tags.map(catalog.label).filter(Boolean).join(' · ') }}</p>
       <section v-for="[key, label] in animationFields" :key="key" class="card">
         <h2>{{ label }}</h2>

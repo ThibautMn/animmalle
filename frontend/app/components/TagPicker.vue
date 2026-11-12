@@ -8,7 +8,7 @@ const model = defineModel({ default: () => [] })
     <div class="choices">
       <label v-for="item in items" :key="item.id"
         ><input v-model="model" type="checkbox" :value="item.id" />
-        {{ item.label }}</label
+        <PictoIcon :id="item.id" :size="20" /> {{ item.label }}</label
       >
     </div>
   </fieldset>

@@ -155,6 +155,13 @@ onMounted(async () => {
           item.titre || item.nom
         }}</NuxtLink>
       </h2>
+      <p class="pictos">
+        <PictoIcon
+          v-for="tag in animations ? item.tags : item.thematiques"
+          :id="tag"
+          :key="tag"
+        />
+      </p>
       <template v-if="!animations">
         <div class="actions resource-actions">
           <MediaPreview v-if="item.has_file" :id="item.id" icon />

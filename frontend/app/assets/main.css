@@ -706,3 +706,42 @@ th {
 .cards-grid .card p {
   margin: 0;
 }
+
+.pictos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+.pictos:empty {
+  display: none;
+}
+
+button.bare-icon {
+  min-width: 0;
+  min-height: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--c-primary-dark);
+  border-radius: 50%;
+  margin-left: 0;
+}
+button.bare-icon:hover:not(:disabled) {
+  background: transparent;
+  color: var(--c-primary);
+  transform: scale(1.15);
+}
+button.bare-icon.danger {
+  color: var(--c-danger);
+}
+button.bare-icon.danger:hover:not(:disabled) {
+  background: transparent;
+  color: #8f1d17;
+}
+button.bare-icon:focus-visible {
+  outline: 2px solid var(--c-primary);
+}
+button.bare-icon svg {
+  width: 24px;
+  height: 24px;
+}

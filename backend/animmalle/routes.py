@@ -299,11 +299,17 @@ def create_tag():
     return ThesaurusSchema().dump(item), 201
 
 
+def label_shared(item):
+    # Le pictogramme est nommé d'après le libellé : un autre terme homonyme l'utilise peut-être.
+    return bool(g.db.scalar(select(Thesaurus.id).where(Thesaurus.label == item.label, Thesaurus.id != item.id)))
+
+
 @api.put('/thesaurus/<int:key>')
 def update_tag(key):
     require_admin()
     item = svc.get(Thesaurus, key)
     data = payload(ThesaurusSchema(only=('label',)))
+    files.rename_pictogram(item, data['label'], shared=label_shared(item))
     item.label = data['label']
     g.db.commit()
     return ThesaurusSchema().dump(item)
@@ -315,6 +321,11 @@ def remove_tag(key):
     item = svc.get(Thesaurus, key)
     if item.reference == '' and g.db.scalar(select(Thesaurus.id).where(Thesaurus.reference == item.code)):
         abort(409, description='Catégorie encore utilisée.')
+    if not label_shared(item):
+        try:
+            files.pictogram_path(item).unlink(missing_ok=True)
+        except Exception:
+            pass
     g.db.delete(item)
     g.db.commit()
     return '', 204
@@ -392,14 +403,25 @@ def export_tool(key):
 
 @api.get('/thesaurus/<int:key>/pictogram')
 def pictogram(key):
+    return send_file(files.pictogram_path(svc.get(Thesaurus, key)), mimetype='image/png', max_age=0)
+
+
+@api.put('/thesaurus/<int:key>/pictogram')
+def put_pictogram(key):
+    require_admin()
     item = svc.get(Thesaurus, key)
-    if item.reference not in ('ref.thematiques', 'ref.lieux', 'ref.saison'):
-        abort(404)
-    root = files.paths()['pictograms']
-    source = (root / ((item.label or '') + '.png')).resolve()
-    if not source.is_relative_to(root) or not source.is_file():
-        abort(404)
-    return send_file(source, mimetype='image/png')
+    file = request.files.get('file')
+    if not file:
+        raise ValidationError({'file': ['Fichier PNG requis.']})
+    files.store_pictogram(item, file)
+    return '', 204
+
+
+@api.delete('/thesaurus/<int:key>/pictogram')
+def delete_pictogram(key):
+    require_admin()
+    files.pictogram_path(svc.get(Thesaurus, key)).unlink()
+    return '', 204
 
 
 @api.get('/users')

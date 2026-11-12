@@ -194,6 +194,14 @@ onMounted(load)
       <p>
         Difficulté : {{ catalog.label(item.difficulte_id) || 'Non renseignée' }}
       </p>
+      <p class="pictos">
+        <PictoIcon
+          v-for="tag in item.thematiques"
+          :id="tag"
+          :key="tag"
+          :size="40"
+        />
+      </p>
       <p>{{ item.thematiques.map(catalog.label).join(' · ') }}</p></template
     ></template
   >

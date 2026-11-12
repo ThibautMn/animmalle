@@ -285,6 +285,31 @@ class ApiTests(unittest.TestCase):
         self.create_animation()
         self.assertEqual(self.mutate('delete', '/api/thesaurus/1').status_code, 409)
 
+    def test_pictogram_upload_replace_rename_delete(self):
+        png = b'\x89PNG\r\n\x1a\n' + b'0' * 20
+        def send(data, name='a.png'):
+            return self.mutate('put', '/api/thesaurus/6/pictogram', content_type='multipart/form-data',
+                               data={'file': (io.BytesIO(data), name)})
+        self.assertEqual(send(png).status_code, 403)
+        self.login('admin')
+        item = next(i for i in self.client.get('/api/thesaurus').json['items'] if i['id'] == 6)
+        self.assertEqual(item['reference'], 'ref.thematiques')
+        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').status_code, 404)
+        self.assertEqual(send(b'pas un png').status_code, 422)
+        self.assertEqual(send(png).status_code, 204)
+        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png)
+        self.assertEqual(send(png + b'1').status_code, 204)
+        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png + b'1')
+        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'Nouveau nom'}).status_code, 200)
+        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png + b'1')
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 204)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 404)
+        self.assertEqual(send(png).status_code, 204)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'a/b'}).status_code, 200)
+        self.assertEqual(send(png).status_code, 422)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/1/pictogram', content_type='multipart/form-data',
+                                     data={'file': (io.BytesIO(png), 'a.png')}).status_code, 204)
+
     def test_thesaurus_update_label(self):
         path = '/api/thesaurus/1'
         self.assertEqual(self.mutate('put', path, {'label': 'Renommé'}).status_code, 403)

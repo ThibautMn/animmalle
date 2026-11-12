@@ -66,6 +66,53 @@ def store_upload(file):
             temporary.unlink(missing_ok=True)
 
 
+PICTOGRAM_MAX_BYTES = 1024 * 1024
+
+
+def pictogram_path(item, must_exist=True):
+    """Chemin du PNG d'un terme (nommé d'après son libellé, comme dans l'ancienne version)."""
+    root = paths()['pictograms'].resolve()
+    source = (root / ((item.label or '') + '.png')).resolve()
+    if not item.label or source.parent != root:
+        abort(422, description='Libellé incompatible avec un nom de fichier.')
+    if must_exist and not source.is_file():
+        abort(404, description='Aucun pictogramme.')
+    return source
+
+
+def store_pictogram(item, file):
+    target = pictogram_path(item, must_exist=False)
+    data = file.stream.read(PICTOGRAM_MAX_BYTES + 1)
+    if len(data) > PICTOGRAM_MAX_BYTES:
+        abort(422, description='Pictogramme trop volumineux (1 Mo maximum).')
+    if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+        abort(422, description='Le pictogramme doit être une image PNG.')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=target.parent, delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(data)
+    os.replace(temporary, target)
+
+
+def rename_pictogram(item, new_label, shared=False):
+    """Suit le renommage d'un terme ; ne remplace jamais un fichier existant."""
+    if item.label == new_label:
+        return
+    try:
+        source = pictogram_path(item)
+        old = Path(source)
+        item_label, item.label = item.label, new_label
+        try:
+            target = pictogram_path(item, must_exist=False)
+        finally:
+            item.label = item_label
+        if not target.exists():
+            (shutil.copyfile if shared else os.rename)(old, target)
+    except Exception:
+        # pas de pictogramme ou nom invalide : rien à déplacer
+        pass
+
+
 def page_directory(name):
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,80}', name):
         abort(404)
