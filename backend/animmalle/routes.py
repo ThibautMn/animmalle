@@ -4,12 +4,13 @@ import json
 
 from flask import Blueprint, abort, g, request, session, current_app, send_file
 from marshmallow import ValidationError
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete, text, or_, func
+from sqlalchemy.orm import load_only
 from werkzeug.utils import secure_filename
 
 from .auth import authenticate, login_user, require_admin
 from .models import (Animation, MatPeda, Thesaurus, Commentaire,
-                     RelMatPedaSequence, RelMatPedaThematique)
+                     RelMatPedaSequence, RelMatPedaThematique, RelAnimTag)
 from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import services as svc
@@ -83,23 +84,50 @@ def logout():
 
 @api.get('/animations')
 def animations():
-    query = select(Animation).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
+    query = select(Animation).options(load_only(Animation.id, Animation.titre, Animation.statut,
+                                                 Animation.description, Animation.auteurs)).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
     if 'auteur' in request.args:
         query = query.where(Animation.auteurs == request.args['auteur'])
-    if 'statut' in request.args:
-        query = query.where(Animation.statut == integer_arg('statut', 1, maximum=3))
+    statuts = request.args.getlist('statut')
+    if statuts:
+        try:
+            values = {int(value) for value in statuts}
+        except ValueError:
+            raise ValidationError({'statut': ['Entier requis.']}) from None
+        if not values <= {1, 2, 3}:
+            raise ValidationError({'statut': ['Valeur hors limites.']})
+        query = query.where(Animation.statut.in_(values))
+    text_query = request.args.get('q', '').strip()
+    if text_query:
+        if len(text_query) > 100:
+            raise ValidationError({'q': ['100 caractères maximum.']})
+        pattern = '%' + text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
+        query = query.where(or_(Animation.titre.ilike(pattern, escape='\\'),
+                                Animation.description.ilike(pattern, escape='\\')))
     tags = id_args('tag')
-    results = []
-    for item in g.db.scalars(query):
-        matched = len(tags & {tag.id for tag in item.tags})
-        if tags and not matched:
-            continue
-        value = svc.animation_dict(item)
-        value['pertinence'] = {'matched': matched, 'requested': len(tags)}
-        results.append(value)
+    page = integer_arg('page', 1)
+    size = integer_arg('page_size', 50, maximum=200)
     if tags:
-        results.sort(key=lambda item: -item['pertinence']['matched'])
-    return paginate(results)
+        counts = (select(RelAnimTag.fk_anim_id, func.count().label('matched'))
+                  .where(RelAnimTag.fk_thes_id.in_(tags)).group_by(RelAnimTag.fk_anim_id).subquery())
+        query = (query.join(counts, counts.c.fk_anim_id == Animation.id)
+                 .order_by(None).order_by(counts.c.matched.desc(), Animation.titre, Animation.id))
+        query = query.add_columns(counts.c.matched)
+    total = g.db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
+    query = query.offset((page - 1) * size).limit(size)
+    rows = g.db.execute(query).all()
+    ids = [row[0].id for row in rows]
+    tags_by_anim = {key: [] for key in ids}
+    if ids:
+        for anim_id, tag_id in g.db.execute(select(RelAnimTag.fk_anim_id, RelAnimTag.fk_thes_id)
+                                            .where(RelAnimTag.fk_anim_id.in_(ids)).order_by(RelAnimTag.id)):
+            tags_by_anim[anim_id].append(tag_id)
+    items = [{'id': row[0].id, 'titre': row[0].titre, 'statut': row[0].statut,
+              'description': row[0].description, 'auteurs': row[0].auteurs,
+              'tags': tags_by_anim[row[0].id],
+              'pertinence': {'matched': row[1] if tags else 0, 'requested': len(tags)}}
+             for row in rows]
+    return {'items': items, 'total': total, 'page': page, 'page_size': size}
 
 
 @api.get('/animations/<key>')
