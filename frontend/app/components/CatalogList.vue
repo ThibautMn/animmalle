@@ -31,6 +31,8 @@ const page_size = 20;
 const total = ref(0);
 const busy = ref(false);
 const error = ref("");
+// Dernière recherche de la pédathèque, réutilisée par la fiche pour les flèches précédente/suivante
+const animation_search = useState("animation_search", () => null);
 let requestId = 0;
 async function search(reset = false) {
   if (reset) page.value = 1;
@@ -49,6 +51,10 @@ async function search(reset = false) {
     }
     const result = await api(endpoint, { query });
     if (current === requestId) {
+      if (animations) {
+        const { page: _page, page_size: _size, ...filters } = query;
+        animation_search.value = filters;
+      }
       items.value = result.items;
       total.value = result.total;
     }

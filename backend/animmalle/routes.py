@@ -82,8 +82,8 @@ def logout():
     return '', 204
 
 
-@api.get('/animations')
-def animations():
+def animation_query():
+    """Requête filtrée de la liste, partagée avec la navigation précédente/suivante."""
     query = select(Animation).options(load_only(Animation.id, Animation.titre, Animation.statut,
                                                  Animation.description, Animation.auteurs)).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
     if 'auteur' in request.args:
@@ -105,14 +105,20 @@ def animations():
         query = query.where(or_(Animation.titre.ilike(pattern, escape='\\'),
                                 Animation.description.ilike(pattern, escape='\\')))
     tags = id_args('tag')
-    page = integer_arg('page', 1)
-    size = integer_arg('page_size', 50, maximum=200)
     if tags:
         counts = (select(RelAnimTag.fk_anim_id, func.count().label('matched'))
                   .where(RelAnimTag.fk_thes_id.in_(tags)).group_by(RelAnimTag.fk_anim_id).subquery())
         query = (query.join(counts, counts.c.fk_anim_id == Animation.id)
                  .order_by(None).order_by(counts.c.matched.desc(), Animation.titre, Animation.id))
         query = query.add_columns(counts.c.matched)
+    return query, tags
+
+
+@api.get('/animations')
+def animations():
+    query, tags = animation_query()
+    page = integer_arg('page', 1)
+    size = integer_arg('page_size', 50, maximum=200)
     total = g.db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
     query = query.offset((page - 1) * size).limit(size)
     rows = g.db.execute(query).all()
@@ -128,6 +134,22 @@ def animations():
               'pertinence': {'matched': row[1] if tags else 0, 'requested': len(tags)}}
              for row in rows]
     return {'items': items, 'total': total, 'page': page, 'page_size': size}
+
+
+@api.get('/animations/<key>/neighbors')
+def animation_neighbors(key):
+    """Animations voisines de `key` dans la liste filtrée (mêmes paramètres que /animations)."""
+    query, _ = animation_query()
+    rows = [(row[0].id, row[0].titre) for row in g.db.execute(query)]
+    position = next((index for index, row in enumerate(rows) if row[0] == key), None)
+    if position is None:
+        return {'found': False, 'previous': None, 'next': None, 'position': None, 'total': len(rows)}
+
+    def brief(row):
+        return {'id': row[0], 'titre': row[1]} if row else None
+    return {'found': True, 'position': position + 1, 'total': len(rows),
+            'previous': brief(rows[position - 1] if position > 0 else None),
+            'next': brief(rows[position + 1] if position + 1 < len(rows) else None)}
 
 
 @api.get('/animations/<key>')

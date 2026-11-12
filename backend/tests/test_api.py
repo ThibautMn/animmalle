@@ -380,6 +380,26 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(document.infolist()[0].filename, 'mimetype')
                 self.assertEqual(document.infolist()[0].compress_type, 0)
 
+    def test_animation_neighbors(self):
+        first = self.create_animation()
+        data = self.animation_data()
+        data['titre'] = 'Zèbre'
+        second = self.mutate('post', '/api/animations', data).json
+        ids = [first['id'], second['id']]
+        titles = {first['id']: self.animation_data()['titre'], second['id']: 'Zèbre'}
+        order = sorted(ids, key=lambda key: titles[key])
+        result = self.client.get(f'/api/animations/{order[0]}/neighbors').json
+        self.assertTrue(result['found'])
+        self.assertIsNone(result['previous'])
+        self.assertEqual(result['next']['id'], order[1])
+        self.assertEqual((result['position'], result['total']), (1, 2))
+        result = self.client.get(f'/api/animations/{order[1]}/neighbors').json
+        self.assertEqual(result['previous']['id'], order[0])
+        self.assertIsNone(result['next'])
+        filtered = self.client.get(f'/api/animations/{order[0]}/neighbors?q=Zèbre').json
+        self.assertFalse(filtered['found'])
+        self.assertEqual(self.client.get('/api/animations/inconnue/neighbors').json['found'], False)
+
     def test_search_stats_authors_errors(self):
         self.create_animation()
         response = self.client.get('/api/animations?tag=6&page_size=1')

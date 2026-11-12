@@ -30,6 +30,8 @@ const author = ref('')
 const suggestions = ref([])
 const mediaItems = ref({})
 const error = ref('')
+const neighbors = ref(null)
+const animationSearch = useState('animation_search', () => null)
 const busy = ref(true)
 const reassignDialog = ref(null)
 const menu = ref(null)
@@ -65,6 +67,7 @@ async function load() {
       )
     }
     draft.value = structuredClone(toRaw(item.value))
+    if (!creating) loadNeighbors()
     // La durée est envoyée par son champ dédié ; le backend l’ajoute aux tags.
     const durationIds = new Set(
       catalog.family('ref.duree').map((tag) => tag.id),
@@ -74,6 +77,21 @@ async function load() {
     error.value = e.message
   } finally {
     busy.value = false
+  }
+}
+async function loadNeighbors() {
+  try {
+    const fetchNeighbors = (query) =>
+      api(`${path}/neighbors`, { query, retry: 0 })
+    let result = await fetchNeighbors(animationSearch.value || {})
+    // Fiche absente de la dernière recherche : on revient à la liste complète
+    if (!result.found && animationSearch.value) {
+      animationSearch.value = null
+      result = await fetchNeighbors({})
+    }
+    neighbors.value = result.found ? result : null
+  } catch {
+    neighbors.value = null
   }
 }
 async function save() {
@@ -340,6 +358,24 @@ onMounted(load)
           </details>
         </div>
       </header>
+      <nav v-if="neighbors" class="fiche-nav" aria-label="Animations voisines">
+        <NuxtLink
+          v-if="neighbors.previous"
+          class="nav-arrow nav-prev"
+          :to="`/animations/${neighbors.previous.id}`"
+          :aria-label="`Animation précédente : ${neighbors.previous.titre}`"
+          :title="`Précédente : ${neighbors.previous.titre}`"
+          >‹</NuxtLink
+        >
+        <NuxtLink
+          v-if="neighbors.next"
+          class="nav-arrow nav-next"
+          :to="`/animations/${neighbors.next.id}`"
+          :aria-label="`Animation suivante : ${neighbors.next.titre}`"
+          :title="`Suivante : ${neighbors.next.titre}`"
+          >›</NuxtLink
+        >
+      </nav>
       <div class="fiche-layout">
         <aside class="fiche-aside">
           <AnimationSummary :item="item" />
@@ -347,27 +383,14 @@ onMounted(load)
         </aside>
         <div class="fiche-main">
           <section
-            v-for="[key, label] in animationFields.slice(0, 2)"
+            v-for="[key, label] in animationFields"
             v-show="item[key]"
             :key="key"
-            class="card"
+            class="block"
+            :class="`block-${key}`"
           >
             <h2>{{ label }}</h2>
             <p class="prose">{{ item[key] }}</p>
-          </section>
-          <section
-            v-if="animationFields.slice(2).some(([key]) => item[key])"
-            class="card"
-          >
-            <details
-              v-for="[key, label] in animationFields.slice(2)"
-              v-show="item[key]"
-              :key="key"
-              open
-            >
-              <summary>{{ label }}</summary>
-              <p class="prose">{{ item[key] }}</p>
-            </details>
           </section>
           <h2>Les séquences</h2>
           <ol class="timeline">
@@ -393,23 +416,27 @@ onMounted(load)
                     </li>
                   </ul>
                 </header>
-                <div v-show="seq.description">
+                <section
+                  v-show="seq.description"
+                  class="block block-sequence block-deroulement"
+                >
                   <h4>Déroulement</h4>
                   <p class="prose">{{ seq.description }}</p>
-                </div>
-                <div
-                  v-if="seq.objectifs || seq.materiel_div"
-                  class="sequence-extra"
+                </section>
+                <section
+                  v-show="seq.objectifs"
+                  class="block block-sequence block-objectifs"
                 >
-                  <div v-show="seq.objectifs">
-                    <h4>Objectifs</h4>
-                    <p class="prose">{{ seq.objectifs }}</p>
-                  </div>
-                  <div v-show="seq.materiel_div">
-                    <h4>Matériel complémentaire</h4>
-                    <p class="prose">{{ seq.materiel_div }}</p>
-                  </div>
-                </div>
+                  <h4>Objectifs</h4>
+                  <p class="prose">{{ seq.objectifs }}</p>
+                </section>
+                <section
+                  v-show="seq.materiel_div"
+                  class="block block-sequence block-materiel"
+                >
+                  <h4>Matériel complémentaire</h4>
+                  <p class="prose">{{ seq.materiel_div }}</p>
+                </section>
                 <div v-if="seq.materiel.length">
                   <h4>Médias</h4>
                   <SequenceMedia
@@ -498,17 +525,17 @@ onMounted(load)
 }
 .fiche-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: 420px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 .fiche-main {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
 }
 .fiche-aside {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
   position: sticky;
   top: 16px;
@@ -581,15 +608,6 @@ onMounted(load)
   background: var(--c-primary-mid);
   font-weight: 600;
 }
-.sequence-extra {
-  display: grid;
-  gap: 4px 24px;
-  margin-top: 14px;
-  padding: 4px 14px 10px;
-  border-radius: var(--radius);
-  background: var(--c-soft);
-  font-size: 0.95rem;
-}
 @media (max-width: 600px) {
   .sequence {
     padding-left: 44px;
@@ -602,12 +620,50 @@ onMounted(load)
     left: 14px;
   }
 }
-details + details {
-  margin-top: 12px;
+.block {
+  --accent: var(--c-primary);
+  margin-bottom: 16px;
+  padding: 16px 20px 16px 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, white);
+  border-left: 5px solid var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 7%, white);
 }
-summary {
-  cursor: pointer;
-  font-weight: 600;
+.block h2,
+.block h4 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--accent) 75%, black);
+}
+.block-sequence {
+  margin: 12px 0 0;
+  padding: 10px 16px 10px 18px;
+}
+.block-sequence h4 {
+  margin: 0 0 4px;
+}
+.block-deroulement {
+  background: var(--c-surface);
+}
+.block-materiel {
+  --accent: #b07a1a;
+}
+.block .prose {
+  margin: 0;
+}
+.block-objectifs {
+  --accent: #1f8a70;
+}
+.block-pre_anim {
+  --accent: #3a6fc4;
+}
+.block-post_anim {
+  --accent: #8a4fc0;
+}
+.block-public_specifique {
+  --accent: #7a7167;
 }
 @media (max-width: 900px) {
   .fiche-layout {
@@ -738,6 +794,9 @@ summary {
   color: var(--c-danger);
 }
 @media print {
+  .fiche-nav {
+    display: none;
+  }
   .fiche-aside {
     position: static;
   }
@@ -749,6 +808,43 @@ summary {
   }
   .sequence {
     break-inside: avoid;
+  }
+}
+.nav-arrow {
+  position: fixed;
+  top: 50%;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 76px;
+  transform: translateY(-50%);
+  border-radius: var(--radius);
+  background: var(--c-primary-mid);
+  color: var(--c-primary-dark);
+  font-size: 2.4rem;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgb(180 100 0 / 20%);
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.nav-arrow:hover,
+.nav-arrow:focus-visible {
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  opacity: 1;
+}
+.nav-prev {
+  left: 6px;
+}
+.nav-next {
+  right: 6px;
+}
+@media (max-width: 900px) {
+  .nav-arrow {
+    width: 30px;
+    height: 48px;
   }
 }
 </style>

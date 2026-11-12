@@ -132,6 +132,10 @@ main {
   padding: 36px 24px 56px;
   min-height: 70vh;
 }
+main:has(.fiche-layout) {
+  max-width: 1680px;
+  padding-inline: clamp(12px, 2vw, 32px);
+}
 main:has(.catalog-layout.with-sidebar) {
   max-width: none;
   padding-inline: clamp(12px, 2vw, 32px);
