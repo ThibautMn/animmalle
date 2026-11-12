@@ -111,6 +111,8 @@ paths:
   uploads: backend/uploads
   # Répertoire des pages éditables ; doit rester hors du dossier historique ancien_animalle.
   pages: backend/pages
+  # Répertoire du cache des vignettes (régénérables) ; facultatif, par défaut le dossier uploads suffixé par _vignettes.
+  # thumbnails: backend/uploads_vignettes
   # Répertoire des pictogrammes utilisés par l’application.
   pictograms: backend/pictograms
 # Notifications SMTP ; les destinataires doivent être renseignés explicitement avant activation.

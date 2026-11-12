@@ -15,6 +15,7 @@ from xml.sax.saxutils import escape
 
 import markdown
 import nh3
+from PIL import Image, ImageOps, ImageStat
 from flask import current_app, abort
 from werkzeug.utils import secure_filename
 
@@ -195,6 +196,72 @@ def export_archive(title, data, materials, sections):
         archive.writestr('fichiers_absents.json', json.dumps(missing))
     output.seek(0)
     return output
+
+
+THUMBNAIL_SIZE = (480, 360)
+THUMBNAIL_QUALITY = 70
+
+
+def thumbnail_directory():
+    # Dossier distinct des originaux, qui ne sont jamais modifiés.
+    configured = paths().get('thumbnails')
+    return configured or paths()['uploads'].with_name(paths()['uploads'].name + '_vignettes')
+
+
+def thumbnail_file(item):
+    """Renvoie une vignette JPEG réduite, générée une fois puis mise en cache sur disque."""
+    source = media_path(item)
+    mime = mimetypes.guess_type(source.name)[0] or ''
+    is_video = mime.startswith('video/')
+    if not is_video and not mime.startswith('image/'):
+        abort(415, description='Vignette indisponible pour ce format.')
+    stat = source.stat()
+    key = hashlib.sha256(f'{source.name}:{stat.st_size}:{stat.st_mtime_ns}'.encode()).hexdigest()
+    directory = thumbnail_directory()
+    target = directory / f'{key}.jpg'
+    if target.is_file():
+        return target
+    if is_video and not shutil.which('ffmpeg'):
+        abort(503, description='ffmpeg doit être installé sur le serveur pour les vignettes vidéo.')
+    directory.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='animmalle-vignette-', dir=directory) as work:
+        raw = Path(work) / 'image.jpg'
+        try:
+            if is_video:
+                # Plusieurs instants : l'ouverture d'une vidéo est souvent noire (fondu d'entrée).
+                for moment in ('0.1', '1', '3', '10'):
+                    subprocess.run(
+                        ['ffmpeg', '-v', 'error', '-y', '-ss', moment, '-i', str(source), '-frames:v', '1',
+                         '-vf', f'scale={THUMBNAIL_SIZE[0]}:-2', str(raw)],
+                        check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if not raw.is_file():  # instant au-delà de la fin de la vidéo
+                        break
+                    with Image.open(raw) as candidate:
+                        if ImageStat.Stat(candidate.convert('L')).mean[0] > 12:
+                            break
+                if not raw.is_file():
+                    subprocess.run(
+                        ['ffmpeg', '-v', 'error', '-i', str(source), '-frames:v', '1',
+                         '-vf', f'scale={THUMBNAIL_SIZE[0]}:-2', str(raw)],
+                        check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                picture = Image.open(raw)
+            else:
+                picture = Image.open(source)
+            with picture:
+                picture = ImageOps.exif_transpose(picture)
+                picture.thumbnail(THUMBNAIL_SIZE)
+                if picture.mode in ('RGBA', 'LA', 'P'):
+                    picture = picture.convert('RGBA')
+                    background = Image.new('RGB', picture.size, 'white')
+                    background.paste(picture, mask=picture.getchannel('A'))
+                    picture = background
+                else:
+                    picture = picture.convert('RGB')
+                picture.save(Path(work) / 'vignette.jpg', 'JPEG', quality=THUMBNAIL_QUALITY, optimize=True)
+        except (subprocess.SubprocessError, OSError, Image.DecompressionBombError, ValueError):
+            abort(422, description='Vignette impossible à générer. Utilisez l’aperçu ou le téléchargement.')
+        os.replace(Path(work) / 'vignette.jpg', target)
+    return target
 
 
 def preview_file(item):

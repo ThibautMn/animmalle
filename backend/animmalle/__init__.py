@@ -71,7 +71,9 @@ def create_app(config_path=CONFIG_PATH, *, engine=None):
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-CSRF-Token'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
             response.vary.add('Origin')
-        response.headers['Cache-Control'] = 'no-store'
+        # Seules les vignettes (cache privé explicite) échappent à no-store.
+        if not response.headers.get('Cache-Control', '').startswith('private, max-age='):
+            response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
 

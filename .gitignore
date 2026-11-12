@@ -15,6 +15,7 @@ __pycache__/
 .pytest_cache/
 *.log
 backend/uploads/
+backend/uploads_vignettes/
 frontend/node_modules/
 
 

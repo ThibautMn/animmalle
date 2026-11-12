@@ -3,6 +3,7 @@ import copy
 import hashlib
 import importlib.util
 import io
+import subprocess
 import json
 import os
 from pathlib import Path
@@ -230,6 +231,33 @@ class ApiTests(unittest.TestCase):
         self.login('admin')
         self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
         self.assertTrue(list(Path(self.settings['paths']['uploads']).glob('*.pdf')))
+
+    def test_material_thumbnail(self):
+        from PIL import Image
+        picture = io.BytesIO()
+        Image.new('RGBA', (2000, 1000), (255, 0, 0, 128)).save(picture, 'PNG')
+        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+                             data={'data': json.dumps(self.material_data()),
+                                   'file': (io.BytesIO(picture.getvalue()), 'grande.png')})
+        key = result.json['id']
+        response = self.client.get(f'/api/materials/{key}/thumbnail')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, 'image/jpeg')
+        self.assertIn('max-age', response.headers['Cache-Control'])
+        with Image.open(io.BytesIO(response.data)) as thumbnail:
+            self.assertLessEqual(thumbnail.width, 480)
+            self.assertLess(len(response.data), len(picture.getvalue()) + 5000)
+        response.close()
+        self.assertEqual(self.client.get('/api/materials/999999/thumbnail').status_code, 404)
+        self.login('admin')
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'%PDF'), 'doc.pdf')})
+        self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 415)
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'x'), 'film.mp4')})
+        with patch('animmalle.files.shutil.which', return_value=None):
+            self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 503)
+        with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
+            with patch('animmalle.files.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'ffmpeg')):
+                self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 422)
 
     def test_material_preview(self):
         result = self.mutate('post', '/api/materials', content_type='multipart/form-data',

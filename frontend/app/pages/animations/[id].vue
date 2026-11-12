@@ -192,6 +192,23 @@ onBeforeRouteLeave(
     !editing.value ||
     window.confirm('Quitter sans enregistrer les modifications ?'),
 )
+let headObserver
+const headEl = ref(null)
+watch(headEl, (el) => {
+  headObserver?.disconnect()
+  if (!el || typeof ResizeObserver === 'undefined') return
+  headObserver = new ResizeObserver(() => {
+    document.documentElement.style.setProperty(
+      '--fiche-h',
+      `${el.offsetHeight}px`
+    )
+  })
+  headObserver.observe(el)
+})
+onBeforeUnmount(() => {
+  headObserver?.disconnect()
+  document.documentElement.style.removeProperty('--fiche-h')
+})
 onMounted(load)
 </script>
 <template>
@@ -297,7 +314,7 @@ onMounted(load)
       </fieldset>
     </form>
     <template v-else>
-      <header class="fiche-head">
+      <header ref="headEl" class="fiche-head">
         <div class="fiche-title">
           <h1>{{ item.titre }}</h1>
           <span class="badge" :class="`statut-${item.statut}`">{{
@@ -511,6 +528,19 @@ onMounted(load)
 .fiche-head {
   margin: 12px 0 20px;
 }
+.fiche-head {
+  position: sticky;
+  top: var(--site-h, 0px);
+  z-index: 15;
+  margin: 0 0 20px;
+  padding: 12px 0 8px;
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-bg);
+}
+.fiche-main header {
+  position: static;
+  z-index: auto;
+}
 .fiche-title {
   display: flex;
   flex-wrap: wrap;
@@ -538,7 +568,7 @@ onMounted(load)
   grid-column: 1;
   grid-row: 1;
   position: sticky;
-  top: 16px;
+  top: calc(var(--site-h, 0px) + var(--fiche-h, 0px) + 16px);
   display: grid;
   gap: 16px;
 }

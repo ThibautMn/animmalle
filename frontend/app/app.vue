@@ -35,6 +35,16 @@ async function logout() {
     error.value = e.message
   }
 }
+onMounted(() => {
+  const el = document.querySelector('body header')
+  if (!el || typeof ResizeObserver === 'undefined') return
+  new ResizeObserver(() => {
+    document.documentElement.style.setProperty(
+      '--site-h',
+      `${el.offsetHeight}px`
+    )
+  }).observe(el)
+})
 onMounted(async () => {
   try {
     session.apply(await api('/auth/session'))

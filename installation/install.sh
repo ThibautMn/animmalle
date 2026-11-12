@@ -15,7 +15,7 @@ authenticate_sudo() {
 usage() {
   cat <<'HELP'
 Usage : installation/install.sh PHASE
-  dependencies  Préparer les dépendances backend (Debian 12/13, Ubuntu 24.04)
+  dependencies  Préparer les dépendances backend, dont ffmpeg pour les vignettes vidéo (Debian 12/13, Ubuntu 24.04)
   frontend      Installer les dépendances verrouillées et construire Nuxt (Node >= 22.22.3 compatible)
   prepare       Générer Nginx/systemd sans les appliquer
   schema        Créer la base absente et appliquer Alembic (étape 3)
@@ -67,7 +67,7 @@ case "$1" in
     esac
     authenticate_sudo
     sudo apt-get update
-    sudo apt-get install -y python3 python3-venv
+    sudo apt-get install -y python3 python3-venv ffmpeg
     python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' || fail 'Python >= 3.11 requis.'
     [[ -x "$VENV/bin/python" ]] || python3 -m venv "$VENV"
     "$VENV/bin/python" -m pip install --disable-pip-version-check -r "$PROJECT_DIR/backend/requirements.txt"

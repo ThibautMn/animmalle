@@ -9,18 +9,21 @@ const items = computed(() => props.items.filter(Boolean))
 function kind(item) {
   const label = catalog.label(item.fk_type_mat_id).toLocaleLowerCase()
   if (/image|photo/.test(label)) return 'image'
+  if (/vid[ée]o|film/.test(label)) return 'video'
   if (/son|audio|musique/.test(label)) return 'audio'
   return 'other'
 }
-const images = computed(() => items.value.filter(item => kind(item) === 'image'))
+const images = computed(() => items.value.filter(item => ['image', 'video'].includes(kind(item))))
 const sounds = computed(() => items.value.filter(item => kind(item) === 'audio'))
 const others = computed(() => items.value.filter(item => kind(item) === 'other'))
 onMounted(async () => {
   await Promise.all(items.value.filter(item => kind(item) !== 'other').map(async item => {
     try {
-      const blob = await api(`/materials/${item.id}/preview`, { responseType: 'blob' })
+      // Images et vidéos : vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
+      const audio = kind(item) === 'audio'
+      const blob = await api(`/materials/${item.id}/${audio ? 'preview' : 'thumbnail'}`, { responseType: 'blob' })
       if (disposed) return
-      if (!blob.type.startsWith(`${kind(item)}/`)) throw new Error('Format de fichier incompatible avec ce type de média.')
+      if (!blob.type.startsWith(audio ? 'audio/' : 'image/')) throw new Error('Format de fichier incompatible avec ce type de média.')
       sources.value[item.id] = URL.createObjectURL(blob)
     } catch (error) {
       if (!disposed) errors.value[item.id] = error.message
@@ -35,8 +38,12 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="images.length" class="sequence-images">
     <figure v-for="item in images" :key="item.id">
-      <MediaPreview v-if="sources[item.id]" :id="item.id" icon class="thumbnail-preview">
-        <img :src="sources[item.id]" :alt="item.nom" />
+      <MediaPreview v-if="sources[item.id] || kind(item) === 'video' && errors[item.id]" :id="item.id" icon class="thumbnail-preview">
+        <span v-if="kind(item) === 'video'" class="video-thumbnail">
+          <img v-if="sources[item.id]" :src="sources[item.id]" :alt="item.nom" />
+          <span class="play-badge" aria-hidden="true" />
+        </span>
+        <img v-else :src="sources[item.id]" :alt="item.nom" />
       </MediaPreview>
       <p v-else-if="errors[item.id]" role="alert">{{ errors[item.id] }}</p>
       <p v-else role="status">Chargement…</p>

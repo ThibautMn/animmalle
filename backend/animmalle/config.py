@@ -105,9 +105,13 @@ def load_settings(path=CONFIG_PATH):
         if not isinstance(value, str) or not value:
             raise ValueError(f'paths.{key} requis.')
         data['paths'][key] = (root / value).resolve()
+    if data['paths'].get('thumbnails') not in (None, ''):
+        if not isinstance(data['paths']['thumbnails'], str):
+            raise ValueError('paths.thumbnails doit être un chemin.')
+        data['paths']['thumbnails'] = (root / data['paths']['thumbnails']).resolve()
     historical_root = root / 'ancien_animalle'
-    for key in ('uploads', 'pages'):
-        if data['paths'][key].is_relative_to(historical_root):
+    for key in ('uploads', 'pages', 'thumbnails'):
+        if data['paths'].get(key) and data['paths'][key].is_relative_to(historical_root):
             raise ValueError('Les répertoires modifiables doivent être hors du dossier historique.')
     extensions = backend.get('allowed_extensions')
     if not isinstance(extensions, list) or not extensions or not all(isinstance(x, str) and x.isalnum() for x in extensions):

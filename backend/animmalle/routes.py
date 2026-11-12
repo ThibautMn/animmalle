@@ -320,6 +320,14 @@ def preview_material(key):
     return response
 
 
+@api.get('/materials/<int:key>/thumbnail')
+def thumbnail_material(key):
+    response = send_file(files.thumbnail_file(svc.get(MatPeda, key)), mimetype='image/jpeg')
+    response.headers['Cache-Control'] = 'private, max-age=86400'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
 @api.get('/materials/<int:key>/file')
 def download_material(key):
     source = files.media_path(svc.get(MatPeda, key))
