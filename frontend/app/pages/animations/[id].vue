@@ -382,16 +382,16 @@ onMounted(load)
           <SequenceToc :sequences="item.sequences" />
         </aside>
         <div class="fiche-main">
-          <section
+          <fieldset
             v-for="[key, label] in animationFields"
             v-show="item[key]"
             :key="key"
             class="block"
             :class="`block-${key}`"
           >
-            <h2>{{ label }}</h2>
+            <legend>{{ label }}</legend>
             <p class="prose">{{ item[key] }}</p>
-          </section>
+          </fieldset>
           <h2>Les séquences</h2>
           <ol class="timeline">
             <li
@@ -416,27 +416,27 @@ onMounted(load)
                     </li>
                   </ul>
                 </header>
-                <section
+                <fieldset
                   v-show="seq.description"
                   class="block block-sequence block-deroulement"
                 >
-                  <h4>Déroulement</h4>
+                  <legend>Déroulement</legend>
                   <p class="prose">{{ seq.description }}</p>
-                </section>
-                <section
+                </fieldset>
+                <fieldset
                   v-show="seq.objectifs"
                   class="block block-sequence block-objectifs"
                 >
-                  <h4>Objectifs</h4>
+                  <legend>Objectifs</legend>
                   <p class="prose">{{ seq.objectifs }}</p>
-                </section>
-                <section
+                </fieldset>
+                <fieldset
                   v-show="seq.materiel_div"
                   class="block block-sequence block-materiel"
                 >
-                  <h4>Matériel complémentaire</h4>
+                  <legend>Matériel complémentaire</legend>
                   <p class="prose">{{ seq.materiel_div }}</p>
-                </section>
+                </fieldset>
                 <div v-if="seq.materiel.length">
                   <h4>Médias</h4>
                   <SequenceMedia
@@ -563,7 +563,7 @@ onMounted(load)
 .sequence {
   position: relative;
   padding-left: 52px;
-  scroll-margin-top: 16px;
+  scroll-margin-top: max(120px, 30vh);
 }
 .step {
   position: absolute;
@@ -622,27 +622,24 @@ onMounted(load)
 }
 .block {
   --accent: var(--c-primary);
-  margin-bottom: 16px;
-  padding: 16px 20px 16px 22px;
-  border: 1px solid color-mix(in srgb, var(--accent) 25%, white);
-  border-left: 5px solid var(--accent);
+  min-width: 0;
+  margin: 0 0 18px;
+  padding: 8px 20px 14px 22px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, white);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 7%, white);
 }
-.block h2,
-.block h4 {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
+.block legend {
+  padding: 0 10px;
+  font-size: 0.98rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: color-mix(in srgb, var(--accent) 75%, black);
 }
 .block-sequence {
-  margin: 12px 0 0;
-  padding: 10px 16px 10px 18px;
-}
-.block-sequence h4 {
-  margin: 0 0 4px;
+  margin: 14px 0 0;
+  padding: 4px 16px 10px 18px;
 }
 .block-deroulement {
   background: var(--c-surface);
