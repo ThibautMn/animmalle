@@ -416,6 +416,7 @@ onMounted(load)
               :id="`seq-${index + 1}`"
               :key="seq.id"
               class="sequence"
+              :class="catalog.sequenceKind(seq)"
             >
               <span class="step" aria-hidden="true">{{ index + 1 }}</span>
               <article class="card">
@@ -581,14 +582,23 @@ onMounted(load)
   padding: 0;
   list-style: none;
 }
-.timeline::before {
+.timeline {
+  --seq-color: var(--c-primary);
+}
+.sequence::before {
   content: '';
   position: absolute;
-  top: 16px;
-  bottom: 16px;
+  top: 0;
+  bottom: -16px;
   left: 17px;
   width: 2px;
-  background: var(--c-primary-light);
+  background: color-mix(in srgb, var(--seq-color) 40%, white);
+}
+.sequence:first-child::before {
+  top: 16px;
+}
+.sequence:last-child::before {
+  bottom: 16px;
 }
 .sequence {
   position: relative;
@@ -604,10 +614,13 @@ onMounted(load)
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--c-primary);
-  color: var(--c-on-primary);
+  background: var(--seq-color);
+  color: #fff;
   font-weight: 700;
   box-shadow: 0 0 0 4px var(--c-bg);
+}
+.sequence > .card {
+  border-color: color-mix(in srgb, var(--seq-color) 35%, var(--c-line));
 }
 .sequence h3 {
   margin: 0 0 8px;
@@ -646,7 +659,7 @@ onMounted(load)
     width: 30px;
     height: 30px;
   }
-  .timeline::before {
+  .sequence::before {
     left: 14px;
   }
 }

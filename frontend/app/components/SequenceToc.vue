@@ -10,7 +10,11 @@ const catalog = useCatalog()
   >
     <h2>Déroulé</h2>
     <ol>
-      <li v-for="(seq, index) in sequences" :key="seq.id">
+      <li
+        v-for="(seq, index) in sequences"
+        :key="seq.id"
+        :class="catalog.sequenceKind(seq)"
+      >
         <a :href="`#seq-${index + 1}`"
           ><span class="toc-title">{{ seq.titre }}</span
           ><span v-if="catalog.label(seq.fk_duree_id)" class="toc-duration">{{
@@ -30,11 +34,16 @@ const catalog = useCatalog()
   color: var(--c-muted);
 }
 .toc ol {
+  --seq-color: var(--c-primary);
   margin: 0;
   padding-left: 1.4em;
 }
 .toc li {
   padding: 3px 0;
+}
+.toc li::marker {
+  color: var(--seq-color);
+  font-weight: 700;
 }
 .toc a {
   display: inline-flex;
@@ -44,7 +53,7 @@ const catalog = useCatalog()
   color: var(--c-text);
 }
 .toc a:hover .toc-title {
-  color: var(--c-primary-dark);
+  color: color-mix(in srgb, var(--seq-color) 75%, black);
   text-decoration: underline;
 }
 .toc-duration {
@@ -65,7 +74,7 @@ const catalog = useCatalog()
   .toc a {
     padding: 2px 12px;
     border-radius: 20px;
-    background: var(--c-primary-soft);
+    background: color-mix(in srgb, var(--seq-color) 12%, white);
   }
 }
 </style>

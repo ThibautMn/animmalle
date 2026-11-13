@@ -1024,3 +1024,13 @@ button.bare-icon svg {
   padding: 0 0.25rem;
   color: var(--c-muted);
 }
+
+.seq-intro {
+  --seq-color: #1f8a70;
+}
+.seq-dvp {
+  --seq-color: #8a4fc0;
+}
+.seq-conclu {
+  --seq-color: #c4366b;
+}
