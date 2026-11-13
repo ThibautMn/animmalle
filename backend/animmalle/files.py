@@ -200,6 +200,7 @@ def export_archive(title, data, materials, sections):
 
 
 THUMBNAIL_SIZE = (480, 360)
+PDF_THUMBNAIL_SIZE = (480, 960)  # première page entière ; le frontend en affiche le haut
 THUMBNAIL_QUALITY = 70
 
 
@@ -214,7 +215,8 @@ def thumbnail_file(item):
     source = media_path(item)
     mime = mimetypes.guess_type(source.name)[0] or ''
     is_video = mime.startswith('video/')
-    if not is_video and not mime.startswith('image/'):
+    is_pdf = mime == 'application/pdf'
+    if not is_video and not is_pdf and not mime.startswith('image/'):
         abort(415, description='Vignette indisponible pour ce format.')
     stat = source.stat()
     key = hashlib.sha256(f'{source.name}:{stat.st_size}:{stat.st_mtime_ns}'.encode()).hexdigest()
@@ -224,6 +226,8 @@ def thumbnail_file(item):
         return target
     if is_video and not shutil.which('ffmpeg'):
         abort(503, description='ffmpeg doit être installé sur le serveur pour les vignettes vidéo.')
+    if is_pdf and not shutil.which('pdftoppm'):
+        abort(503, description='poppler-utils (pdftoppm) doit être installé sur le serveur pour les vignettes PDF.')
     directory.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='animmalle-vignette-', dir=directory) as work:
         raw = Path(work) / 'image.jpg'
@@ -246,11 +250,17 @@ def thumbnail_file(item):
                          '-vf', f'scale={THUMBNAIL_SIZE[0]}:-2', str(raw)],
                         check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 picture = Image.open(raw)
+            elif is_pdf:
+                subprocess.run(
+                    ['pdftoppm', '-jpeg', '-f', '1', '-l', '1', '-singlefile', '-scale-to-x', str(PDF_THUMBNAIL_SIZE[0]),
+                     '-scale-to-y', '-1', str(source), str(Path(work) / 'page')],
+                    check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                picture = Image.open(Path(work) / 'page.jpg')
             else:
                 picture = Image.open(source)
             with picture:
                 picture = ImageOps.exif_transpose(picture)
-                picture.thumbnail(THUMBNAIL_SIZE)
+                picture.thumbnail(PDF_THUMBNAIL_SIZE if is_pdf else THUMBNAIL_SIZE)
                 if picture.mode in ('RGBA', 'LA', 'P'):
                     picture = picture.convert('RGBA')
                     background = Image.new('RGB', picture.size, 'white')

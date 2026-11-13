@@ -1,4 +1,5 @@
 """Écritures métier atomiques, sans commit implicite."""
+from pathlib import Path
 from datetime import date
 from uuid import uuid4
 
@@ -156,5 +157,7 @@ def material_dict(item):
     from .schemas import MaterialSchema
     result = MaterialSchema(exclude=['thematiques', 'url']).dump(item)
     result['has_file'] = bool(item.url)
+    # Extension seule (jamais le chemin) : le frontend choisit l'icône ou la vignette.
+    result['extension'] = Path(item.url).suffix.lower().lstrip('.') if item.url else ''
     result['thematiques'] = [tag.id for tag in item.thematiques]
     return result

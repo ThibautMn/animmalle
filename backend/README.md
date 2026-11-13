@@ -310,13 +310,14 @@ servi sans conversion ; test unitaire avec `ffmpeg` simulé. Les téléchargemen
 ### Vignettes des médias
 
 `GET /api/materials/<id>/thumbnail` renvoie une vignette JPEG (480×360 max, qualité 70) pour les images et les
-vidéos ; elle est générée au premier appel puis mise en cache dans `paths.thumbnails` (facultatif, par défaut le
+vidéos, et la première page (480 px de large) des PDF via `pdftoppm` (paquet `poppler-utils`, 503 s’il est absent) ; elle est générée au premier appel puis mise en cache dans `paths.thumbnails` (facultatif, par défaut le
 dossier `uploads` suffixé par `_vignettes`, ignoré par Git et régénérable). Les originaux ne sont jamais modifiés.
 Les images utilisent Pillow (`requirements.txt`) ; les vidéos nécessitent l’exécutable système `ffmpeg`
 (503 s’il est absent, 422 en cas d’échec, 415 pour un autre format). La réponse porte `Cache-Control: private,
 max-age=86400`. Vérifié : tests unitaires `cd backend && ../.venv/bin/python -m unittest tests.test_api tests.test_schema`
 (28 tests OK, `ffmpeg` simulé) et, sur les médias historiques, 31 Mo → 22 Ko, 20 Mo → 34 Ko, 16 Mo → 17 Ko
-(0,3 s au premier appel). Vignettes vidéo vérifiées avec `ffmpeg` sur des vidéos historiques de 300 à 360 Mo (3 à 21 Ko, 0,3 à 1 s) ; l’image est prise à 0,1 s, puis à 1, 3 et 10 s si elle est quasi noire.
+(0,3 s au premier appel) ; PDF historiques : 0,05 à 4 s selon le fichier. Les matériaux exposent aussi `extension`
+(suffixe seul, jamais le chemin) pour que le frontend choisisse l’icône du format. Vignettes vidéo vérifiées avec `ffmpeg` sur des vidéos historiques de 300 à 360 Mo (3 à 21 Ko, 0,3 à 1 s) ; l’image est prise à 0,1 s, puis à 1, 3 et 10 s si elle est quasi noire.
 
 Validation : 24 tests backend réussis via
 `PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests -v`,

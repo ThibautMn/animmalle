@@ -523,10 +523,6 @@ th {
 .media-preview {
   margin: 20px 0;
 }
-.sequence-media {
-  list-style: disc;
-  padding-left: 24px;
-}
 .sequence-images {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -550,8 +546,7 @@ th {
 .sequence-images figcaption > a {
   min-width: 0;
 }
-.sequence-images figcaption .icon-button,
-.sequence-sound .icon-button {
+.sequence-images figcaption .icon-button {
   min-width: 28px;
   min-height: 28px;
   padding: 4px;
@@ -608,43 +603,74 @@ th {
   border-width: 9px 0 9px 15px;
   border-color: transparent transparent transparent #fff;
 }
-.sequence-sounds {
-  display: grid;
-  gap: 12px;
-  margin: 16px 0;
+.thumbnail-preview > button .thumbnail-pdf {
+  background: #fff;
 }
-.sequence-sounds audio {
-  display: block;
-  width: min(100%, 420px);
-  min-width: 0;
+.thumbnail-preview > button .thumbnail-pdf img {
+  object-position: top;
 }
-.sequence-sound {
-  display: flex;
+.media-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  pointer-events: none;
 }
-.sequence-sound > a {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.pdf-badge {
+  background: #b91c1c;
 }
-.sequence-sound > span {
-  flex-shrink: 0;
+.file-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 4px;
+  background: #4b5563;
+  color: #fff;
 }
-.sequence-media li {
-  margin: 2px 0;
+.file-tile--audio {
+  background: #6b4fa0;
 }
-.sequence-media li > span {
-  display: inline-block;
-  margin-left: 8px;
-  vertical-align: middle;
+.file-tile--pdf {
+  background: #b91c1c;
 }
-.sequence-media .icon-button {
-  min-width: 28px;
-  min-height: 28px;
-  padding: 4px;
-  background: transparent;
+.file-tile--presentation {
+  background: #c2410c;
+}
+.file-tile--document {
+  background: #1d4ed8;
+}
+.file-tile--spreadsheet {
+  background: #15803d;
+}
+.file-tile--video {
+  background: #222;
+}
+.file-tile--video .file-ext {
+  position: absolute;
+  bottom: 8px;
+}
+.file-ext {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.file-tile-link {
+  display: block;
   color: inherit;
-  border: none;
 }
 .media-preview img,
 .media-preview video {

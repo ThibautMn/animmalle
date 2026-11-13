@@ -70,7 +70,12 @@ onBeforeUnmount(() => {
           :src="source"
           alt="Pièce jointe de la ressource"
         />
-        <audio v-else-if="mime.startsWith('audio/')" :src="source" controls />
+        <audio
+          v-else-if="mime.startsWith('audio/')"
+          :src="source"
+          controls
+          @error="error = 'Ce navigateur ne peut pas lire ce fichier audio (format non pris en charge). Utilisez le téléchargement.'"
+        />
         <video
           v-else-if="mime.startsWith('video/')"
           :src="source"

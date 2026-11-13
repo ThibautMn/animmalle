@@ -6,24 +6,49 @@ const sources = ref({})
 const errors = ref({})
 let disposed = false
 const items = computed(() => props.items.filter(Boolean))
+const EXTENSIONS = {
+  image: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+  video: ['mp4', 'm4v', 'mov', 'avi', 'wmv', 'mpg', 'mpeg', 'mkv', 'webm', 'flv', '3gp'],
+  audio: ['mp3', 'wma', 'wav', 'ogg', 'm4a', 'aac', 'flac'],
+  pdf: ['pdf'],
+  presentation: ['ppt', 'pptx', 'odp'],
+  document: ['doc', 'docx', 'odt', 'rtf', 'txt'],
+  spreadsheet: ['xls', 'xlsx', 'ods', 'csv'],
+  archive: ['zip']
+}
+// Formats dont le backend fournit une vignette ou un aperçu.
+const THUMBNAILED = ['image', 'video', 'pdf']
+const PREVIEWABLE = ['image', 'video', 'audio', 'pdf', 'presentation', 'document', 'spreadsheet']
 function kind(item) {
+  const extension = (item.extension || '').toLowerCase()
+  const found = Object.keys(EXTENSIONS).find((name) => EXTENSIONS[name].includes(extension))
+  if (found) return found
   const label = catalog.label(item.fk_type_mat_id).toLocaleLowerCase()
   if (/image|photo/.test(label)) return 'image'
   if (/vid[ée]o|film/.test(label)) return 'video'
   if (/son|audio|musique/.test(label)) return 'audio'
-  return 'other'
+  return 'file'
 }
-const images = computed(() => items.value.filter(item => ['image', 'video'].includes(kind(item))))
-const sounds = computed(() => items.value.filter(item => kind(item) === 'audio'))
-const others = computed(() => items.value.filter(item => kind(item) === 'other'))
+// Vignette réelle quand elle est disponible ; sinon tuile avec l'icône du format.
+function showsImage(item) {
+  return THUMBNAILED.includes(kind(item)) && Boolean(sources.value[item.id])
+}
+function showsError(item) {
+  return kind(item) === 'image' && Boolean(errors.value[item.id])
+}
+function loading(item) {
+  return THUMBNAILED.includes(kind(item)) && !sources.value[item.id] && !errors.value[item.id]
+}
+function extensionLabel(item) {
+  return (item.extension || '').toUpperCase()
+}
 onMounted(async () => {
-  await Promise.all(items.value.filter(item => kind(item) !== 'other').map(async item => {
+  await Promise.all(items.value.filter(item => THUMBNAILED.includes(kind(item))).map(async item => {
     try {
-      // Images et vidéos : vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
-      const audio = kind(item) === 'audio'
-      const blob = await api(`/materials/${item.id}/${audio ? 'preview' : 'thumbnail'}`, { responseType: 'blob' })
+      // Vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
+      const blob = await api(`/materials/${item.id}/thumbnail`, { responseType: 'blob' })
       if (disposed) return
-      if (!blob.type.startsWith(audio ? 'audio/' : 'image/')) throw new Error('Format de fichier incompatible avec ce type de média.')
+      if (!blob.type.startsWith('image/')) throw new Error('Format de fichier incompatible avec ce type de média.')
       sources.value[item.id] = URL.createObjectURL(blob)
     } catch (error) {
       if (!disposed) errors.value[item.id] = error.message
@@ -36,17 +61,38 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <div v-if="images.length" class="sequence-images">
-    <figure v-for="item in images" :key="item.id">
-      <MediaPreview v-if="sources[item.id] || kind(item) === 'video' && errors[item.id]" :id="item.id" icon class="thumbnail-preview">
-        <span v-if="kind(item) === 'video'" class="video-thumbnail">
-          <img v-if="sources[item.id]" :src="sources[item.id]" :alt="item.nom" />
-          <span class="play-badge" aria-hidden="true" />
+  <div v-if="items.length" class="sequence-images">
+    <figure v-for="item in items" :key="item.id">
+      <p v-if="showsError(item)" role="alert">{{ errors[item.id] }}</p>
+      <p v-else-if="loading(item)" role="status">Chargement…</p>
+      <MediaPreview
+        v-else-if="PREVIEWABLE.includes(kind(item))"
+        :id="item.id"
+        icon
+        class="thumbnail-preview"
+      >
+        <span v-if="showsImage(item)" :class="['video-thumbnail', `thumbnail-${kind(item)}`]">
+          <img :src="sources[item.id]" :alt="item.nom" />
+          <span v-if="kind(item) === 'video'" class="play-badge" aria-hidden="true" />
+          <span v-else-if="kind(item) === 'pdf'" class="media-badge pdf-badge" aria-hidden="true">
+            <FileTypeIcon kind="pdf" :size="14" />PDF
+          </span>
+          <span v-else-if="kind(item) === 'image'" class="media-badge image-badge" aria-hidden="true">
+            <FileTypeIcon kind="image" :size="14" />
+          </span>
         </span>
-        <img v-else :src="sources[item.id]" :alt="item.nom" />
+        <span v-else :class="['file-tile', `file-tile--${kind(item)}`]">
+          <FileTypeIcon v-if="kind(item) !== 'video'" :kind="kind(item)" />
+          <span v-else class="play-badge" aria-hidden="true" />
+          <span v-if="extensionLabel(item)" class="file-ext">{{ extensionLabel(item) }}</span>
+        </span>
       </MediaPreview>
-      <p v-else-if="errors[item.id]" role="alert">{{ errors[item.id] }}</p>
-      <p v-else role="status">Chargement…</p>
+      <NuxtLink v-else :to="`/materials/${item.id}`" class="file-tile-link">
+        <span :class="['file-tile', `file-tile--${kind(item)}`]">
+          <FileTypeIcon :kind="kind(item)" />
+          <span v-if="extensionLabel(item)" class="file-ext">{{ extensionLabel(item) }}</span>
+        </span>
+      </NuxtLink>
       <figcaption>
         <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
         <DownloadButton
@@ -57,23 +103,4 @@ onBeforeUnmount(() => {
       </figcaption>
     </figure>
   </div>
-  <div v-if="sounds.length" class="sequence-sounds">
-    <div v-for="item in sounds" :key="item.id" class="sequence-sound">
-      <audio v-if="sources[item.id]" :src="sources[item.id]" controls preload="metadata" :aria-label="item.nom" />
-      <p v-else-if="errors[item.id]" role="alert">{{ errors[item.id] }}</p>
-      <p v-else role="status">Chargement…</p>
-      <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
-      <DownloadButton
-        :path="`/materials/${item.id}/file`"
-        icon="download"
-        :label="`Télécharger ${item.nom}`"
-      />
-    </div>
-  </div>
-  <ul v-if="others.length" class="sequence-media">
-    <li v-for="item in others" :key="item.id">
-      <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
-      <MediaPreview :id="item.id" icon />
-    </li>
-  </ul>
 </template>

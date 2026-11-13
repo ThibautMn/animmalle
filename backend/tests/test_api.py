@@ -3,6 +3,7 @@ import copy
 import hashlib
 import importlib.util
 import io
+import shutil
 import subprocess
 import json
 import os
@@ -250,8 +251,21 @@ class ApiTests(unittest.TestCase):
         response.close()
         self.assertEqual(self.client.get('/api/materials/999999/thumbnail').status_code, 404)
         self.login('admin')
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'%PDF'), 'doc.pdf')})
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'zip'), 'archive.zip')})
         self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 415)
+        self.assertEqual(self.client.get(f'/api/materials/{key}').json['extension'], 'zip')
+        page = io.BytesIO()
+        Image.new('RGB', (600, 800), 'white').save(page, 'PDF')
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(page.getvalue()), 'page.pdf')})
+        if shutil.which('pdftoppm'):
+            response = self.client.get(f'/api/materials/{key}/thumbnail')
+            self.assertEqual(response.status_code, 200)
+            with Image.open(io.BytesIO(response.data)) as thumbnail:
+                self.assertEqual(thumbnail.width, 480)
+            response.close()
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'%PDF casse'), 'casse.pdf')})
+        with patch('animmalle.files.shutil.which', return_value=None):
+            self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 503)
         self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'x'), 'film.mp4')})
         with patch('animmalle.files.shutil.which', return_value=None):
             self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 503)
