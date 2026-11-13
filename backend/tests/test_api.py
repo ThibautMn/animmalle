@@ -259,6 +259,34 @@ class ApiTests(unittest.TestCase):
             with patch('animmalle.files.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'ffmpeg')):
                 self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 422)
 
+    def test_video_preview_conversion(self):
+        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+                             data={'data': json.dumps(self.material_data()),
+                                   'file': (io.BytesIO(b'avi'), 'film.avi')})
+        key = result.json['id']
+        with patch('animmalle.files.shutil.which', return_value=None):
+            self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+        with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
+            with patch('animmalle.files.subprocess.Popen') as popen:
+                def convert(command, **kwargs):
+                    Path(command[-1]).write_bytes(b'mp4 converti')
+                    return MagicMock(wait=MagicMock(return_value=0))
+                popen.side_effect = convert
+                response = self.client.get(f'/api/materials/{key}/preview')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.mimetype, 'video/mp4')
+                self.assertEqual(response.data, b'mp4 converti')
+                response.close()
+                self.assertEqual(popen.call_count, 1)
+                self.client.get(f'/api/materials/{key}/preview').close()
+                self.assertEqual(popen.call_count, 1)  # servi depuis le cache
+        self.login('admin')
+        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'avi2'), 'autre.avi')})
+        with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
+            with patch('animmalle.files.subprocess.Popen') as popen:
+                popen.return_value = MagicMock(wait=MagicMock(side_effect=subprocess.TimeoutExpired('ffmpeg', 40)))
+                self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+
     def test_material_preview(self):
         result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),

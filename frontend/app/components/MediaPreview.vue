@@ -71,7 +71,12 @@ onBeforeUnmount(() => {
           alt="Pièce jointe de la ressource"
         />
         <audio v-else-if="mime.startsWith('audio/')" :src="source" controls />
-        <video v-else-if="mime.startsWith('video/')" :src="source" controls />
+        <video
+          v-else-if="mime.startsWith('video/')"
+          :src="source"
+          controls
+          @error="error = 'Ce navigateur ne peut pas lire cette vidéo (format ou codec non pris en charge). Utilisez le téléchargement.'"
+        />
         <iframe v-else :src="source" title="Aperçu du document PDF" />
       </div>
     </dialog>

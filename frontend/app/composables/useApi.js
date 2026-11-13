@@ -18,7 +18,15 @@ export function useApi() {
       })
     } catch (error) {
       if (error.status === 401 && path !== '/auth/login') session.clear()
-      const detail = error.data?.error
+      let data = error.data
+      if (typeof Blob !== 'undefined' && data instanceof Blob) {
+        try {
+          data = JSON.parse(await data.text())
+        } catch {
+          data = null
+        }
+      }
+      const detail = data?.error
       throw Object.assign(
         new Error(
           detail

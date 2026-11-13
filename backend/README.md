@@ -296,6 +296,17 @@ sont conservés ; les aperçus ne sont pas mis en cache. Un format non pris en
 charge renvoie 415, un LibreOffice absent 503 et une conversion impossible 422.
 Référence : https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_params.html
 
+### Lecture des vidéos
+
+L’aperçu (`/materials/<id>/preview`) convertit en MP4 H.264/AAC (720p max) les vidéos que les navigateurs ne lisent
+pas : conteneurs AVI, WMV, MPEG, MKV…, et MP4/MOV dont le codec n’est pas H.264/VP8/VP9/AV1 (par exemple HEVC) ou dont le débit dépasse 40 Mbit/s (décodeur bloqué sur la
+première image ; `MAX_NATIVE_BIT_RATE`).
+La copie est mise en cache dans `<paths.thumbnails>/lecture`, l’original n’est pas modifié. La conversion attend
+40 s ; si elle est plus longue, elle continue en arrière-plan (processus détaché) et l’API répond 503
+« conversion en cours » jusqu’à ce qu’elle soit terminée (timeout Gunicorn : 60 s). Sans `ffmpeg` : 503.
+Vérifié : un AVI historique de 28 Mo converti en 5 s, une vidéo HEVC de 215 Mo en moins de 40 s, un MP4 H.264
+servi sans conversion ; test unitaire avec `ffmpeg` simulé. Les téléchargements restent les originaux.
+
 ### Vignettes des médias
 
 `GET /api/materials/<id>/thumbnail` renvoie une vignette JPEG (480×360 max, qualité 70) pour les images et les

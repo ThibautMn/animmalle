@@ -7,6 +7,7 @@ import re
 import tempfile
 import shutil
 import subprocess
+import time
 import mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
@@ -264,10 +265,75 @@ def thumbnail_file(item):
     return target
 
 
+FOREIGN_VIDEO_EXTENSIONS = {'.avi', '.wmv', '.mpg', '.mpeg', '.mkv', '.flv', '.3gp'}
+PROBED_VIDEO_EXTENSIONS = {'.mp4', '.m4v', '.mov'}
+MAX_NATIVE_BIT_RATE = 40_000_000
+TRANSCODE_WAIT_SECONDS = 40
+TRANSCODE_STALE_SECONDS = 1800
+TRANSCODE_SCRIPT = (
+    'ffmpeg -v error -nostdin -y -i "$1" -c:v libx264 -preset veryfast -crf 26 '
+    '-vf "scale=min(1280\\,iw):-2" -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart -f mp4 "$2" '
+    '&& mv "$2" "$3" || rm -f "$2"')
+
+
+def needs_video_conversion(source):
+    """Vrai si le navigateur ne peut pas lire la vidéo (conteneur AVI/WMV…, codec HEVC…, débit excessif)."""
+    suffix = source.suffix.lower()
+    if suffix in FOREIGN_VIDEO_EXTENSIONS:
+        return True
+    if suffix not in PROBED_VIDEO_EXTENSIONS or not shutil.which('ffprobe'):
+        return False
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,bit_rate',
+             '-of', 'csv=p=0', str(source)],
+            check=True, timeout=15, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    except (subprocess.SubprocessError, OSError):
+        return False
+    codec, _, bit_rate = result.stdout.strip().partition(',')
+    if codec not in ('h264', 'vp8', 'vp9', 'av1'):
+        return codec != ''
+    # Un débit bien supérieur au niveau H.264 déclaré fait caler le décodeur du navigateur sur la première image.
+    return bit_rate.strip().isdigit() and int(bit_rate) > MAX_NATIVE_BIT_RATE
+
+
+def playable_video(source):
+    """Renvoie une copie MP4 H.264 mise en cache ; la conversion longue continue en arrière-plan (503 d'ici là)."""
+    if not shutil.which('ffmpeg'):
+        abort(503, description='ffmpeg doit être installé sur le serveur pour lire ce format de vidéo.')
+    stat = source.stat()
+    key = hashlib.sha256(f'lecture:{source.name}:{stat.st_size}:{stat.st_mtime_ns}'.encode()).hexdigest()
+    directory = thumbnail_directory() / 'lecture'
+    target = directory / f'{key}.mp4'
+    if target.is_file():
+        return target
+    directory.mkdir(parents=True, exist_ok=True)
+    part = directory / f'{key}.part'
+    if part.exists():
+        if time.time() - part.stat().st_mtime < TRANSCODE_STALE_SECONDS:
+            abort(503, description='Conversion de la vidéo en cours ; réessayez dans quelques minutes.')
+        part.unlink(missing_ok=True)
+    try:
+        process = subprocess.Popen(
+            ['sh', '-c', TRANSCODE_SCRIPT, 'sh', str(source), str(part), str(target)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        abort(422, description='La conversion de la vidéo a échoué. Utilisez le téléchargement.')
+    try:
+        process.wait(timeout=TRANSCODE_WAIT_SECONDS)
+    except subprocess.TimeoutExpired:
+        abort(503, description='Conversion de la vidéo en cours ; réessayez dans quelques minutes.')
+    if not target.is_file():
+        abort(422, description='La conversion de la vidéo a échoué. Utilisez le téléchargement.')
+    return target
+
+
 def preview_file(item):
     """Renvoie un média natif ou un PDF temporaire, sans toucher à l'original."""
     source = media_path(item)
     mime = mimetypes.guess_type(source.name)[0] or 'application/octet-stream'
+    if mime.startswith('video/') and needs_video_conversion(source):
+        return playable_video(source), 'video/mp4'
     if mime in {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'} or mime.startswith(('audio/', 'video/')):
         return source, mime
     if source.suffix.lower() not in {'.odt', '.ods', '.odp', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.rtf'}:
