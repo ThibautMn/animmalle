@@ -364,6 +364,7 @@ onMounted(load)
               "
             />
           </section>
+          <div class="aside-spacer" aria-hidden="true"></div>
         </aside>
         <div class="fiche-main">
           <fieldset
@@ -812,6 +813,9 @@ onMounted(load)
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+.aside-spacer {
+  height: 50px;
+}
 .edit-summary {
   gap: 4px;
 }
@@ -875,6 +879,9 @@ onMounted(load)
   .edit-aside {
     max-height: none;
     overflow: visible;
+  }
+  .aside-spacer {
+    display: none;
   }
 }
 @media print {
