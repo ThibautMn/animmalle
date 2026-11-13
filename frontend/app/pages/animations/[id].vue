@@ -216,166 +216,107 @@ onMounted(load)
   <p v-if="error" role="alert" class="error">{{ error }}</p>
   <p v-if="busy" role="status">Chargement…</p>
   <template v-if="draft">
-    <form v-if="editing" @submit.prevent="save">
-      <h1>{{ creating ? 'Créer une animation' : 'Modifier l’animation' }}</h1>
-      <p>Le titre et les références des séquences sont obligatoires.</p>
-      <fieldset :disabled="busy">
-        <label
-          >Titre *<input
+    <header ref="headEl" class="fiche-head">
+      <div class="fiche-title">
+        <template v-if="editing">
+          <input
             v-model="draft.titre"
+            form="fiche-form"
+            class="title-input"
+            aria-label="Titre *"
+            placeholder="Titre de l’animation *"
             required
-            maxlength="100" /></label
-        ><label>Lieu<input v-model="draft.lieu" /></label
-        ><RefSelect
-          v-model="draft.fk_duree_id"
-          :items="catalog.family('ref.duree')"
-          label="Durée totale"
-        /><TextFields v-model="draft" :fields="animationFields" /><TagPicker
-          v-for="group in [
-            'ref.thematiques',
-            'ref.lieux',
-            'ref.saison',
-            'ref.public',
-          ]"
-          :key="group"
-          v-model="draft.tags"
-          :items="catalog.family(group)"
-          :legend="
-            catalog.items.value.find((tag) => tag.code === group)?.label ||
-            group
-          "
-        />
-        <h2>Déroulé de l’animation</h2>
-        <section
-          v-for="(seq, index) in draft.sequences"
-          :key="seq.id || index"
-          class="card"
-        >
-          <h3>Séquence {{ index + 1 }}</h3>
-          <div class="actions">
-            <PButton
-              type="button"
-              class="secondary"
-              label="Monter"
-              :disabled="index === 0"
-              @click="moveSequence(draft.sequences, index, -1)"
-            /><PButton
-              type="button"
-              class="secondary"
-              label="Descendre"
-              :disabled="index === draft.sequences.length - 1"
-              @click="moveSequence(draft.sequences, index, 1)"
-            /><PButton
-              type="button"
-              class="danger"
-              label="Retirer la séquence"
-              @click="removeSequence(index)"
-            />
-          </div>
-          <label
-            >Titre de la séquence *<input
-              v-model="seq.titre"
-              required
-              maxlength="100"
-          /></label>
-          <div class="grid">
-            <RefSelect
-              v-for="[key, family, label] in sequenceRefs"
-              :key="key"
-              v-model="seq[key]"
-              :items="catalog.family(family)"
-              :label="label + ' *'"
-              required
-            />
-          </div>
-          <TextFields
-            v-model="draft.sequences[index]"
-            :fields="sequenceFields"
-          /><MaterialPicker v-model="seq.materiel" />
-        </section>
+            maxlength="100"
+          />
+        </template>
+        <template v-else>
+          <h1>{{ item.titre }}</h1>
+          <span class="badge" :class="`statut-${item.statut}`">{{
+            { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
+          }}</span>
+        </template>
+      </div>
+      <p v-if="editing" class="muted">
+        {{ creating ? 'Création d’une animation' : 'Modification' }} · le titre
+        et les références des séquences sont obligatoires.
+      </p>
+      <p v-else class="muted">
+        {{ item.auteurs }} · modifiée le {{ item.date_modif }}
+      </p>
+      <div v-if="editing" class="actions">
         <PButton
-          type="button"
-          class="secondary"
-          label="Ajouter une séquence"
-          @click="draft.sequences.push(newSequence())"
-        /><label
-          >État<select v-model="draft.statut">
-            <option :value="3">Brouillon</option>
-            <option :value="2">Complète, à valider</option>
-            <option v-if="session.is_admin" :value="1">Validée</option>
-          </select></label
-        ><PButton type="submit" label="Enregistrer" /><PButton
+          type="submit"
+          form="fiche-form"
+          label="Enregistrer"
+          :disabled="busy"
+        />
+        <PButton
           v-if="!creating"
           type="button"
           class="secondary"
           label="Annuler"
           @click="cancel"
         />
-      </fieldset>
-    </form>
-    <template v-else>
-      <header ref="headEl" class="fiche-head">
-        <div class="fiche-title">
-          <h1>{{ item.titre }}</h1>
-          <span class="badge" :class="`statut-${item.statut}`">{{
-            { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }[item.statut]
-          }}</span>
-        </div>
-        <p class="muted">
-          {{ item.auteurs }} · modifiée le {{ item.date_modif }}
-        </p>
-        <div class="actions">
-          <PButton
-            v-if="canEdit"
-            label="Modifier"
-            :disabled="busy"
-            @click="editing = true"
-          /><PButton
-            v-if="session.is_admin && item.statut !== 1"
-            label="Valider"
-            :disabled="busy"
-            @click="action('/validate', 'POST')"
-          /><DownloadButton
-            :path="`${path}/download`"
-            :filename="`${item.titre}.zip`"
-            label="Exporter en ZIP / ODT"
-            icon="zip"
-          /><PButton
+        <label class="state-field"
+          >État<select v-model="draft.statut" form="fiche-form">
+            <option :value="3">Brouillon</option>
+            <option :value="2">Complète, à valider</option>
+            <option v-if="session.is_admin" :value="1">Validée</option>
+          </select></label
+        >
+      </div>
+      <div v-else class="actions">
+        <PButton
+          v-if="canEdit"
+          label="Modifier"
+          :disabled="busy"
+          @click="editing = true"
+        /><PButton
+          v-if="session.is_admin && item.statut !== 1"
+          label="Valider"
+          :disabled="busy"
+          @click="action('/validate', 'POST')"
+        /><DownloadButton
+          :path="`${path}/download`"
+          :filename="`${item.titre}.zip`"
+          label="Exporter en ZIP / ODT"
+          icon="zip"
+        /><PButton
+          class="icon-button"
+          aria-label="Imprimer"
+          title="Imprimer"
+          @click="window.print()"
+          ><ActionIcon name="print"
+        /></PButton>
+        <details v-if="canEdit || session.is_admin" ref="menu" class="more">
+          <summary
             class="icon-button"
-            aria-label="Imprimer"
-            title="Imprimer"
-            @click="window.print()"
-            ><ActionIcon name="print"
-          /></PButton>
-          <details v-if="canEdit || session.is_admin" ref="menu" class="more">
-            <summary
-              class="icon-button"
-              aria-label="Autres actions"
-              title="Autres actions"
-            >
-              <ActionIcon name="more" />
-            </summary>
-            <ul>
-              <li v-if="session.is_admin">
-                <button type="button" :disabled="busy" @click="openReassign">
-                  Réattribuer la fiche…
-                </button>
-              </li>
-              <li v-if="canEdit">
-                <button
-                  type="button"
-                  class="danger-item"
-                  :disabled="busy"
-                  @click="removeFromMenu"
-                >
-                  Supprimer l’animation
-                </button>
-              </li>
-            </ul>
-          </details>
-        </div>
-      </header>
-      <nav v-if="neighbors" class="fiche-nav" aria-label="Animations voisines">
+            aria-label="Autres actions"
+            title="Autres actions"
+          >
+            <ActionIcon name="more" />
+          </summary>
+          <ul>
+            <li v-if="session.is_admin">
+              <button type="button" :disabled="busy" @click="openReassign">
+                Réattribuer la fiche…
+              </button>
+            </li>
+            <li v-if="canEdit">
+              <button
+                type="button"
+                class="danger-item"
+                :disabled="busy"
+                @click="removeFromMenu"
+              >
+                Supprimer l’animation
+              </button>
+            </li>
+          </ul>
+        </details>
+      </div>
+    </header>
+      <nav v-if="neighbors && !editing" class="fiche-nav" aria-label="Animations voisines">
         <NuxtLink
           v-if="neighbors.previous"
           class="nav-arrow nav-prev"
@@ -393,7 +334,136 @@ onMounted(load)
           >›</NuxtLink
         >
       </nav>
-      <div class="fiche-layout">
+      <form
+        v-if="editing"
+        id="fiche-form"
+        class="fiche-layout"
+        @submit.prevent="save"
+      >
+        <aside class="fiche-aside edit-aside">
+          <section class="summary card edit-summary">
+            <RefSelect
+              v-model="draft.fk_duree_id"
+              :items="catalog.family('ref.duree')"
+              label="Durée totale"
+            />
+            <label>Lieu<input v-model="draft.lieu" /></label>
+            <TagPicker
+              v-for="group in [
+                'ref.thematiques',
+                'ref.lieux',
+                'ref.saison',
+                'ref.public',
+              ]"
+              :key="group"
+              v-model="draft.tags"
+              :items="catalog.family(group)"
+              :legend="
+                catalog.items.value.find((tag) => tag.code === group)?.label ||
+                group
+              "
+            />
+          </section>
+        </aside>
+        <div class="fiche-main">
+          <fieldset
+            v-for="[key, label] in animationFields"
+            :key="key"
+            class="block"
+            :class="`block-${key}`"
+          >
+            <legend>{{ label }}</legend>
+            <textarea
+              v-model="draft[key]"
+              :aria-label="label"
+              maxlength="100000"
+            />
+          </fieldset>
+          <h2>Les séquences</h2>
+          <ol class="timeline">
+            <li
+              v-for="(seq, index) in draft.sequences"
+              :key="seq.id || index"
+              class="sequence"
+              :class="catalog.sequenceKind(seq)"
+            >
+              <span class="step" aria-hidden="true">{{ index + 1 }}</span>
+              <article class="card">
+                <header class="seq-edit-head">
+                  <input
+                    v-model="seq.titre"
+                    class="seq-title-input"
+                    aria-label="Titre de la séquence *"
+                    :title="`Séquence ${index + 1}`"
+                    placeholder="Titre de la séquence *"
+                    required
+                    maxlength="100"
+                  />
+                  <div class="seq-tools">
+                    <PButton
+                      type="button"
+                      class="icon-button secondary"
+                      aria-label="Monter la séquence"
+                      title="Monter"
+                      :disabled="index === 0"
+                      @click="moveSequence(draft.sequences, index, -1)"
+                      ><ActionIcon name="up"
+                    /></PButton>
+                    <PButton
+                      type="button"
+                      class="icon-button secondary"
+                      aria-label="Descendre la séquence"
+                      title="Descendre"
+                      :disabled="index === draft.sequences.length - 1"
+                      @click="moveSequence(draft.sequences, index, 1)"
+                      ><ActionIcon name="down"
+                    /></PButton>
+                    <PButton
+                      type="button"
+                      class="icon-button secondary danger-icon"
+                      aria-label="Retirer la séquence"
+                      title="Retirer la séquence"
+                      @click="removeSequence(index)"
+                      ><ActionIcon name="delete"
+                    /></PButton>
+                  </div>
+                </header>
+                <div class="grid seq-refs">
+                  <RefSelect
+                    v-for="[key, family, label] in sequenceRefs"
+                    :key="key"
+                    v-model="seq[key]"
+                    :items="catalog.family(family)"
+                    :label="label + ' *'"
+                    required
+                  />
+                </div>
+                <fieldset
+                  v-for="[key, label] in sequenceFields"
+                  :key="key"
+                  class="block block-sequence"
+                  :class="`block-seq-${key}`"
+                >
+                  <legend>{{ label }}</legend>
+                  <textarea
+                    v-model="seq[key]"
+                    :aria-label="label"
+                    maxlength="100000"
+                  />
+                </fieldset>
+                <MaterialPicker v-model="seq.materiel" />
+              </article>
+            </li>
+          </ol>
+          <PButton
+            type="button"
+            class="secondary"
+            label="Ajouter une séquence"
+            @click="draft.sequences.push(newSequence())"
+          />
+        </div>
+      </form>
+      <div v-else class="fiche-layout">
         <aside class="fiche-aside">
           <AnimationSummary :item="item" />
           <SequenceToc :sequences="item.sequences" />
@@ -497,7 +567,6 @@ onMounted(load)
           </details>
         </div>
       </div>
-    </template>
     <dialog v-if="session.is_admin" ref="reassignDialog" class="reassign">
       <form @submit.prevent="reassign">
         <h2>Réattribuer la fiche</h2>
@@ -705,6 +774,94 @@ onMounted(load)
 .block-public_specifique {
   --accent: #7a7167;
 }
+.block-seq-description {
+  background: var(--c-surface);
+}
+.block-seq-objectifs {
+  --accent: #1f8a70;
+}
+.block-seq-materiel_div {
+  --accent: #b07a1a;
+}
+.block textarea {
+  min-height: 90px;
+  margin-top: 0;
+  border-color: color-mix(in srgb, var(--accent) 30%, white);
+}
+.title-input {
+  flex: 1;
+  min-width: min(100%, 320px);
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+.state-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.state-field select {
+  width: auto;
+  margin: 0;
+}
+.edit-aside {
+  max-height: calc(
+    100vh - var(--site-h, 0px) - var(--fiche-h, 0px) - 32px
+  );
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.edit-summary {
+  gap: 4px;
+}
+.edit-summary label,
+.edit-summary :deep(label) {
+  margin: 8px 0 0;
+}
+.edit-summary fieldset {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  background: var(--c-soft);
+}
+.edit-summary legend {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-muted);
+}
+.seq-edit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.seq-title-input {
+  flex: 1;
+  margin: 0;
+  font-size: 1.17rem;
+  font-weight: 600;
+}
+.seq-tools {
+  display: flex;
+  gap: 4px;
+}
+.seq-tools :deep(.icon-button) {
+  min-width: 36px;
+  min-height: 36px;
+  margin: 0;
+  padding: 6px;
+}
+.seq-tools :deep(.danger-icon) {
+  color: var(--c-danger);
+}
+.seq-refs {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0 12px;
+  margin-top: 4px;
+}
+.sequence :deep(details) {
+  margin-top: 14px;
+}
 @media (max-width: 900px) {
   .fiche-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -714,6 +871,10 @@ onMounted(load)
     grid-column: 1;
     grid-row: auto;
     position: static;
+  }
+  .edit-aside {
+    max-height: none;
+    overflow: visible;
   }
 }
 @media print {

@@ -12,6 +12,8 @@ const paths = {
   add: 'M12 5v14M5 12h14',
   check: 'M4 12l5 5L20 6',
   close: 'M6 6l12 12M18 6 6 18',
+  up: 'm6 15 6-6 6 6',
+  down: 'm6 9 6 6 6-6',
   delete: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
 }
 </script>
