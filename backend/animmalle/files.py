@@ -210,13 +210,44 @@ def thumbnail_directory():
     return configured or paths()['uploads'].with_name(paths()['uploads'].name + '_vignettes')
 
 
+OFFICE_THUMBNAIL_EXTENSIONS = {'.ppt', '.pptx', '.odp', '.doc', '.docx', '.odt', '.rtf'}
+
+
+def office_to_pdf(source, root, timeout):
+    """Convertit un document bureautique en PDF dans `root` avec LibreOffice ; abandonne la requête en cas d'échec."""
+    executable = shutil.which('libreoffice') or shutil.which('soffice')
+    if not executable:
+        abort(503, description='LibreOffice doit être installé sur le serveur pour cet aperçu.')
+    profile = root / 'profile'
+    user = profile / 'user'
+    user.mkdir(parents=True)
+    # Désactiver les macros dans le profil dédié à cette conversion.
+    (user / 'registrymodifications.xcu').write_text(
+        '<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry">'
+        '<item oor:path="/org.openoffice.Office.Common/Security/Scripting">'
+        '<prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop>'
+        '</item></oor:items>', encoding='utf-8')
+    try:
+        subprocess.run(
+            [executable, f'-env:UserInstallation={profile.as_uri()}', '--headless',
+             '--convert-to', 'pdf', '--outdir', str(root), str(source)],
+            check=True, timeout=timeout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (subprocess.SubprocessError, OSError):
+        abort(422, description='La conversion du document a échoué. Utilisez le téléchargement.')
+    output = root / (source.stem + '.pdf')
+    if not output.is_file():
+        abort(422, description='Aucun aperçu PDF produit. Utilisez le téléchargement.')
+    return output
+
+
 def thumbnail_file(item):
     """Renvoie une vignette JPEG réduite, générée une fois puis mise en cache sur disque."""
     source = media_path(item)
     mime = mimetypes.guess_type(source.name)[0] or ''
     is_video = mime.startswith('video/')
     is_pdf = mime == 'application/pdf'
-    if not is_video and not is_pdf and not mime.startswith('image/'):
+    is_office = source.suffix.lower() in OFFICE_THUMBNAIL_EXTENSIONS
+    if not is_video and not is_pdf and not is_office and not mime.startswith('image/'):
         abort(415, description='Vignette indisponible pour ce format.')
     stat = source.stat()
     key = hashlib.sha256(f'{source.name}:{stat.st_size}:{stat.st_mtime_ns}'.encode()).hexdigest()
@@ -226,7 +257,7 @@ def thumbnail_file(item):
         return target
     if is_video and not shutil.which('ffmpeg'):
         abort(503, description='ffmpeg doit être installé sur le serveur pour les vignettes vidéo.')
-    if is_pdf and not shutil.which('pdftoppm'):
+    if (is_pdf or is_office) and not shutil.which('pdftoppm'):
         abort(503, description='poppler-utils (pdftoppm) doit être installé sur le serveur pour les vignettes PDF.')
     directory.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='animmalle-vignette-', dir=directory) as work:
@@ -250,17 +281,19 @@ def thumbnail_file(item):
                          '-vf', f'scale={THUMBNAIL_SIZE[0]}:-2', str(raw)],
                         check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 picture = Image.open(raw)
-            elif is_pdf:
+            elif is_pdf or is_office:
+                # Présentations et documents : conversion LibreOffice en PDF (limitée sous le délai Gunicorn), puis première page.
+                pdf_source = office_to_pdf(source, Path(work), 45) if is_office else source
                 subprocess.run(
                     ['pdftoppm', '-jpeg', '-f', '1', '-l', '1', '-singlefile', '-scale-to-x', str(PDF_THUMBNAIL_SIZE[0]),
-                     '-scale-to-y', '-1', str(source), str(Path(work) / 'page')],
+                     '-scale-to-y', '-1', str(pdf_source), str(Path(work) / 'page')],
                     check=True, timeout=30, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 picture = Image.open(Path(work) / 'page.jpg')
             else:
                 picture = Image.open(source)
             with picture:
                 picture = ImageOps.exif_transpose(picture)
-                picture.thumbnail(PDF_THUMBNAIL_SIZE if is_pdf else THUMBNAIL_SIZE)
+                picture.thumbnail(PDF_THUMBNAIL_SIZE if is_pdf or is_office else THUMBNAIL_SIZE)
                 if picture.mode in ('RGBA', 'LA', 'P'):
                     picture = picture.convert('RGBA')
                     background = Image.new('RGB', picture.size, 'white')
@@ -276,6 +309,7 @@ def thumbnail_file(item):
 
 
 FOREIGN_VIDEO_EXTENSIONS = {'.avi', '.wmv', '.mpg', '.mpeg', '.mkv', '.flv', '.3gp'}
+FOREIGN_AUDIO_EXTENSIONS = {'.wma', '.ra', '.amr'}
 PROBED_VIDEO_EXTENSIONS = {'.mp4', '.m4v', '.mov'}
 MAX_NATIVE_BIT_RATE = 40_000_000
 TRANSCODE_WAIT_SECONDS = 40
@@ -283,6 +317,9 @@ TRANSCODE_STALE_SECONDS = 1800
 TRANSCODE_SCRIPT = (
     'ffmpeg -v error -nostdin -y -i "$1" -c:v libx264 -preset veryfast -crf 26 '
     '-vf "scale=min(1280\\,iw):-2" -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart -f mp4 "$2" '
+    '&& mv "$2" "$3" || rm -f "$2"')
+AUDIO_TRANSCODE_SCRIPT = (
+    'ffmpeg -v error -nostdin -y -i "$1" -vn -c:a aac -b:a 128k -movflags +faststart -f mp4 "$2" '
     '&& mv "$2" "$3" || rm -f "$2"')
 
 
@@ -307,34 +344,34 @@ def needs_video_conversion(source):
     return bit_rate.strip().isdigit() and int(bit_rate) > MAX_NATIVE_BIT_RATE
 
 
-def playable_video(source):
-    """Renvoie une copie MP4 H.264 mise en cache ; la conversion longue continue en arrière-plan (503 d'ici là)."""
+def playable_video(source, audio=False):
+    """Renvoie une copie MP4 H.264 (ou M4A AAC pour l'audio) mise en cache ; la conversion longue continue en arrière-plan (503 d'ici là)."""
     if not shutil.which('ffmpeg'):
-        abort(503, description='ffmpeg doit être installé sur le serveur pour lire ce format de vidéo.')
+        abort(503, description='ffmpeg doit être installé sur le serveur pour lire ce format.')
     stat = source.stat()
     key = hashlib.sha256(f'lecture:{source.name}:{stat.st_size}:{stat.st_mtime_ns}'.encode()).hexdigest()
     directory = thumbnail_directory() / 'lecture'
-    target = directory / f'{key}.mp4'
+    target = directory / (f'{key}.m4a' if audio else f'{key}.mp4')
     if target.is_file():
         return target
     directory.mkdir(parents=True, exist_ok=True)
     part = directory / f'{key}.part'
     if part.exists():
         if time.time() - part.stat().st_mtime < TRANSCODE_STALE_SECONDS:
-            abort(503, description='Conversion de la vidéo en cours ; réessayez dans quelques minutes.')
+            abort(503, description='Conversion du média en cours ; réessayez dans quelques minutes.')
         part.unlink(missing_ok=True)
     try:
         process = subprocess.Popen(
-            ['sh', '-c', TRANSCODE_SCRIPT, 'sh', str(source), str(part), str(target)],
+            ['sh', '-c', AUDIO_TRANSCODE_SCRIPT if audio else TRANSCODE_SCRIPT, 'sh', str(source), str(part), str(target)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
-        abort(422, description='La conversion de la vidéo a échoué. Utilisez le téléchargement.')
+        abort(422, description='La conversion du média a échoué. Utilisez le téléchargement.')
     try:
         process.wait(timeout=TRANSCODE_WAIT_SECONDS)
     except subprocess.TimeoutExpired:
-        abort(503, description='Conversion de la vidéo en cours ; réessayez dans quelques minutes.')
+        abort(503, description='Conversion du média en cours ; réessayez dans quelques minutes.')
     if not target.is_file():
-        abort(422, description='La conversion de la vidéo a échoué. Utilisez le téléchargement.')
+        abort(422, description='La conversion du média a échoué. Utilisez le téléchargement.')
     return target
 
 
@@ -342,34 +379,14 @@ def preview_file(item):
     """Renvoie un média natif ou un PDF temporaire, sans toucher à l'original."""
     source = media_path(item)
     mime = mimetypes.guess_type(source.name)[0] or 'application/octet-stream'
+    if source.suffix.lower() in FOREIGN_AUDIO_EXTENSIONS:
+        return playable_video(source, audio=True), 'audio/mp4'
     if mime.startswith('video/') and needs_video_conversion(source):
         return playable_video(source), 'video/mp4'
     if mime in {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf'} or mime.startswith(('audio/', 'video/')):
         return source, mime
     if source.suffix.lower() not in {'.odt', '.ods', '.odp', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.rtf'}:
         abort(415, description='Aperçu indisponible pour ce format. Utilisez le téléchargement.')
-    executable = shutil.which('libreoffice') or shutil.which('soffice')
-    if not executable:
-        abort(503, description='LibreOffice doit être installé sur le serveur pour cet aperçu.')
     with tempfile.TemporaryDirectory(prefix='animmalle-preview-') as directory:
-        root = Path(directory)
-        profile = root / 'profile'
-        user = profile / 'user'
-        user.mkdir(parents=True)
-        # Désactiver les macros dans le profil dédié à cette conversion.
-        (user / 'registrymodifications.xcu').write_text(
-            '<?xml version="1.0"?><oor:items xmlns:oor="http://openoffice.org/2001/registry">'
-            '<item oor:path="/org.openoffice.Office.Common/Security/Scripting">'
-            '<prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop>'
-            '</item></oor:items>', encoding='utf-8')
-        try:
-            subprocess.run(
-                [executable, f'-env:UserInstallation={profile.as_uri()}', '--headless',
-                 '--convert-to', 'pdf', '--outdir', str(root), str(source)],
-                check=True, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except (subprocess.SubprocessError, OSError):
-            abort(422, description='La conversion du document a échoué. Utilisez le téléchargement.')
-        output = root / (source.stem + '.pdf')
-        if not output.is_file():
-            abort(422, description='Aucun aperçu PDF produit. Utilisez le téléchargement.')
+        output = office_to_pdf(source, Path(directory), 60)
         return io.BytesIO(output.read_bytes()), 'application/pdf'

@@ -17,7 +17,7 @@ const EXTENSIONS = {
   archive: ['zip']
 }
 // Formats dont le backend fournit une vignette ou un aperçu.
-const THUMBNAILED = ['image', 'video', 'pdf']
+const THUMBNAILED = ['image', 'video', 'pdf', 'presentation', 'document']
 const PREVIEWABLE = ['image', 'video', 'audio', 'pdf', 'presentation', 'document', 'spreadsheet']
 function kind(item) {
   const extension = (item.extension || '').toLowerCase()
@@ -76,6 +76,9 @@ onBeforeUnmount(() => {
           <span v-if="kind(item) === 'video'" class="play-badge" aria-hidden="true" />
           <span v-else-if="kind(item) === 'pdf'" class="media-badge pdf-badge" aria-hidden="true">
             <FileTypeIcon kind="pdf" :size="14" />PDF
+          </span>
+          <span v-else-if="['presentation', 'document'].includes(kind(item))" :class="['media-badge', `${kind(item)}-badge`]" aria-hidden="true">
+            <FileTypeIcon :kind="kind(item)" :size="14" />{{ extensionLabel(item) }}
           </span>
           <span v-else-if="kind(item) === 'image'" class="media-badge image-badge" aria-hidden="true">
             <FileTypeIcon kind="image" :size="14" />

@@ -603,10 +603,12 @@ th {
   border-width: 9px 0 9px 15px;
   border-color: transparent transparent transparent #fff;
 }
-.thumbnail-preview > button .thumbnail-pdf {
+.thumbnail-preview > button .thumbnail-pdf,
+.thumbnail-preview > button .thumbnail-document {
   background: #fff;
 }
-.thumbnail-preview > button .thumbnail-pdf img {
+.thumbnail-preview > button .thumbnail-pdf img,
+.thumbnail-preview > button .thumbnail-document img {
   object-position: top;
 }
 .media-badge {
@@ -627,6 +629,12 @@ th {
 }
 .pdf-badge {
   background: #b91c1c;
+}
+.presentation-badge {
+  background: #c2410c;
+}
+.document-badge {
+  background: #1d4ed8;
 }
 .file-tile {
   position: relative;

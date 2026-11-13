@@ -303,20 +303,20 @@ pas : conteneurs AVI, WMV, MPEG, MKV…, et MP4/MOV dont le codec n’est pas H.
 première image ; `MAX_NATIVE_BIT_RATE`).
 La copie est mise en cache dans `<paths.thumbnails>/lecture`, l’original n’est pas modifié. La conversion attend
 40 s ; si elle est plus longue, elle continue en arrière-plan (processus détaché) et l’API répond 503
-« conversion en cours » jusqu’à ce qu’elle soit terminée (timeout Gunicorn : 60 s). Sans `ffmpeg` : 503.
+« conversion en cours » jusqu’à ce qu’elle soit terminée (timeout Gunicorn : 60 s). Les fichiers audio WMA (et RA, AMR) sont convertis de la même façon en M4A/AAC 128 kbit/s. Sans `ffmpeg` : 503.
 Vérifié : un AVI historique de 28 Mo converti en 5 s, une vidéo HEVC de 215 Mo en moins de 40 s, un MP4 H.264
 servi sans conversion ; test unitaire avec `ffmpeg` simulé. Les téléchargements restent les originaux.
 
 ### Vignettes des médias
 
 `GET /api/materials/<id>/thumbnail` renvoie une vignette JPEG (480×360 max, qualité 70) pour les images et les
-vidéos, et la première page (480 px de large) des PDF via `pdftoppm` (paquet `poppler-utils`, 503 s’il est absent) ; elle est générée au premier appel puis mise en cache dans `paths.thumbnails` (facultatif, par défaut le
+vidéos, la première page (480 px de large) des PDF via `pdftoppm` (paquet `poppler-utils`, 503 s’il est absent) la première diapositive ou page des présentations et documents `.ppt/.pptx/.odp/.doc/.docx/.odt/.rtf` (LibreOffice vers PDF, puis `pdftoppm`) ; elle est générée au premier appel puis mise en cache dans `paths.thumbnails` (facultatif, par défaut le
 dossier `uploads` suffixé par `_vignettes`, ignoré par Git et régénérable). Les originaux ne sont jamais modifiés.
 Les images utilisent Pillow (`requirements.txt`) ; les vidéos nécessitent l’exécutable système `ffmpeg`
 (503 s’il est absent, 422 en cas d’échec, 415 pour un autre format). La réponse porte `Cache-Control: private,
 max-age=86400`. Vérifié : tests unitaires `cd backend && ../.venv/bin/python -m unittest tests.test_api tests.test_schema`
 (28 tests OK, `ffmpeg` simulé) et, sur les médias historiques, 31 Mo → 22 Ko, 20 Mo → 34 Ko, 16 Mo → 17 Ko
-(0,3 s au premier appel) ; PDF historiques : 0,05 à 4 s selon le fichier. Les matériaux exposent aussi `extension`
+(0,3 s au premier appel) ; PDF historiques : 0,05 à 4 s selon le fichier ; 8 présentations historiques (0,4 à 212 Mo) : 2 à 20 s au premier appel. Les matériaux exposent aussi `extension`
 (suffixe seul, jamais le chemin) pour que le frontend choisisse l’icône du format. Vignettes vidéo vérifiées avec `ffmpeg` sur des vidéos historiques de 300 à 360 Mo (3 à 21 Ko, 0,3 à 1 s) ; l’image est prise à 0,1 s, puis à 1, 3 et 10 s si elle est quasi noire.
 
 Validation : 24 tests backend réussis via

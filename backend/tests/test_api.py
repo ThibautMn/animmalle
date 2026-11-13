@@ -273,6 +273,48 @@ class ApiTests(unittest.TestCase):
             with patch('animmalle.files.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'ffmpeg')):
                 self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 422)
 
+    def test_presentation_thumbnail(self):
+        from PIL import Image
+        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+                             data={'data': json.dumps(self.material_data()),
+                                   'file': (io.BytesIO(b'pptx'), 'cours.pptx')})
+        key = result.json['id']
+        self.assertEqual(self.client.get(f'/api/materials/{key}').json['extension'], 'pptx')
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(command[0])
+            if command[0].endswith(('libreoffice', 'soffice')):
+                Image.new('RGB', (10, 10)).save(Path(command[command.index('--outdir') + 1]) / (Path(command[-1]).stem + '.pdf'))
+            else:
+                Image.new('RGB', (800, 450), 'white').save(command[-1] + '.jpg')
+        with patch('animmalle.files.shutil.which', side_effect=lambda name: f'/usr/bin/{name}'):
+            with patch('animmalle.files.subprocess.run', side_effect=fake_run):
+                response = self.client.get(f'/api/materials/{key}/thumbnail')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.mimetype, 'image/jpeg')
+                response.close()
+                self.client.get(f'/api/materials/{key}/thumbnail').close()
+        self.assertEqual(len(calls), 2)  # LibreOffice puis pdftoppm, une seule fois (cache)
+
+    def test_audio_preview_conversion(self):
+        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+                             data={'data': json.dumps(self.material_data()),
+                                   'file': (io.BytesIO(b'wma'), 'son.wma')})
+        key = result.json['id']
+        with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
+            with patch('animmalle.files.subprocess.Popen') as popen:
+                def convert(command, **kwargs):
+                    self.assertIn('-vn', command[2])
+                    Path(command[-1]).write_bytes(b'm4a converti')
+                    return MagicMock(wait=MagicMock(return_value=0))
+                popen.side_effect = convert
+                response = self.client.get(f'/api/materials/{key}/preview')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.mimetype, 'audio/mp4')
+                self.assertEqual(response.data, b'm4a converti')
+                response.close()
+
     def test_video_preview_conversion(self):
         result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
