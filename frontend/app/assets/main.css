@@ -1034,3 +1034,135 @@ button.bare-icon svg {
 .seq-conclu {
   --seq-color: #c4366b;
 }
+.media-add {
+  min-width: 0;
+  margin: 0;
+}
+.media-add-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 8px;
+  border: 2px dashed var(--c-line);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.media-add-tile:hover,
+.media-add-tile:focus-visible {
+  border-color: currentColor;
+}
+.media-add-dialog {
+  width: min(640px, 92vw);
+  max-height: 90vh;
+  padding: 20px;
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+}
+.media-add-dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+.media-add-dialog form,
+.media-add-dialog form > label {
+  display: grid;
+  gap: 8px;
+}
+.media-add-dialog .choices label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.media-add-dialog form {
+  gap: 14px;
+}
+.media-add-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--c-line);
+}
+.media-add-tabs button {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.media-add-tabs button.active {
+  border-bottom-color: currentColor;
+  font-weight: 600;
+}
+.media-results {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.media-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.media-add-dialog.media-library {
+  width: min(1100px, 94vw);
+}
+.media-add-dialog .thumbnail-preview > button {
+  position: relative;
+  cursor: pointer;
+}
+.select-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.select-overlay svg {
+  width: 56px;
+  height: 56px;
+  stroke-width: 2;
+}
+.thumbnail-preview > button:hover .select-overlay,
+.thumbnail-preview > button:focus-visible .select-overlay {
+  opacity: 1;
+}
+.media-add-dialog .thumbnail-preview > button:hover,
+.media-add-dialog .thumbnail-preview > button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.media-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.tag-picker-plain {
+  margin: 12px 0;
+  padding: 0;
+  border: 0;
+}
+.tag-picker-plain legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -1,5 +1,11 @@
 <script setup>
-const props = defineProps({ items: { type: Array, required: true } })
+const props = defineProps({
+  items: { type: Array, required: true },
+  editable: Boolean,
+  // Mode choix : la vignette est un bouton qui sélectionne le média.
+  selectable: Boolean
+})
+const emit = defineEmits(['remove', 'select'])
 const api = useApi()
 const catalog = useCatalog()
 const sources = ref({})
@@ -42,8 +48,8 @@ function loading(item) {
 function extensionLabel(item) {
   return (item.extension || '').toUpperCase()
 }
-onMounted(async () => {
-  await Promise.all(items.value.filter(item => THUMBNAILED.includes(kind(item))).map(async item => {
+async function loadThumbnails() {
+  await Promise.all(items.value.filter(item => THUMBNAILED.includes(kind(item)) && !sources.value[item.id] && !errors.value[item.id]).map(async item => {
     try {
       // Vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
       const blob = await api(`/materials/${item.id}/thumbnail`, { responseType: 'blob' })
@@ -54,41 +60,36 @@ onMounted(async () => {
       if (!disposed) errors.value[item.id] = error.message
     }
   }))
-})
+}
+onMounted(loadThumbnails)
+watch(() => items.value.map(item => item.id).join(','), loadThumbnails)
 onBeforeUnmount(() => {
   disposed = true
   Object.values(sources.value).forEach(source => URL.revokeObjectURL(source))
 })
 </script>
 <template>
-  <div v-if="items.length" class="sequence-images">
+  <div v-if="items.length || editable" class="sequence-images">
     <figure v-for="item in items" :key="item.id">
       <p v-if="showsError(item)" role="alert">{{ errors[item.id] }}</p>
       <p v-else-if="loading(item)" role="status">Chargement…</p>
+      <span v-else-if="selectable" class="thumbnail-preview">
+        <button
+          type="button"
+          :title="`Ajouter ${item.nom}`"
+          @click="emit('select', item)"
+        >
+          <MediaTile :item="item" :kind="kind(item)" :source="sources[item.id]" :image="showsImage(item)" :extension="extensionLabel(item)" />
+          <span class="select-overlay" aria-hidden="true"><ActionIcon name="add" /></span>
+        </button>
+      </span>
       <MediaPreview
         v-else-if="PREVIEWABLE.includes(kind(item))"
         :id="item.id"
         icon
         class="thumbnail-preview"
       >
-        <span v-if="showsImage(item)" :class="['video-thumbnail', `thumbnail-${kind(item)}`]">
-          <img :src="sources[item.id]" :alt="item.nom" />
-          <span v-if="kind(item) === 'video'" class="play-badge" aria-hidden="true" />
-          <span v-else-if="kind(item) === 'pdf'" class="media-badge pdf-badge" aria-hidden="true">
-            <FileTypeIcon kind="pdf" :size="14" />PDF
-          </span>
-          <span v-else-if="['presentation', 'document'].includes(kind(item))" :class="['media-badge', `${kind(item)}-badge`]" aria-hidden="true">
-            <FileTypeIcon :kind="kind(item)" :size="14" />{{ extensionLabel(item) }}
-          </span>
-          <span v-else-if="kind(item) === 'image'" class="media-badge image-badge" aria-hidden="true">
-            <FileTypeIcon kind="image" :size="14" />
-          </span>
-        </span>
-        <span v-else :class="['file-tile', `file-tile--${kind(item)}`]">
-          <FileTypeIcon v-if="kind(item) !== 'video'" :kind="kind(item)" />
-          <span v-else class="play-badge" aria-hidden="true" />
-          <span v-if="extensionLabel(item)" class="file-ext">{{ extensionLabel(item) }}</span>
-        </span>
+        <MediaTile :item="item" :kind="kind(item)" :source="sources[item.id]" :image="showsImage(item)" :extension="extensionLabel(item)" />
       </MediaPreview>
       <NuxtLink v-else :to="`/materials/${item.id}`" class="file-tile-link">
         <span :class="['file-tile', `file-tile--${kind(item)}`]">
@@ -96,14 +97,25 @@ onBeforeUnmount(() => {
           <span v-if="extensionLabel(item)" class="file-ext">{{ extensionLabel(item) }}</span>
         </span>
       </NuxtLink>
-      <figcaption>
+      <figcaption v-if="selectable">{{ item.nom }}</figcaption>
+      <figcaption v-else>
         <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
         <DownloadButton
           :path="`/materials/${item.id}/file`"
           icon="download"
           :label="`Télécharger ${item.nom}`"
         />
+        <PButton
+          v-if="editable"
+          type="button"
+          class="icon-button secondary danger-icon"
+          :aria-label="`Retirer ${item.nom}`"
+          title="Retirer ce média"
+          @click="emit('remove', item.id)"
+          ><ActionIcon name="close"
+        /></PButton>
       </figcaption>
     </figure>
+    <slot />
   </div>
 </template>

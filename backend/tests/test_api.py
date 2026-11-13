@@ -224,6 +224,9 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.data, b'%PDF test')
         response.close()
         self.assertEqual(self.client.get('/api/materials?kind=media&tag=6').json['total'], 1)
+        nom = self.material_data()['nom']
+        self.assertEqual(self.client.get(f'/api/materials?kind=media&q={nom[:3].upper()}').json['total'], 1)
+        self.assertEqual(self.client.get('/api/materials?kind=media&q=%25zzz_').json['total'], 0)
         self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 403)
         response = self.client.get(f'/api/materials/{key}/download')
         with ZipFile(io.BytesIO(response.data)) as archive:

@@ -240,6 +240,9 @@ def materials():
     types = id_args('type')
     if types:
         query = query.where(MatPeda.fk_type_mat_id.in_(types))
+    if search := request.args.get('q', '').strip()[:100]:
+        escaped = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        query = query.where(MatPeda.nom.ilike(f'%{escaped}%', escape='\\'))
     tags = id_args('tag')
     result = []
     for item in g.db.scalars(query):

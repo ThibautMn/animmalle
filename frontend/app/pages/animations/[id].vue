@@ -452,7 +452,7 @@ onMounted(load)
                     maxlength="100000"
                   />
                 </fieldset>
-                <MaterialPicker v-model="seq.materiel" />
+                <MediaEditor v-model="seq.materiel" :media="mediaItems" />
               </article>
             </li>
           </ol>
