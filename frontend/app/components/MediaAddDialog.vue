@@ -22,8 +22,8 @@ const PAGE_SIZE = 12  // 3 lignes de 4 vignettes
 let timer = null
 const tabs = [
   ['upload', "Depuis l'ordinateur"],
-  ['library', 'Médiathèque'],
-  ['pnc', 'Bibliothèque du PNC']
+  ['pnc', 'Médiathèque du PNC'],
+  ['library', 'Médiathèque Anim’Malle']
 ]
 function open() {
   error.value = ''
@@ -142,7 +142,14 @@ onBeforeUnmount(() => clearTimeout(timer))
       aria-labelledby="media-tab-upload"
       @submit.prevent="upload"
     >
-      <label>Fichier<input type="file" required @change="onFile" /></label>
+      <label class="file-picker">
+        Fichier
+        <input type="file" required class="file-picker-input" @change="onFile" />
+        <span class="file-picker-row">
+          <span class="file-picker-button">Parcourir…</span>
+          <span class="file-picker-name">{{ file ? file.name : 'Aucun fichier sélectionné' }}</span>
+        </span>
+      </label>
       <label>Nom du média<input v-model="name" required maxlength="100" /></label>
       <label>
         Type de média
@@ -161,6 +168,7 @@ onBeforeUnmount(() => clearTimeout(timer))
       <PButton type="submit" label="Télécharger et ajouter" :disabled="busy" />
     </form>
     <div v-else-if="tab === 'library'" role="tabpanel" aria-labelledby="media-tab-library">
+      <p class="pnc-intro">Ces médias sont ceux déjà enregistrés dans les autres animations</p>
       <input
         v-model="query"
         type="search"

@@ -2,6 +2,7 @@
 import io
 import json
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import PurePosixPath
 from urllib.error import URLError
@@ -92,6 +93,24 @@ def _has_media(base, cd_ref, known):
     return False
 
 
+def _plain(text):
+    return unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode().casefold()
+
+
+def _sort_key(item, term=''):
+    """Classement : nom vernaculaire commençant par la saisie, puis le contenant, puis les autres noms
+    vernaculaires, enfin les taxons sans nom vernaculaire (ceux dont le nom scientifique commence par la saisie
+    d'abord). Dans chaque groupe : ordre alphabétique du premier nom vernaculaire, sans casse ni accents."""
+    term = _plain(term.strip())
+    names = [_plain(name.strip()) for name in (item.get('nom_vern') or '').split(',') if name.strip()]
+    latin = _plain(item.get('lb_nom') or '')
+    if names:
+        group = 0 if any(name.startswith(term) for name in names) else 1 if any(term in name for name in names) else 2
+    else:
+        group = 3 if latin.startswith(term) else 4
+    return (group, names[0] if names else '', latin)
+
+
 def search_taxa(term):
     rows = _json('taxref/allnamebylist', {'search_name': term, 'limit': MAX_CANDIDATES})
     if not isinstance(rows, list):
@@ -107,7 +126,9 @@ def search_taxa(term):
     with ThreadPoolExecutor(max_workers=20) as pool:
         flags = list(pool.map(lambda item: _has_media(base, item['cd_ref'], known), candidates))
     _remember([item for item, flag in zip(candidates, flags) if flag and item['cd_ref'] not in known])
-    return [item for item, flag in zip(candidates, flags) if flag is not False]
+    result = [item for item, flag in zip(candidates, flags) if flag is not False]
+    result.sort(key=lambda item: _sort_key(item, term))
+    return result
 
 
 def taxon(cd_ref):

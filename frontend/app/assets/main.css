@@ -1059,7 +1059,7 @@ button.bare-icon svg {
   border-color: currentColor;
 }
 .media-add-dialog {
-  width: min(640px, 92vw);
+  width: min(800px, 94vw);
   max-height: 90vh;
   padding: 20px;
   border: 1px solid var(--c-line);
@@ -1116,6 +1116,52 @@ button.bare-icon svg {
 .media-add-dialog.media-library {
   width: min(1100px, 94vw);
 }
+.media-add-dialog .file-picker-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.file-picker {
+  position: relative;
+}
+.file-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 5px;
+  cursor: pointer;
+  font-weight: 400;
+}
+.file-picker-button {
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.file-picker:hover .file-picker-button {
+  background: var(--c-primary-hover);
+}
+.file-picker-input:focus-visible + .file-picker-row .file-picker-button {
+  box-shadow: 0 0 0 3px var(--c-primary-soft);
+}
+.file-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pnc-intro {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
 .pnc-search {
   position: relative;
 }
@@ -1145,6 +1191,13 @@ button.bare-icon svg {
 .pnc-suggestions button:hover,
 .pnc-suggestions button:focus-visible {
   background: rgb(37 99 235 / 15%);
+}
+.pnc-suggestions em,
+.pnc-taxon em {
+  margin-left: 0.5em;
+}
+.pnc-suggestions small {
+  margin-left: 0.25em;
 }
 .pnc-empty {
   padding: 8px 12px;

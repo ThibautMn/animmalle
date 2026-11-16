@@ -276,6 +276,15 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(response.json['nom'], 'Salamandre')
             self.assertEqual(response.json['extension'], 'jpg')
 
+    def test_taxhub_sort_by_vernacular_name(self):
+        from animmalle import taxhub
+        items = [{'lb_nom': 'Zus', 'nom_vern': None}, {'lb_nom': 'Vulpina sp', 'nom_vern': None},
+                 {'lb_nom': 'A', 'nom_vern': 'Laîche des renards'}, {'lb_nom': 'B', 'nom_vern': 'Renard roux, Goupil'},
+                 {'lb_nom': 'C', 'nom_vern': "Vulpie queue-d'écureuil"}, {'lb_nom': 'D', 'nom_vern': 'Vigne des Vulpins'},
+                 {'lb_nom': 'E', 'nom_vern': 'Vulpie queue-de-rat'}]
+        ranked = sorted(items, key=lambda item: taxhub._sort_key(item, 'vulp'))
+        self.assertEqual([item['lb_nom'] for item in ranked], ['C', 'E', 'D', 'A', 'B', 'Vulpina sp', 'Zus'])
+
     def test_material_thumbnail(self):
         from PIL import Image
         picture = io.BytesIO()

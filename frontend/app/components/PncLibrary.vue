@@ -1,5 +1,5 @@
 <script setup>
-// Bibliothèque du PNC : recherche d'un taxon Taxref (autocomplétion), puis médias TaxHub de ce taxon.
+// Médiathèque du PNC : recherche d'un taxon Taxref (autocomplétion), puis médias TaxHub de ce taxon.
 const emit = defineEmits(['add'])
 const api = useApi()
 const catalog = useCatalog()
@@ -108,6 +108,9 @@ onBeforeUnmount(() => clearTimeout(timer))
 </script>
 <template>
   <div class="pnc-library">
+    <p class="pnc-intro">
+      Ces médias proviennent de la médiathèque centralisée des Parcs nationaux (TaxHub)
+    </p>
     <div class="pnc-search">
       <input
         v-model="query"

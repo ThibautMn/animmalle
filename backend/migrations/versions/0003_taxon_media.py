@@ -1,4 +1,4 @@
-"""Table des taxons TaxHub possédant au moins un média (bibliothèque du PNC).
+"""Table des taxons TaxHub possédant au moins un média (médiathèque du PNC).
 
 Revision ID: 0003_taxon_media
 Revises: 0002_index_recherche
