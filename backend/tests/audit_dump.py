@@ -106,9 +106,9 @@ def audit(path=DUMP_PATH):
 def validate_models(tables):
     # Import facultatif : exécuter avec PYTHONPATH=backend et les dépendances installées.
     from sqlalchemy import Date, String
-    from animmalle.models import Base
+    from animmalle.models import APPLICATION_TABLES, Base
 
-    if set(tables) != set(Base.metadata.tables):
+    if set(tables) != set(Base.metadata.tables) - APPLICATION_TABLES:
         raise ValueError('Tables incompatibles.')
     for name, rows in tables.items():
         table = Base.metadata.tables[name]

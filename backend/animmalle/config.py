@@ -1,6 +1,7 @@
 """Lecture de la connexion depuis l'unique configuration YAML centrale."""
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from sqlalchemy.engine import URL
@@ -30,8 +31,6 @@ def load_database_url(path=CONFIG_PATH):
 
 def load_settings(path=CONFIG_PATH):
     """Valide les paramètres applicatifs ; aucune valeur secrète par défaut."""
-    from urllib.parse import urlsplit
-
     try:
         with Path(path).open(encoding='utf-8') as stream:
             data = yaml.safe_load(stream)
@@ -119,6 +118,13 @@ def load_settings(path=CONFIG_PATH):
     gunicorn = data['gunicorn']
     if not isinstance(gunicorn.get('bind'), str) or not gunicorn['bind'] or any(type(gunicorn.get(k)) is not int or gunicorn[k] < 1 for k in ('workers', 'timeout')):
         raise ValueError('Configuration gunicorn invalide.')
+    taxhub = data.get('taxhub', {})
+    if not isinstance(taxhub, dict):
+        raise ValueError('Configuration taxhub invalide.')
+    if 'api_url' in taxhub:
+        parsed = urlsplit(taxhub['api_url']) if isinstance(taxhub['api_url'], str) else None
+        if not parsed or parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.query or parsed.fragment or parsed.username:
+            raise ValueError('taxhub.api_url doit être une adresse HTTP(S).')
     mail = data.get('mail', {})
     if not isinstance(mail, dict) or type(mail.get('enabled', False)) is not bool:
         raise ValueError('Configuration mail invalide.')

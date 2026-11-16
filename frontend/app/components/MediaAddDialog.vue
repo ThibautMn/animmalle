@@ -112,7 +112,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 <template>
   <dialog
     ref="dialog"
-    :class="['media-add-dialog', { 'media-library': tab === 'library' }]"
+    :class="['media-add-dialog', { 'media-library': tab !== 'upload' }]"
     aria-label="Ajouter un média"
     @close="reset"
     @click="$event.target === dialog && close()"
@@ -187,6 +187,8 @@ onBeforeUnmount(() => clearTimeout(timer))
       />
       <MediaPager v-bind="pager" @go="goTo" />
     </div>
-    <div v-else role="tabpanel" aria-labelledby="media-tab-pnc" />
+    <div v-else role="tabpanel" aria-labelledby="media-tab-pnc">
+      <PncLibrary @add="pick" />
+    </div>
   </dialog>
 </template>

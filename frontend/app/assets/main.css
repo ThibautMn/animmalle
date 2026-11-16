@@ -1116,6 +1116,55 @@ button.bare-icon svg {
 .media-add-dialog.media-library {
   width: min(1100px, 94vw);
 }
+.pnc-search {
+  position: relative;
+}
+.pnc-search input {
+  width: 100%;
+}
+.pnc-suggestions {
+  max-height: 280px;
+  margin: 2px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  background: Canvas;
+  list-style: none;
+}
+.pnc-suggestions button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pnc-suggestions button:hover,
+.pnc-suggestions button:focus-visible {
+  background: rgb(37 99 235 / 15%);
+}
+.pnc-empty {
+  padding: 8px 12px;
+}
+.pnc-library .thumbnail-preview {
+  display: block;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.pnc-library .video-thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.pnc-credit {
+  display: block;
+  opacity: 0.75;
+}
 .selectable-thumb {
   position: relative;
   display: block;

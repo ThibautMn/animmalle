@@ -21,7 +21,7 @@ from werkzeug.security import generate_password_hash
 
 from animmalle import create_app
 from animmalle.config import CONFIG_PATH, load_database_url, load_settings
-from animmalle.models import Base, Thesaurus, Sequence, Animation
+from animmalle.models import APPLICATION_TABLES, Base, TaxonMedia, Thesaurus, Sequence, Animation
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,7 +40,7 @@ class ApiTests(unittest.TestCase):
             with engine.connect() as connection, connection.begin():
                 connection.execute(text('SET TRANSACTION READ ONLY'))
                 digest = hashlib.sha256()
-                for name in sorted(Base.metadata.tables):
+                for name in sorted(set(Base.metadata.tables) - APPLICATION_TABLES):
                     rows = connection.execute(text(f'SELECT * FROM public.{name} ORDER BY id')).all()
                     digest.update(json.dumps([list(row) for row in rows], default=str, ensure_ascii=False).encode())
                 schemas = connection.execute(text("SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'test_api_%' ORDER BY schema_name")).scalars().all()
@@ -83,6 +83,11 @@ class ApiTests(unittest.TestCase):
             from alembic.migration import MigrationContext
             from alembic.operations import Operations
             spec = importlib.util.spec_from_file_location('initial_api_test', ROOT / 'backend/migrations/versions/0001_initial.py')
+            migration = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(migration)
+            migration.op = Operations(MigrationContext.configure(self.connection))
+            migration.upgrade()
+            spec = importlib.util.spec_from_file_location('taxon_api_test', ROOT / 'backend/migrations/versions/0003_taxon_media.py')
             migration = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(migration)
             migration.op = Operations(MigrationContext.configure(self.connection))
@@ -235,6 +240,41 @@ class ApiTests(unittest.TestCase):
         self.login('admin')
         self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
         self.assertTrue(list(Path(self.settings['paths']['uploads']).glob('*.pdf')))
+
+    def test_taxhub_search_media_and_import(self):
+        from animmalle import taxhub
+        medias = [{'id_media': 5, 'titre': 'Salamandre', 'auteur': 'A', 'source': 'PNC', 'id_type': 2,
+                   'media_url': 'https://taxhub.test/static/medias/92 Salamandre.jpg'}]
+        taxa = [{'cd_ref': 92, 'lb_nom': 'Salamandra salamandra', 'nom_vern': 'Salamandre', 'search_name': 'x'},
+                {'cd_ref': 93, 'lb_nom': 'Sans media', 'nom_vern': None}]
+        taxhub._NO_MEDIA.clear()
+        def fake(url, limit):
+            if 'allnamebylist' in url:
+                return json.dumps(taxa).encode()
+            if 'bycdref/93' in url:
+                return b'[]'
+            if 'bycdref/92' in url:
+                return json.dumps(medias).encode()
+            self.assertEqual(url, 'https://taxhub.test/static/medias/92%20Salamandre.jpg')
+            return b'\xff\xd8 image'
+        with patch.object(taxhub, '_get', fake):
+            self.assertEqual([item['cd_ref'] for item in self.client.get('/api/taxhub/taxa?q=sala').json['items']], [92])
+            self.assertEqual(self.client.get('/api/taxhub/taxa?q=sa').json['items'], [])
+            with self.db() as db:
+                self.assertEqual(list(db.scalars(select(TaxonMedia.cd_ref))), [92])
+            # Un taxon déjà enregistré n'est plus revérifié, même si TaxHub ne publie plus son média.
+            medias.clear()
+            taxhub._NO_MEDIA.clear()
+            self.assertEqual([item['cd_ref'] for item in self.client.get('/api/taxhub/taxa?q=sala').json['items']], [92])
+            medias.append({'id_media': 5, 'titre': 'Salamandre', 'auteur': 'A', 'source': 'PNC', 'id_type': 2,
+                           'media_url': 'https://taxhub.test/static/medias/92 Salamandre.jpg'})
+            self.assertEqual(self.client.get('/api/taxhub/taxa/92/media').json['items'][0]['id_media'], 5)
+            self.assertEqual(self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 6, 'fk_type_mat_id': 7}).status_code, 404)
+            self.assertEqual(self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 5}).status_code, 422)
+            response = self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 5, 'fk_type_mat_id': 7})
+            self.assertEqual(response.status_code, 201, response.json)
+            self.assertEqual(response.json['nom'], 'Salamandre')
+            self.assertEqual(response.json['extension'], 'jpg')
 
     def test_material_thumbnail(self):
         from PIL import Image

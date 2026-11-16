@@ -115,6 +115,10 @@ paths:
   # thumbnails: backend/uploads_vignettes
   # Répertoire des pictogrammes utilisés par l’application.
   pictograms: backend/pictograms
+# API TaxHub du PNC : recherche Taxref et médias des taxons (bibliothèque du PNC) ; facultatif, adresse ci-dessous par défaut.
+taxhub:
+  # Adresse de base de l'API TaxHub, sans barre finale.
+  api_url: https://appli.cevennes-parcnational.net/geonature/api/taxhub/api
 # Notifications SMTP ; les destinataires doivent être renseignés explicitement avant activation.
 mail:
   # true active l’envoi ; false le désactive sans supprimer les paramètres SMTP.

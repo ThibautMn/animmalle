@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import configure_mappers
 
 from animmalle.config import CONFIG_PATH, load_database_url
-from animmalle.models import Animation, Base, Commentaire, MatPeda
+from animmalle.models import APPLICATION_TABLES, Animation, Base, Commentaire, MatPeda
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -23,7 +23,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 class SchemaTests(unittest.TestCase):
     def test_relationships_and_historical_nullability(self):
         configure_mappers()
-        self.assertEqual(len(Base.metadata.tables), 9)
+        self.assertEqual(len(Base.metadata.tables), 10)
         self.assertTrue(MatPeda.__table__.c.difficulte_id.nullable)
         self.assertFalse(Commentaire.__table__.c.fk_id_anim_id.nullable)
         self.assertTrue(Animation.sequences.property.viewonly)
@@ -44,12 +44,14 @@ class SchemaTests(unittest.TestCase):
                 patch.object(migration.op, 'create_index', side_effect=lambda *a, **k: indexes.append(a)):
             migration.upgrade()
         dialect = postgresql.dialect()
-        self.assertEqual(set(metadata.tables), set(Base.metadata.tables))
+        self.assertEqual(set(metadata.tables), set(Base.metadata.tables) - APPLICATION_TABLES)
         for name, table in Base.metadata.tables.items():
+            if name in APPLICATION_TABLES:
+                continue
             self.assertEqual(sorted(line.strip().rstrip(',') for line in str(CreateTable(table).compile(dialect=dialect)).splitlines()),
                              sorted(line.strip().rstrip(',') for line in str(CreateTable(metadata.tables[name]).compile(dialect=dialect)).splitlines()))
         expected = {(i.name, t.name, tuple(c.name for c in i.columns))
-                    for t in Base.metadata.tables.values() for i in t.indexes}
+                    for t in Base.metadata.tables.values() if t.name not in APPLICATION_TABLES for i in t.indexes}
         self.assertEqual(expected, {(str(a[0]), a[1], tuple(a[2])) for a in indexes})
 
     def test_offline_upgrade_and_downgrade_without_configuration(self):
@@ -57,11 +59,11 @@ class SchemaTests(unittest.TestCase):
         config = Config(str(BACKEND / 'alembic.ini'), output_buffer=output)
         with patch('animmalle.config.load_database_url', side_effect=AssertionError('Connexion interdite')):
             command.upgrade(config, 'head', sql=True)
-            command.downgrade(config, '0001_initial:base', sql=True)
+            command.downgrade(config, '0003_taxon_media:base', sql=True)
         sql = output.getvalue()
-        self.assertEqual(sql.count('CREATE TABLE '), 10)
-        self.assertEqual(sql.count('DROP TABLE '), 9)
-        self.assertEqual(sql.count(' SERIAL '), 8)
+        self.assertEqual(sql.count('CREATE TABLE '), 11)
+        self.assertEqual(sql.count('DROP TABLE '), 10)
+        self.assertEqual(sql.count(' SERIAL '), 9)
         self.assertNotIn('datetime(', sql)
         self.assertIn('DEFAULT CURRENT_DATE', sql)
         self.assertIn('UNIQUE (fk_anim_id, fk_sequence_id)', sql)

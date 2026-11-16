@@ -137,3 +137,20 @@ class RelMatPedaThematique(Base):
     fk_thes_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
     fk_mat_peda = relationship('MatPeda', foreign_keys=[fk_mat_peda_id])
     fk_thes = relationship('Thesaurus', foreign_keys=[fk_thes_id])
+
+
+# Tables propres à la nouvelle application : absentes du dump historique, donc ignorées par la restauration.
+APPLICATION_TABLES = frozenset({'taxon_media'})
+
+
+class TaxonMedia(Base):
+    """Taxon TaxHub dont au moins un média existe : mémorisé pour ne plus interroger TaxHub."""
+    __tablename__ = 'taxon_media'
+    __table_args__ = (UniqueConstraint('cd_ref'),)
+
+    id = mapped_column(Integer, primary_key=True)
+    cd_ref = mapped_column(Integer, nullable=False)
+    lb_nom = mapped_column(String(250), nullable=False)
+    nom_vern = mapped_column(Text, nullable=True)
+    nom_valide = mapped_column(Text, nullable=True)
+    group2_inpn = mapped_column(String(100), nullable=True)

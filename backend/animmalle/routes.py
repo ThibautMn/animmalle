@@ -15,8 +15,10 @@ from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSch
                       CommentSchema, PageSchema, AuthorSchema)
 from . import services as svc
 from . import files
+from . import taxhub
 
 api = Blueprint('api', __name__)
+MIN_SEARCH_CHARS = 3
 
 
 def payload(schema):
@@ -335,6 +337,41 @@ def thumbnail_material(key):
 def download_material(key):
     source = files.media_path(svc.get(MatPeda, key))
     return send_file(source, as_attachment=True, download_name=source.name)
+
+
+@api.get('/taxhub/taxa')
+def taxhub_search():
+    term = request.args.get('q', '').strip()[:100]
+    return {'items': taxhub.search_taxa(term) if len(term) >= MIN_SEARCH_CHARS else []}
+
+
+@api.get('/taxhub/taxa/<int:cd_ref>')
+def taxhub_taxon(cd_ref):
+    return taxhub.taxon(cd_ref)
+
+
+@api.get('/taxhub/taxa/<int:cd_ref>/media')
+def taxhub_media(cd_ref):
+    return {'items': taxhub.media_list(cd_ref)}
+
+
+@api.post('/taxhub/import')
+def taxhub_import():
+    """Copie un média TaxHub dans la médiathèque et renvoie la fiche créée."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or type(data.get('cd_ref')) is not int or type(data.get('id_media')) is not int:
+        raise ValidationError({'id_media': ['cd_ref et id_media requis.']})
+    media, file = taxhub.download_media(data['cd_ref'], data['id_media'], current_app.config['MAX_CONTENT_LENGTH'])
+    nom = (media['titre'] or file.filename.rsplit('.', 1)[0])[:100]
+    credit = ' - '.join(part for part in (media['auteur'], media['source'], media['licence']) if part)
+    fields = MaterialSchema().load({'nom': nom, 'fk_type_mat_id': data.get('fk_type_mat_id'),
+                                    'description': f'Crédit : {credit}' if credit else '',
+                                    'thematiques': data.get('thematiques', [])})
+    item = svc.save_material(fields)
+    item.url = files.store_upload(file)
+    result = svc.material_dict(item)
+    g.db.commit()
+    return result, 201
 
 
 @api.get('/thesaurus')

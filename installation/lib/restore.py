@@ -7,7 +7,11 @@ import re
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import Date, Integer, String, UniqueConstraint, inspect, select, text
-from animmalle.models import Base
+from animmalle.models import APPLICATION_TABLES, Base
+
+# Tables du dump historique : celles propres à la nouvelle application n'en font pas partie.
+HISTORICAL = {name: table for name, table in Base.metadata.tables.items() if name not in APPLICATION_TABLES}
+HISTORICAL_SORTED = [table for table in Base.metadata.sorted_tables if table.name in HISTORICAL]
 
 
 def statements(source):
@@ -124,10 +128,10 @@ def read_dump(path):
         insert = re.fullmatch(r'INSERT INTO `([^`]+)` VALUES\s*(.*)', statement, re.S)
         if ddl:
             name, body, options = ddl.groups()
-            if name in tables or name not in Base.metadata.tables:
+            if name in tables or name not in HISTORICAL:
                 raise ValueError('Table source inconnue ou répétée.')
             columns[name] = re.findall(r'^\s*`([^`]+)`', body, re.M)
-            if set(columns[name]) != set(Base.metadata.tables[name].c.keys()) or len(set(columns[name])) != len(columns[name]):
+            if set(columns[name]) != set(HISTORICAL[name].c.keys()) or len(set(columns[name])) != len(columns[name]):
                 raise ValueError('Colonnes source incompatibles.')
             tables[name] = []
             auto = re.search(r'\bAUTO_INCREMENT=(\d+)\b', options)
@@ -143,14 +147,14 @@ def read_dump(path):
                 tables[name].append(dict(zip(columns[name], row)))
         elif not re.match(r'^(CREATE DATABASE\b|USE\b|DROP TABLE IF EXISTS\b|LOCK TABLES\b|UNLOCK TABLES\b|SET\b)', statement):
             raise ValueError('Instruction source non prise en charge.')
-    if set(tables) != set(Base.metadata.tables):
+    if set(tables) != set(HISTORICAL):
         raise ValueError('Inventaire des tables source incompatible.')
     validate(tables)
     return tables, next_ids
 
 
 def validate(tables):
-    for table in Base.metadata.sorted_tables:
+    for table in HISTORICAL_SORTED:
         rows = tables[table.name]
         for row in rows:
             for column in table.c:
@@ -199,10 +203,10 @@ def restore(connection, tables, next_ids):
     if compare_metadata(context, metadata):
         raise ValueError('Schéma cible différent des modèles ; import refusé.')
     if any(connection.execute(select(table.c.id).limit(1)).first() is not None
-           for table in metadata.sorted_tables):
+           for table in HISTORICAL_SORTED):
         print('Base déjà alimentée : aucune restauration effectuée.')
         return False
-    for table in metadata.sorted_tables:
+    for table in HISTORICAL_SORTED:
         rows = tables[table.name]
         if rows:
             connection.execute(table.insert(), rows)
@@ -210,7 +214,7 @@ def restore(connection, tables, next_ids):
         if actual != {row['id']: row for row in rows}:
             raise ValueError('Vérification des données importées échouée.')
     # ALTER SEQUENCE RESTART est transactionnel contrairement à setval().
-    for table in metadata.sorted_tables:
+    for table in HISTORICAL_SORTED:
         if not isinstance(table.c.id.type, Integer):
             continue
         next_id = max(1, next_ids.get(table.name, 1),
