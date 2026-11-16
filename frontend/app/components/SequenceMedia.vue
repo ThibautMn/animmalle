@@ -73,14 +73,26 @@ onBeforeUnmount(() => {
     <figure v-for="item in items" :key="item.id">
       <p v-if="showsError(item)" role="alert">{{ errors[item.id] }}</p>
       <p v-else-if="loading(item)" role="status">Chargement…</p>
-      <span v-else-if="selectable" class="thumbnail-preview">
-        <button
-          type="button"
-          :title="`Ajouter ${item.nom}`"
-          @click="emit('select', item)"
+      <span v-else-if="selectable" class="selectable-thumb">
+        <MediaPreview
+          v-if="PREVIEWABLE.includes(kind(item))"
+          :id="item.id"
+          icon
+          class="thumbnail-preview"
         >
           <MediaTile :item="item" :kind="kind(item)" :source="sources[item.id]" :image="showsImage(item)" :extension="extensionLabel(item)" />
-          <span class="select-overlay" aria-hidden="true"><ActionIcon name="add" /></span>
+        </MediaPreview>
+        <span v-else class="thumbnail-preview">
+          <MediaTile :item="item" :kind="kind(item)" :source="sources[item.id]" :image="showsImage(item)" :extension="extensionLabel(item)" />
+        </span>
+        <button
+          type="button"
+          class="add-media-button"
+          data-tooltip="Ajouter le média"
+          :aria-label="`Ajouter le média ${item.nom}`"
+          @click="emit('select', item)"
+        >
+          <ActionIcon name="add" />
         </button>
       </span>
       <MediaPreview
