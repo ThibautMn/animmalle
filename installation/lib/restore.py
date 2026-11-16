@@ -5,9 +5,19 @@ from pathlib import Path
 import re
 
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import Date, Integer, String, UniqueConstraint, inspect, select, text
 from animmalle.models import APPLICATION_TABLES, Base
+
+ALEMBIC_INI = Path(__file__).resolve().parents[2] / 'backend' / 'alembic.ini'
+
+
+def head_revisions():
+    """Révision(s) la plus récente des migrations ; lecture des fichiers, sans connexion."""
+    return sorted(ScriptDirectory.from_config(Config(str(ALEMBIC_INI))).get_heads())
+
 
 # Tables du dump historique : celles propres à la nouvelle application n'en font pas partie.
 HISTORICAL = {name: table for name, table in Base.metadata.tables.items() if name not in APPLICATION_TABLES}
@@ -197,7 +207,8 @@ def restore(connection, tables, next_ids):
     connection.exec_driver_sql(f'LOCK TABLE {names} IN ACCESS EXCLUSIVE MODE')
     if set(inspect(connection).get_table_names(schema='public')) != set(metadata.tables) | {'alembic_version'}:
         raise ValueError('Inventaire cible incompatible.')
-    if connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all() != ['0001_initial']:
+    # Le schéma doit être à jour : l'import ne se fait pas sur une base en retard sur les migrations.
+    if sorted(connection.execute(text('SELECT version_num FROM alembic_version')).scalars().all()) != head_revisions():
         raise ValueError('Révision Alembic cible incompatible.')
     context = MigrationContext.configure(connection, opts={'compare_type': True, 'compare_server_default': True})
     if compare_metadata(context, metadata):

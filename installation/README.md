@@ -140,8 +140,9 @@ SQL universel. Un format différent doit être étudié avant utilisation.
 
 Avant connexion : contrôle des neuf tables, colonnes, types, dates, longueurs,
 NULL, identifiants, unicités et références. Sur PostgreSQL : verrouillage exclusif
-des tables métier (attente limitée à dix secondes), contrôle de la révision
-`0001_initial`, de l'inventaire et des différences Alembic avec les modèles.
+des tables métier (attente limitée à dix secondes), contrôle que la base est à la
+dernière révision des migrations (lue dans `backend/migrations`, plus une valeur
+fixe), de l'inventaire et des différences Alembic avec les modèles.
 Si une table contient des données, aucun import n'est effectué. Exécuter cette
 phase hors utilisation applicative : les verrous bloquent aussi les lectures.
 
