@@ -23,9 +23,39 @@ const author_matches = computed(() => {
   const q = author.value.trim().toLowerCase();
   return authors.value
     .filter((name) => name.toLowerCase().includes(q) && name !== author.value)
+    .sort((a, b) => {
+      // Les noms sont de la forme « Prénom Nom » : tri sur le nom, puis le prénom.
+      const split = (full) => {
+        const parts = full.trim().split(/\s+/);
+        return [parts.length > 1 ? parts.pop() : "", parts.join(" ")];
+      };
+      const [last_a, first_a] = split(a);
+      const [last_b, first_b] = split(b);
+      const options = { sensitivity: "base" };
+      return (
+        (last_a || first_a).localeCompare(last_b || first_b, "fr", options) ||
+        first_a.localeCompare(first_b, "fr", options)
+      );
+    })
     .slice(0, 10);
 });
 const search_text = ref("");
+// Critères de recherche supplémentaires : tous doivent être remplis (ET).
+const extra_terms = ref([]);
+// Termes de la dernière recherche aboutie, surlignés dans les résultats.
+const marked_terms = ref([]);
+// Découpe un texte en segments, ceux qui contiennent un terme recherché ayant hit = true.
+function highlight(text) {
+  const terms = [...marked_terms.value].sort((a, b) => b.length - a.length);
+  if (!text || !terms.length) return [{ text, hit: false }];
+  const pattern = terms
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  return text
+    .split(new RegExp(`(${pattern})`, "i"))
+    .map((part, index) => ({ text: part, hit: index % 2 === 1 }))
+    .filter((part) => part.text);
+}
 const duration_min = ref(null);
 const duration_max = ref(null);
 const statuses = ref([]);
@@ -48,7 +78,10 @@ async function search(reset = false) {
     const query = { page: page.value, page_size, tag: tags.value };
     if (animations) {
       if (author.value) query.auteur = author.value;
-      if (search_text.value.trim()) query.q = search_text.value.trim();
+      const terms = [search_text.value, ...extra_terms.value]
+        .map((term) => term.trim())
+        .filter(Boolean);
+      if (terms.length) query.q = terms;
       if (statuses.value.length) query.statut = statuses.value;
       // Champ numérique vidé = null ou chaîne vide : borne ignorée.
       if (Number.isInteger(duration_min.value))
@@ -64,6 +97,7 @@ async function search(reset = false) {
       if (animations) {
         const { page: _page, page_size: _size, ...filters } = query;
         animation_search.value = filters;
+        marked_terms.value = query.q || [];
       }
       items.value = result.items;
       total.value = result.total;
@@ -96,7 +130,7 @@ async function remove(item) {
 }
 let timer;
 watch(
-  [author, search_text, statuses, tags, types, duration_min, duration_max],
+  [author, search_text, extra_terms, statuses, tags, types, duration_min, duration_max],
   () => {
     if (skip_duration_watch) {
       skip_duration_watch = false;
@@ -156,13 +190,47 @@ onMounted(async () => {
   </div>
   <div :class="['catalog-layout', animations && 'with-sidebar']">
     <form class="card filters" @submit.prevent="search(true)">
-      <label v-if="animations" class="search-field"
-        >Recherche<input
-          v-model="search_text"
-          type="search"
-          maxlength="100"
-          placeholder="Titre ou description…"
-      /></label>
+      <div v-if="animations" class="search-field">
+        <label
+          >Recherche<span class="search-row"
+            ><input
+              v-model="search_text"
+              type="search"
+              maxlength="100"
+              placeholder="Titre, description ou objectifs…"
+            />
+            <PButton
+              v-if="search_text.trim()"
+              type="button"
+              class="secondary icon-button"
+              title="Ajouter un critère de recherche (ET)"
+              aria-label="Ajouter un critère de recherche"
+              label="+"
+              @click="extra_terms.push('')"
+          /></span>
+        </label>
+        <div
+          v-for="(term, index) in extra_terms"
+          :key="index"
+          class="search-row"
+        >
+          <input
+            v-model="extra_terms[index]"
+            type="search"
+            maxlength="100"
+            placeholder="ET titre, description ou objectifs…"
+            :aria-label="`Critère de recherche ${index + 2}`"
+          />
+          <PButton
+            type="button"
+            class="secondary icon-button"
+            title="Retirer ce critère"
+            aria-label="Retirer ce critère"
+            label="×"
+            @click="extra_terms.splice(index, 1)"
+          />
+        </div>
+      </div>
       <div v-if="animations" class="author-row">
         <label
           >Auteur<span class="author-combo"
@@ -281,9 +349,16 @@ onMounted(async () => {
             }}</span>
             <div class="card-title-row">
               <h2>
-                <NuxtLink :to="`${endpoint}/${item.id}`">{{
-                  item.titre || item.nom
-                }}</NuxtLink>
+                <NuxtLink :to="`${endpoint}/${item.id}`"
+                  ><template v-if="animations"
+                    ><template
+                      v-for="(part, index) in highlight(item.titre)"
+                      :key="index"
+                      ><mark v-if="part.hit">{{ part.text }}</mark
+                      ><template v-else>{{ part.text }}</template></template
+                    ></template
+                  ><template v-else>{{ item.titre || item.nom }}</template></NuxtLink
+                >
               </h2>
               <span v-if="animations" class="duration-badges">
                 <span
@@ -377,7 +452,26 @@ onMounted(async () => {
               </dl>
             </template>
             <p v-else class="prose">
-              {{ item.description || "Non renseignée" }}
+              <template v-if="item.description"
+                ><template
+                  v-for="(part, index) in highlight(item.description)"
+                  :key="index"
+                  ><mark v-if="part.hit">{{ part.text }}</mark
+                  ><template v-else>{{ part.text }}</template></template
+                ></template
+              ><template v-else>Non renseignée</template>
+            </p>
+            <p
+              v-if="animations && highlight(item.objectifs).some((part) => part.hit)"
+              class="prose"
+            >
+              <strong>Objectifs : </strong
+              ><template
+                v-for="(part, index) in highlight(item.objectifs)"
+                :key="index"
+                ><mark v-if="part.hit">{{ part.text }}</mark
+                ><template v-else>{{ part.text }}</template></template
+              >
             </p>
             <p class="muted">
               {{ item.auteurs || catalog.label(item.fk_type_mat_id) }}

@@ -87,7 +87,8 @@ def logout():
 def animation_query():
     """Requête filtrée de la liste, partagée avec la navigation précédente/suivante."""
     query = select(Animation).options(load_only(Animation.id, Animation.titre, Animation.statut,
-                                                 Animation.description, Animation.auteurs)).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
+                                                 Animation.description, Animation.auteurs,
+                                                 Animation.objectifs)).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
     if 'auteur' in request.args:
         query = query.where(Animation.auteurs == request.args['auteur'])
     statuts = request.args.getlist('statut')
@@ -99,13 +100,16 @@ def animation_query():
         if not values <= {1, 2, 3}:
             raise ValidationError({'statut': ['Valeur hors limites.']})
         query = query.where(Animation.statut.in_(values))
-    text_query = request.args.get('q', '').strip()
-    if text_query:
+    # Chaque paramètre q répété est un critère supplémentaire (ET) sur le titre, la description ou les objectifs.
+    for text_query in (value.strip() for value in request.args.getlist('q')):
+        if not text_query:
+            continue
         if len(text_query) > 100:
             raise ValidationError({'q': ['100 caractères maximum.']})
         pattern = '%' + text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
         query = query.where(or_(Animation.titre.ilike(pattern, escape='\\'),
-                                Animation.description.ilike(pattern, escape='\\')))
+                                Animation.description.ilike(pattern, escape='\\'),
+                                Animation.objectifs.ilike(pattern, escape='\\')))
     # Durée cumulée des séquences comprise entre duree_min et duree_max (bornes incluses, en minutes).
     if 'duree_min' in request.args or 'duree_max' in request.args:
         total = (select(func.coalesce(func.sum(Sequence.duree_minutes), 0))
@@ -156,7 +160,7 @@ def animations():
     shortest, longest = (int(value or 0) for value in g.db.execute(
         select(func.min(per_animation.c.total), func.max(per_animation.c.total))).one())
     items = [{'id': row[0].id, 'titre': row[0].titre, 'statut': row[0].statut,
-              'description': row[0].description, 'auteurs': row[0].auteurs,
+              'description': row[0].description, 'objectifs': row[0].objectifs, 'auteurs': row[0].auteurs,
               'tags': tags_by_anim[row[0].id], 'duree_minutes': int(totals.get(row[0].id, 0)),
               'fk_duree_id': row[0].fk_duree_id,
               'pertinence': {'matched': row[1] if tags else 0, 'requested': len(tags)}}

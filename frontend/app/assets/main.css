@@ -1364,3 +1364,24 @@ button.bare-icon svg {
   flex: none;
   width: 100px;
 }
+
+.search-field {
+  display: grid;
+  gap: 8px;
+}
+.search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.search-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.resource-list mark {
+  background: #ffe66d;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
