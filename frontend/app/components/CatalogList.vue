@@ -7,6 +7,8 @@ const api = useApi();
 const catalog = useCatalog();
 const route = useRoute();
 const animations = props.kind === "animation";
+// La médiathèque s'affiche en vignettes, comme dans les fiches animations.
+const thumbnails = props.kind === "media";
 const endpoint = animations ? "/animations" : "/materials";
 const heading = animations
   ? "La pédathèque"
@@ -342,7 +344,8 @@ onMounted(async () => {
           :busy="busy"
           @go="go"
         />
-        <div :class="['resource-list', animations && 'cards-list']">
+        <SequenceMedia v-if="thumbnails" :items="items" />
+        <div v-else :class="['resource-list', animations && 'cards-list']">
           <article v-for="item in items" :key="item.id" class="card">
             <span v-if="animations" class="badge">{{
               { 1: "Validée", 2: "À valider", 3: "Brouillon" }[item.statut]

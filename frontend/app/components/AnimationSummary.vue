@@ -1,4 +1,5 @@
 <script setup>
+import { formatMinutes } from '../../lib/forms.mjs'
 const props = defineProps({ item: { type: Object, required: true } })
 const catalog = useCatalog()
 const groups = computed(() =>
@@ -13,11 +14,21 @@ const groups = computed(() =>
     }))
     .filter((group) => group.tags.length),
 )
+const sequencesLabel = computed(() => {
+  const total = props.item.sequences.reduce(
+    (sum, seq) =>
+      sum + (Number.isInteger(seq.duree_minutes) ? seq.duree_minutes : 0),
+    0,
+  )
+  const count = String(props.item.sequences.length)
+  const duration = formatMinutes(total)
+  return duration ? `${count} (${duration})` : count
+})
 const facts = computed(() =>
   [
     ['Durée', catalog.label(props.item.fk_duree_id)],
     ['Lieu', props.item.lieu],
-    ['Séquences', String(props.item.sequences.length)],
+    ['Séquences', sequencesLabel.value],
   ].filter(([, value]) => value),
 )
 </script>
