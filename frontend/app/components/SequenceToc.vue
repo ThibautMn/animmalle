@@ -1,4 +1,5 @@
 <script setup>
+import { formatMinutes } from '../../lib/forms.mjs'
 defineProps({ sequences: { type: Array, required: true } })
 const catalog = useCatalog()
 </script>
@@ -17,8 +18,8 @@ const catalog = useCatalog()
       >
         <a :href="`#seq-${index + 1}`"
           ><span class="toc-title">{{ seq.titre }}</span
-          ><span v-if="catalog.label(seq.fk_duree_id)" class="toc-duration">{{
-            catalog.label(seq.fk_duree_id)
+          ><span v-if="formatMinutes(seq.duree_minutes)" class="toc-duration">{{
+            formatMinutes(seq.duree_minutes)
           }}</span></a
         >
       </li>

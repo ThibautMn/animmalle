@@ -23,7 +23,7 @@ class SequenceSchema(Schema):
     materiel_div = text_field(load_default='')
     fk_modalite_id = identifier(required=True)
     fk_approche_id = identifier(required=True)
-    fk_duree_id = identifier(required=True)
+    duree_minutes = fields.Integer(strict=True, required=True, validate=validate.Range(min=1, max=1440))
     fk_type_seq_id = identifier(required=True)
     materiel = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
 

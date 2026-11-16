@@ -5,7 +5,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from alembic import command
 from alembic.config import Config
@@ -43,6 +43,7 @@ class SchemaTests(unittest.TestCase):
                 patch.object(migration.op, 'create_table', side_effect=create_table), \
                 patch.object(migration.op, 'create_index', side_effect=lambda *a, **k: indexes.append(a)):
             migration.upgrade()
+        self.apply_duration_migration(metadata, indexes)
         dialect = postgresql.dialect()
         self.assertEqual(set(metadata.tables), set(Base.metadata.tables) - APPLICATION_TABLES)
         for name, table in Base.metadata.tables.items():
@@ -53,6 +54,30 @@ class SchemaTests(unittest.TestCase):
         expected = {(i.name, t.name, tuple(c.name for c in i.columns))
                     for t in Base.metadata.tables.values() if t.name not in APPLICATION_TABLES for i in t.indexes}
         self.assertEqual(expected, {(str(a[0]), a[1], tuple(a[2])) for a in indexes})
+
+    def apply_duration_migration(self, metadata, indexes):
+        """Rejoue la migration 0004 sur le schéma gelé de 0001 pour le comparer aux modèles."""
+        spec = importlib.util.spec_from_file_location(
+            'duree', BACKEND / 'migrations/versions/0004_duree_sequence_minutes.py')
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        table = metadata.tables['sequence']
+        def alter_column(_table, name, **kwargs):
+            table.c[name].nullable = kwargs['nullable']
+        def drop_index(name, **kwargs):
+            indexes[:] = [item for item in indexes if str(item[0]) != name]
+        def drop_constraint(name, *args, **kwargs):
+            table.constraints.discard(next(c for c in table.constraints if c.name == name))
+        def drop_column(_table, name):
+            table._columns.remove(table.c[name])
+        with patch.object(migration.op, 'add_column', side_effect=lambda _t, column: table.append_column(column)), \
+                patch.object(migration.op, 'get_bind', return_value=Mock(dialect=Mock())), \
+                patch.object(migration.op, 'execute'), \
+                patch.object(migration.op, 'alter_column', side_effect=alter_column), \
+                patch.object(migration.op, 'drop_index', side_effect=drop_index), \
+                patch.object(migration.op, 'drop_constraint', side_effect=drop_constraint), \
+                patch.object(migration.op, 'drop_column', side_effect=drop_column):
+            migration.upgrade()
 
     def test_offline_upgrade_and_downgrade_without_configuration(self):
         output = io.StringIO()

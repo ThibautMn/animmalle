@@ -54,11 +54,10 @@ class Sequence(Base):
     fk_approche_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
     description = mapped_column(Text, nullable=False)
     materiel_div = mapped_column(Text, nullable=False)
-    fk_duree_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
+    duree_minutes = mapped_column(Integer, nullable=False)
     fk_type_seq_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
     fk_modalite = relationship('Thesaurus', foreign_keys=[fk_modalite_id])
     fk_approche = relationship('Thesaurus', foreign_keys=[fk_approche_id])
-    fk_duree = relationship('Thesaurus', foreign_keys=[fk_duree_id])
     fk_type_seq = relationship('Thesaurus', foreign_keys=[fk_type_seq_id])
     materiel = relationship('MatPeda', secondary='rel_mat_peda_sequence', viewonly=True)
 

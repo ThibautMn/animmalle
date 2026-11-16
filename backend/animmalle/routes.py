@@ -479,7 +479,7 @@ def export_animation(key):
     sections = [(name, value) for name, value in data.items() if name not in ('sequences', 'tags')]
     for index, seq in enumerate(item.sequences, 1):
         sections.append((f'Séquence {index} : {seq.titre}', seq.description))
-        for name in ('objectifs', 'materiel_div', 'fk_modalite', 'fk_approche', 'fk_duree', 'fk_type_seq'):
+        for name in ('objectifs', 'materiel_div', 'fk_modalite', 'fk_approche', 'duree_minutes', 'fk_type_seq'):
             value = getattr(seq, name)
             sections.append((name, value.label if isinstance(value, Thesaurus) else value))
     sections.append(('Mots-clés', ', '.join(tag.label or '' for tag in item.tags)))

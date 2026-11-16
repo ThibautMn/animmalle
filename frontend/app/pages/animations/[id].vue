@@ -5,6 +5,7 @@ import {
   sequenceFields,
   sequenceRefs,
   newSequence,
+  formatMinutes,
   animationPayload,
   moveSequence,
 } from '../../../lib/forms.mjs'
@@ -42,6 +43,15 @@ const canEdit = computed(
     session.is_admin ||
     (item.value.auteurs === session.user?.name && item.value.statut !== 1),
 )
+// Palier de 5 minutes : s’aligne d’abord sur le multiple de 5 le plus proche.
+function stepDuration(seq, direction) {
+  const current = Number.isInteger(seq.duree_minutes) ? seq.duree_minutes : 0
+  const next =
+    direction > 0
+      ? (Math.floor(current / 5) + 1) * 5
+      : (Math.ceil(current / 5) - 1) * 5
+  seq.duree_minutes = Math.min(1440, Math.max(5, next))
+}
 const path = `/animations/${route.params.id}`
 async function load() {
   error.value = ''
@@ -438,6 +448,41 @@ onMounted(load)
                     :label="label + ' *'"
                     required
                   />
+                  <div>
+                    <label :for="`seq-duree-${index}`">Durée (minutes) *</label>
+                    <div class="duration-stepper">
+                      <button
+                        type="button"
+                        aria-label="Retirer 5 minutes"
+                        title="Retirer 5 minutes"
+                        :disabled="!(seq.duree_minutes > 5)"
+                        @click="stepDuration(seq, -1)"
+                      >
+                        −
+                      </button>
+                      <input
+                        :id="`seq-duree-${index}`"
+                        v-model.number="seq.duree_minutes"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        max="1440"
+                        step="1"
+                        required
+                        @keydown.up.prevent="stepDuration(seq, 1)"
+                        @keydown.down.prevent="stepDuration(seq, -1)"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Ajouter 5 minutes"
+                        title="Ajouter 5 minutes"
+                        :disabled="seq.duree_minutes >= 1440"
+                        @click="stepDuration(seq, 1)"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <fieldset
                   v-for="[key, label] in sequenceFields"
@@ -498,10 +543,16 @@ onMounted(load)
                       v-for="[key, , label] in sequenceRefs"
                       v-show="seq[key]"
                       :key="key"
-                      :class="{ 'chip-duration': key === 'fk_duree_id' }"
                       :title="label"
                     >
                       {{ catalog.label(seq[key]) }}
+                    </li>
+                    <li
+                      v-show="formatMinutes(seq.duree_minutes)"
+                      class="chip-duration"
+                      title="Durée"
+                    >
+                      {{ formatMinutes(seq.duree_minutes) }}
                     </li>
                   </ul>
                 </header>
@@ -857,6 +908,55 @@ onMounted(load)
 }
 .seq-tools :deep(.danger-icon) {
   color: var(--c-danger);
+}
+.duration-stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 5px;
+  max-width: 140px;
+}
+.duration-stepper input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  text-align: center;
+  border-radius: 0;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.duration-stepper input::-webkit-outer-spin-button,
+.duration-stepper input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.duration-stepper button {
+  flex: none;
+  width: 32px;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #fff;
+  background: var(--c-primary);
+  border: 0;
+  cursor: pointer;
+}
+.duration-stepper button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.duration-stepper button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+.duration-stepper button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.duration-stepper button:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+.duration-stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .seq-refs {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

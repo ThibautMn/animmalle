@@ -21,6 +21,8 @@ def head_revisions():
 
 # Tables du dump historique : celles propres à la nouvelle application n'en font pas partie.
 HISTORICAL = {name: table for name, table in Base.metadata.tables.items() if name not in APPLICATION_TABLES}
+# Colonnes de l'ancien dump remplacées depuis : table -> (colonne historique, colonne actuelle).
+RENAMED = {'sequence': ('fk_duree_id', 'duree_minutes')}
 HISTORICAL_SORTED = [table for table in Base.metadata.sorted_tables if table.name in HISTORICAL]
 
 
@@ -141,7 +143,9 @@ def read_dump(path):
             if name in tables or name not in HISTORICAL:
                 raise ValueError('Table source inconnue ou répétée.')
             columns[name] = re.findall(r'^\s*`([^`]+)`', body, re.M)
-            if set(columns[name]) != set(HISTORICAL[name].c.keys()) or len(set(columns[name])) != len(columns[name]):
+            expected = {RENAMED[name][0] if name in RENAMED and key == RENAMED[name][1] else key
+                        for key in HISTORICAL[name].c.keys()}
+            if set(columns[name]) != expected or len(set(columns[name])) != len(columns[name]):
                 raise ValueError('Colonnes source incompatibles.')
             tables[name] = []
             auto = re.search(r'\bAUTO_INCREMENT=(\d+)\b', options)
@@ -159,8 +163,24 @@ def read_dump(path):
             raise ValueError('Instruction source non prise en charge.')
     if set(tables) != set(HISTORICAL):
         raise ValueError('Inventaire des tables source incompatible.')
+    convert_durations(tables)
     validate(tables)
     return tables, next_ids
+
+
+def convert_durations(tables):
+    """Remplace la référence de durée des séquences ('5 min', '1h30'…) par un nombre de minutes."""
+    labels = {row['id']: row['label'] for row in tables['thesaurus']}
+    for row in tables['sequence']:
+        label = (labels.get(row.pop('fk_duree_id')) or '').lower()
+        hours = re.fullmatch(r'\s*(\d+)\s*h\s*(\d+)?\s*', label)
+        short = re.fullmatch(r'\s*(\d+)\s*min\s*', label)
+        row['duree_minutes'] = (int(hours[1]) * 60 + int(hours[2] or 0)) if hours else int(short[1]) if short else 0
+    # La famille ref.duree_seq n'existe plus dans le thésaurus (migration 0005).
+    removed = {row['id'] for row in tables['thesaurus'] if 'ref.duree_seq' in (row['reference'], row['code'])}
+    tables['thesaurus'][:] = [row for row in tables['thesaurus'] if row['id'] not in removed]
+    for name, column in (('rel_anim_tag', 'fk_thes_id'), ('rel_mat_peda_thematique', 'fk_thes_id')):
+        tables[name][:] = [row for row in tables[name] if row[column] not in removed]
 
 
 def validate(tables):

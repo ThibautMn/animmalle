@@ -18,9 +18,14 @@ export const materialFields = [
 export const sequenceRefs = [
   ['fk_type_seq_id', 'ref.type_seq', 'Partie'],
   ['fk_approche_id', 'ref.approches', 'Approche'],
-  ['fk_modalite_id', 'ref.modalites', 'Modalité'],
-  ['fk_duree_id', 'ref.duree_seq', 'Durée']
+  ['fk_modalite_id', 'ref.modalites', 'Modalité']
 ]
+export function formatMinutes(minutes) {
+  if (!Number.isInteger(minutes) || minutes <= 0) return ''
+  if (minutes < 60) return `${minutes} min`
+  const rest = String(minutes % 60).padStart(2, '0')
+  return `${Math.floor(minutes / 60)}h${minutes % 60 ? rest : ''}`
+}
 export function newSequence() {
   return {
     titre: '',
@@ -30,7 +35,7 @@ export function newSequence() {
     fk_type_seq_id: null,
     fk_approche_id: null,
     fk_modalite_id: null,
-    fk_duree_id: null,
+    duree_minutes: null,
     materiel: []
   }
 }

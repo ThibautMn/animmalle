@@ -73,7 +73,7 @@ def save_animation(data, item=None):
     if len(submitted_ids) != len(set(submitted_ids)) or not set(submitted_ids) <= old_ids:
         raise ValidationError({'sequences': ['Séquence dupliquée ou appartenant à une autre animation.']})
     for seq in sequences:
-        for key, family in (('fk_duree_id', 'ref.duree_seq'), ('fk_modalite_id', 'ref.modalites'),
+        for key, family in (('fk_modalite_id', 'ref.modalites'),
                             ('fk_approche_id', 'ref.approches'), ('fk_type_seq_id', 'ref.type_seq')):
             reference(seq[key], [family])
         for key in seq['materiel']:

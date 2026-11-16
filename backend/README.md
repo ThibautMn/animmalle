@@ -164,8 +164,8 @@ Une séquence existante conserve son `id`, une nouvelle l’omet. Une séquence 
 est supprimée si elle n’a plus d’autre animation. Les séquences partagées ne sont
 pas modifiables directement ; les références à une autre animation sont refusées.
 `materiel` est une liste d’identifiants de matériaux. Les familles attendues sont
-`ref.duree` pour l’animation ; `ref.duree_seq`, `ref.modalites`, `ref.approches` et
-`ref.type_seq` pour les séquences. La durée de l’animation est ajoutée à ses tags.
+`ref.duree` pour l’animation ; `ref.modalites`, `ref.approches` et
+`ref.type_seq` pour les séquences. La durée de l’animation est ajoutée à ses tags. La durée d’une séquence est `duree_minutes`, un entier de 1 à 1440.
 Toute la modification se fait dans une transaction, annulée au premier échec.
 
 Un auteur peut créer, modifier et supprimer ses fiches non validées ; seul un

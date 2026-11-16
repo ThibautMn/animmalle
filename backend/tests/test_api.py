@@ -131,7 +131,7 @@ class ApiTests(unittest.TestCase):
 
     def animation_data(self):
         return {'titre': 'Une animation', 'statut': 3, 'fk_duree_id': 1, 'tags': [6, 6],
-                'sequences': [{'titre': 'Introduction', 'description': 'Texte <&>', 'fk_duree_id': 2,
+                'sequences': [{'titre': 'Introduction', 'description': 'Texte <&>', 'duree_minutes': 10,
                                'fk_modalite_id': 3, 'fk_approche_id': 4, 'fk_type_seq_id': 5, 'materiel': []}]}
 
     def create_animation(self):
@@ -197,7 +197,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual([s['titre'] for s in response.json['sequences']], ['Deuxième', 'Introduction'])
         bad = copy.deepcopy(data)
         bad['titre'] = 'Ne doit pas être enregistré'
-        bad['sequences'][1]['fk_duree_id'] = 99999
+        bad['sequences'][1]['duree_minutes'] = 0
         self.assertEqual(self.mutate('put', f'/api/animations/{key}', bad).status_code, 422)
         self.assertEqual(self.client.get(f'/api/animations/{key}').json['titre'], data['titre'])
         data['sequences'] = []
