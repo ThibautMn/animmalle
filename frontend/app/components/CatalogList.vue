@@ -1,5 +1,6 @@
 <script setup>
 import { useSessionStore } from "~/stores/session";
+import { formatMinutes } from "../../lib/forms.mjs";
 const props = defineProps({ kind: { type: String, default: "animation" } });
 const session = useSessionStore();
 const api = useApi();
@@ -25,6 +26,8 @@ const author_matches = computed(() => {
     .slice(0, 10);
 });
 const search_text = ref("");
+const duration_min = ref(null);
+const duration_max = ref(null);
 const statuses = ref([]);
 const page = ref(1);
 const page_size = 20;
@@ -34,6 +37,8 @@ const error = ref("");
 // Dernière recherche de la pédathèque, réutilisée par la fiche pour les flèches précédente/suivante
 const animation_search = useState("animation_search", () => null);
 let requestId = 0;
+let duration_max_ready = false;
+let skip_duration_watch = false;
 async function search(reset = false) {
   if (reset) page.value = 1;
   const current = ++requestId;
@@ -45,6 +50,11 @@ async function search(reset = false) {
       if (author.value) query.auteur = author.value;
       if (search_text.value.trim()) query.q = search_text.value.trim();
       if (statuses.value.length) query.statut = statuses.value;
+      // Champ numérique vidé = null ou chaîne vide : borne ignorée.
+      if (Number.isInteger(duration_min.value))
+        query.duree_min = duration_min.value;
+      if (Number.isInteger(duration_max.value))
+        query.duree_max = duration_max.value;
     } else {
       query.kind = props.kind;
       query.type = types.value;
@@ -57,6 +67,15 @@ async function search(reset = false) {
       }
       items.value = result.items;
       total.value = result.total;
+      // Bornes par défaut : la plus courte et la plus longue animation (sans effet sur la liste).
+      if (animations && !duration_max_ready) {
+        duration_max_ready = true;
+        if (result.duree_max > 0 && duration_max.value === null) {
+          skip_duration_watch = true;
+          duration_max.value = result.duree_max;
+          if (duration_min.value === null) duration_min.value = result.duree_min;
+        }
+      }
     }
   } catch (e) {
     if (current === requestId) error.value = e.message;
@@ -77,8 +96,12 @@ async function remove(item) {
 }
 let timer;
 watch(
-  [author, search_text, statuses, tags, types],
+  [author, search_text, statuses, tags, types, duration_min, duration_max],
   () => {
+    if (skip_duration_watch) {
+      skip_duration_watch = false;
+      return;
+    }
     clearTimeout(timer);
     timer = setTimeout(() => search(true), 300);
   },
@@ -219,7 +242,22 @@ onMounted(async () => {
           catalog.items.value.find((item) => item.code === group)?.label ||
           group.replace('ref.', '')
         "
-      />
+      >
+        <div v-if="group === 'ref.duree'" class="duration-range">
+          <span class="duration-range-title">Durée totale des séquences</span>
+          <div class="duration-range-fields">
+            <label
+              >Entre
+              <DurationStepper v-model="duration_min" :max="100000" />
+            </label>
+            <label
+              >et
+              <DurationStepper v-model="duration_max" :max="100000" />
+              minutes
+            </label>
+          </div>
+        </div>
+      </TagPicker>
     </form>
     <div class="catalog-results">
       <p v-if="error" role="alert" class="error">{{ error }}</p>
@@ -241,11 +279,27 @@ onMounted(async () => {
             <span v-if="animations" class="badge">{{
               { 1: "Validée", 2: "À valider", 3: "Brouillon" }[item.statut]
             }}</span>
-            <h2>
-              <NuxtLink :to="`${endpoint}/${item.id}`">{{
-                item.titre || item.nom
-              }}</NuxtLink>
-            </h2>
+            <div class="card-title-row">
+              <h2>
+                <NuxtLink :to="`${endpoint}/${item.id}`">{{
+                  item.titre || item.nom
+                }}</NuxtLink>
+              </h2>
+              <span v-if="animations" class="duration-badges">
+                <span
+                  v-if="catalog.label(item.fk_duree_id)"
+                  class="badge duration-badge"
+                  title="Durée totale"
+                  >{{ catalog.label(item.fk_duree_id) }}</span
+                >
+                <span
+                  v-if="formatMinutes(item.duree_minutes)"
+                  class="badge duration-badge"
+                  title="Durée cumulée des séquences"
+                  >{{ formatMinutes(item.duree_minutes) }}</span
+                >
+              </span>
+            </div>
             <p class="pictos">
               <PictoIcon
                 v-for="tag in animations ? item.tags : item.thematiques"

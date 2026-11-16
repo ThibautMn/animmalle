@@ -16,7 +16,6 @@ async function fixture(page, admin = true) {
     ['ref.type_seq', 'Partie'],
     ['ref.approches', 'Approche'],
     ['ref.modalites', 'Modalité'],
-    ['ref.duree_seq', 'Durée séquence'],
     ['ref.duree', 'Durée totale'],
     ['ref.type_mat', 'Photo'],
     ['ref.type_outil', 'Débats'],
@@ -108,7 +107,7 @@ async function fixture(page, admin = true) {
           id: 1,
           nom: 'Média test',
           description: 'Une image',
-          fk_type_mat_id: 6,
+          fk_type_mat_id: 5,
           thematiques: [],
           has_file: true
         }
@@ -164,10 +163,10 @@ test('Connexion, création ordonnée, modification et commentaire avec rotation 
   for (const [label, value] of [
     ['Partie *', '1'],
     ['Approche *', '2'],
-    ['Modalité *', '3'],
-    ['Durée *', '4']
+    ['Modalité *', '3']
   ])
     await page.getByLabel(label, { exact: true }).selectOption(value)
+  await page.getByLabel('Durée (minutes) *', { exact: true }).fill('10')
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Découvrir la forêt', exact: true })
@@ -204,7 +203,7 @@ test('Médiathèque, formulaire multipart, téléchargement et pages outils', as
   await page.getByRole('link', { name: 'Médiathèque', exact: true }).click()
   await page.getByRole('link', { name: 'Importer une ressource' }).click()
   await page.getByLabel('Nom *', { exact: true }).fill('Média test')
-  await page.getByLabel('Type *', { exact: true }).selectOption('6')
+  await page.getByLabel('Type *', { exact: true }).selectOption('5')
   await page.getByLabel('Pièce jointe', { exact: true }).setInputFiles({
     name: 'test.txt',
     mimeType: 'text/plain',

@@ -878,6 +878,27 @@ th {
 .cards-grid .card h2 {
   margin: 0;
 }
+.card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.card-title-row h2 {
+  min-width: 0;
+}
+.duration-badges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.duration-badge {
+  white-space: nowrap;
+  background: #ffe0b8;
+  color: #7a3e00;
+}
 .cards-list .card h2 a,
 .cards-grid .card h2 a {
   color: var(--c-text);
@@ -1290,4 +1311,56 @@ button.bare-icon svg {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+.duration-range {
+  margin-top: 10px;
+}
+.duration-range-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.duration-range-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.duration-range-fields label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  font-weight: 400;
+}
+.catalog-layout .duration-range-fields .duration-stepper {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  margin-top: 0;
+}
+.catalog-layout .duration-range-fields .duration-stepper button {
+  width: 24px;
+  font-size: 1rem;
+}
+.catalog-layout.with-sidebar .filters .duration-range-fields .duration-stepper input {
+  padding: 4px 2px;
+  font-size: 0.85rem;
+}
+.catalog-layout.with-sidebar .filters .duration-range-fields label {
+  font-size: 0.85rem;
+}
+.catalog-layout .duration-range-fields .duration-stepper button {
+  width: 24px;
+  font-size: 0.85rem;
+}
+.catalog-layout .duration-range-fields label {
+  flex: none;
+}
+.catalog-layout .duration-range-fields .duration-stepper {
+  flex: none;
+  width: 100px;
 }

@@ -20,5 +20,6 @@ const missing = ref({})
         ></label
       >
     </div>
+    <slot />
   </fieldset>
 </template>

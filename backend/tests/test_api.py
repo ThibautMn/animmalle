@@ -107,9 +107,9 @@ class ApiTests(unittest.TestCase):
             self.app.extensions['db_sessions'] = sessionmaker(self.connection, join_transaction_mode='create_savepoint', expire_on_commit=False)
         self.client = self.app.test_client()
         with self.db() as db:
-            for key, family in enumerate(['ref.duree', 'ref.duree_seq', 'ref.modalites', 'ref.approches', 'ref.type_seq', 'ref.thematiques', 'ref.type_mat', 'ref.type_outil', 'ref.difficulte'], 1):
+            for key, family in enumerate(['ref.duree', 'ref.modalites', 'ref.approches', 'ref.type_seq', 'ref.thematiques', 'ref.type_mat', 'ref.type_outil', 'ref.difficulte'], 1):
                 db.add(Thesaurus(id=100 + key, label='Catégorie ' + family, reference='', code=family))
-                db.add(Thesaurus(id=key, label=family, reference=family, code='briseglace' if key == 8 else ''))
+                db.add(Thesaurus(id=key, label=family, reference=family, code='briseglace' if key == 7 else ''))
             if self.connection is not None:
                 db.execute(text('ALTER SEQUENCE thesaurus_id_seq RESTART WITH 200'))
             db.commit()
@@ -130,9 +130,9 @@ class ApiTests(unittest.TestCase):
         return getattr(self.client, method)(path, headers={'X-CSRF-Token': self.token}, **kwargs)
 
     def animation_data(self):
-        return {'titre': 'Une animation', 'statut': 3, 'fk_duree_id': 1, 'tags': [6, 6],
+        return {'titre': 'Une animation', 'statut': 3, 'fk_duree_id': 1, 'tags': [5, 5],
                 'sequences': [{'titre': 'Introduction', 'description': 'Texte <&>', 'duree_minutes': 10,
-                               'fk_modalite_id': 3, 'fk_approche_id': 4, 'fk_type_seq_id': 5, 'materiel': []}]}
+                               'fk_modalite_id': 2, 'fk_approche_id': 3, 'fk_type_seq_id': 4, 'materiel': []}]}
 
     def create_animation(self):
         response = self.mutate('post', '/api/animations', self.animation_data())
@@ -140,7 +140,7 @@ class ApiTests(unittest.TestCase):
         return response.json
 
     def material_data(self):
-        return {'nom': 'Un média', 'fk_type_mat_id': 7, 'thematiques': [6, 6]}
+        return {'nom': 'Un média', 'fk_type_mat_id': 6, 'thematiques': [5, 5]}
 
     def test_session_csrf_cors_and_logout(self):
         self.assertEqual(self.client.post('/api/animations', json=self.animation_data()).status_code, 403)
@@ -163,7 +163,7 @@ class ApiTests(unittest.TestCase):
     def test_animation_lifecycle_permissions_and_comments(self):
         item = self.create_animation()
         key = item['id']
-        self.assertEqual(set(item['tags']), {1, 6})
+        self.assertEqual(set(item['tags']), {1, 5})
         comment = self.mutate('post', f'/api/animations/{key}/comments', {'commentaire': 'Bonjour'})
         self.assertEqual(comment.status_code, 201)
         self.login('bob')
@@ -228,7 +228,7 @@ class ApiTests(unittest.TestCase):
         response = self.client.get(f'/api/materials/{key}/file')
         self.assertEqual(response.data, b'%PDF test')
         response.close()
-        self.assertEqual(self.client.get('/api/materials?kind=media&tag=6').json['total'], 1)
+        self.assertEqual(self.client.get('/api/materials?kind=media&tag=5').json['total'], 1)
         nom = self.material_data()['nom']
         self.assertEqual(self.client.get(f'/api/materials?kind=media&q={nom[:3].upper()}').json['total'], 1)
         self.assertEqual(self.client.get('/api/materials?kind=media&q=%25zzz_').json['total'], 0)
@@ -269,9 +269,9 @@ class ApiTests(unittest.TestCase):
             medias.append({'id_media': 5, 'titre': 'Salamandre', 'auteur': 'A', 'source': 'PNC', 'id_type': 2,
                            'media_url': 'https://taxhub.test/static/medias/92 Salamandre.jpg'})
             self.assertEqual(self.client.get('/api/taxhub/taxa/92/media').json['items'][0]['id_media'], 5)
-            self.assertEqual(self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 6, 'fk_type_mat_id': 7}).status_code, 404)
+            self.assertEqual(self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 6, 'fk_type_mat_id': 6}).status_code, 404)
             self.assertEqual(self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 5}).status_code, 422)
-            response = self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 5, 'fk_type_mat_id': 7})
+            response = self.mutate('post', '/api/taxhub/import', {'cd_ref': 92, 'id_media': 5, 'fk_type_mat_id': 6})
             self.assertEqual(response.status_code, 201, response.json)
             self.assertEqual(response.json['nom'], 'Salamandre')
             self.assertEqual(response.json['extension'], 'jpg')
@@ -447,9 +447,9 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(self.client.get('/api/auth/session').json['can_edit_thesaurus'])
         data = {'label': 'Tag', 'reference': 'ref.thematiques'}
         self.assertEqual(self.mutate('post', '/api/thesaurus', data).status_code, 403)
-        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'Autre'}).status_code, 403)
-        self.assertEqual(self.mutate('delete', '/api/thesaurus/6').status_code, 403)
-        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 403)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/5', {'label': 'Autre'}).status_code, 403)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/5').status_code, 403)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/5/pictogram').status_code, 403)
         self.login('admin')
         self.assertTrue(self.client.get('/api/auth/session').json['can_edit_thesaurus'])
         self.assertEqual(self.mutate('post', '/api/thesaurus', data).status_code, 201)
@@ -461,7 +461,7 @@ class ApiTests(unittest.TestCase):
         created = self.mutate('post', '/api/thesaurus', data)
         self.assertEqual(created.status_code, 201)
         self.assertEqual(self.mutate('post', '/api/thesaurus', data).status_code, 409)
-        self.assertEqual(self.mutate('delete', '/api/thesaurus/106').status_code, 409)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/105').status_code, 409)
         self.assertEqual(self.mutate('delete', f"/api/thesaurus/{created.json['id']}").status_code, 204)
         self.create_animation()
         self.assertEqual(self.mutate('delete', '/api/thesaurus/1').status_code, 409)
@@ -469,24 +469,24 @@ class ApiTests(unittest.TestCase):
     def test_pictogram_upload_replace_rename_delete(self):
         png = b'\x89PNG\r\n\x1a\n' + b'0' * 20
         def send(data, name='a.png'):
-            return self.mutate('put', '/api/thesaurus/6/pictogram', content_type='multipart/form-data',
+            return self.mutate('put', '/api/thesaurus/5/pictogram', content_type='multipart/form-data',
                                data={'file': (io.BytesIO(data), name)})
         self.assertEqual(send(png).status_code, 403)
         self.login('admin')
-        item = next(i for i in self.client.get('/api/thesaurus').json['items'] if i['id'] == 6)
+        item = next(i for i in self.client.get('/api/thesaurus').json['items'] if i['id'] == 5)
         self.assertEqual(item['reference'], 'ref.thematiques')
-        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').status_code, 404)
+        self.assertEqual(self.client.get('/api/thesaurus/5/pictogram').status_code, 404)
         self.assertEqual(send(b'pas un png').status_code, 422)
         self.assertEqual(send(png).status_code, 204)
-        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png)
+        self.assertEqual(self.client.get('/api/thesaurus/5/pictogram').data, png)
         self.assertEqual(send(png + b'1').status_code, 204)
-        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png + b'1')
-        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'Nouveau nom'}).status_code, 200)
-        self.assertEqual(self.client.get('/api/thesaurus/6/pictogram').data, png + b'1')
-        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 204)
-        self.assertEqual(self.mutate('delete', '/api/thesaurus/6/pictogram').status_code, 404)
+        self.assertEqual(self.client.get('/api/thesaurus/5/pictogram').data, png + b'1')
+        self.assertEqual(self.mutate('put', '/api/thesaurus/5', {'label': 'Nouveau nom'}).status_code, 200)
+        self.assertEqual(self.client.get('/api/thesaurus/5/pictogram').data, png + b'1')
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/5/pictogram').status_code, 204)
+        self.assertEqual(self.mutate('delete', '/api/thesaurus/5/pictogram').status_code, 404)
         self.assertEqual(send(png).status_code, 204)
-        self.assertEqual(self.mutate('put', '/api/thesaurus/6', {'label': 'a/b'}).status_code, 200)
+        self.assertEqual(self.mutate('put', '/api/thesaurus/5', {'label': 'a/b'}).status_code, 200)
         self.assertEqual(send(png).status_code, 422)
         self.assertEqual(self.mutate('put', '/api/thesaurus/1/pictogram', content_type='multipart/form-data',
                                      data={'file': (io.BytesIO(png), 'a.png')}).status_code, 204)
@@ -566,9 +566,16 @@ class ApiTests(unittest.TestCase):
 
     def test_search_stats_authors_errors(self):
         self.create_animation()
-        response = self.client.get('/api/animations?tag=6&page_size=1')
+        response = self.client.get('/api/animations?tag=5&page_size=1')
         self.assertEqual(response.json['items'][0]['pertinence']['matched'], 1)
+        self.assertEqual(response.json['items'][0]['duree_minutes'], 10)
+        self.assertEqual((response.json['duree_min'], response.json['duree_max']), (10, 10))
+        self.assertEqual(response.json['items'][0]['fk_duree_id'], 1)
         self.assertEqual(self.client.get('/api/animations?tag=999').json['total'], 0)
+        for query, total in (('duree_min=10&duree_max=10', 1), ('duree_min=5&duree_max=15', 1), ('duree_min=11', 0),
+                             ('duree_max=9', 0), ('duree_min=0', 1)):
+            self.assertEqual(self.client.get(f'/api/animations?{query}').json['total'], total, query)
+        self.assertEqual(self.client.get('/api/animations?duree_min=x').status_code, 422)
         self.assertEqual(self.client.get('/api/animations?page_size=0').status_code, 422)
         self.assertEqual(self.client.get('/api/materials?type=no').status_code, 422)
         self.assertEqual(self.client.get('/api/stats').status_code, 200)

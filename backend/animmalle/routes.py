@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, require_admin, require_thesaurus_editor
 from .models import (Animation, MatPeda, Thesaurus, Commentaire,
-                     RelMatPedaSequence, RelMatPedaThematique, RelAnimTag)
+                     RelMatPedaSequence, RelMatPedaThematique, RelAnimTag, RelAnimSequence, Sequence)
 from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import services as svc
@@ -106,6 +106,15 @@ def animation_query():
         pattern = '%' + text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
         query = query.where(or_(Animation.titre.ilike(pattern, escape='\\'),
                                 Animation.description.ilike(pattern, escape='\\')))
+    # Durée cumulée des séquences comprise entre duree_min et duree_max (bornes incluses, en minutes).
+    if 'duree_min' in request.args or 'duree_max' in request.args:
+        total = (select(func.coalesce(func.sum(Sequence.duree_minutes), 0))
+                 .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == Sequence.id)
+                 .where(RelAnimSequence.fk_anim_id == Animation.id).scalar_subquery())
+        if 'duree_min' in request.args:
+            query = query.where(total >= integer_arg('duree_min', 0, minimum=0, maximum=100000))
+        if 'duree_max' in request.args:
+            query = query.where(total <= integer_arg('duree_max', 0, minimum=0, maximum=100000))
     tags = id_args('tag')
     if tags:
         counts = (select(RelAnimTag.fk_anim_id, func.count().label('matched'))
@@ -130,12 +139,29 @@ def animations():
         for anim_id, tag_id in g.db.execute(select(RelAnimTag.fk_anim_id, RelAnimTag.fk_thes_id)
                                             .where(RelAnimTag.fk_anim_id.in_(ids)).order_by(RelAnimTag.id)):
             tags_by_anim[anim_id].append(tag_id)
+    # Durée totale = somme des durées de séquences de chaque animation de la page.
+    totals = {}
+    if ids:
+        totals = dict(g.db.execute(select(RelAnimSequence.fk_anim_id, func.sum(Sequence.duree_minutes))
+                                   .join(Sequence, Sequence.id == RelAnimSequence.fk_sequence_id)
+                                   .where(RelAnimSequence.fk_anim_id.in_(ids))
+                                   .group_by(RelAnimSequence.fk_anim_id)).all())
+    # Bornes des durées cumulées parmi toutes les animations visibles, indépendamment des filtres.
+    # Une animation sans séquence compte pour 0 minute.
+    per_animation = (select(func.coalesce(func.sum(Sequence.duree_minutes), 0).label('total'))
+                     .select_from(Animation)
+                     .outerjoin(RelAnimSequence, RelAnimSequence.fk_anim_id == Animation.id)
+                     .outerjoin(Sequence, Sequence.id == RelAnimSequence.fk_sequence_id)
+                     .where(svc.visible_animations()).group_by(Animation.id).subquery())
+    shortest, longest = (int(value or 0) for value in g.db.execute(
+        select(func.min(per_animation.c.total), func.max(per_animation.c.total))).one())
     items = [{'id': row[0].id, 'titre': row[0].titre, 'statut': row[0].statut,
               'description': row[0].description, 'auteurs': row[0].auteurs,
-              'tags': tags_by_anim[row[0].id],
+              'tags': tags_by_anim[row[0].id], 'duree_minutes': int(totals.get(row[0].id, 0)),
+              'fk_duree_id': row[0].fk_duree_id,
               'pertinence': {'matched': row[1] if tags else 0, 'requested': len(tags)}}
              for row in rows]
-    return {'items': items, 'total': total, 'page': page, 'page_size': size}
+    return {'items': items, 'total': total, 'page': page, 'page_size': size, 'duree_min': shortest, 'duree_max': longest}
 
 
 @api.get('/animations/<key>/neighbors')
