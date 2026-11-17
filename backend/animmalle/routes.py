@@ -4,13 +4,13 @@ import json
 
 from flask import Blueprint, abort, g, request, session, current_app, send_file
 from marshmallow import ValidationError
-from sqlalchemy import select, delete, text, or_, func
+from sqlalchemy import select, delete, text, or_, func, String
 from sqlalchemy.orm import aliased, load_only
 from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, lookup_user, require_admin, require_thesaurus_editor
 from .models import (Animation, Media, OutilFacilitateur, Thesaurus, Commentaire,
-                     RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, Sequence)
+                     RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, Sequence, EvenementUsage)
 from .schemas import (LoginSchema, AnimationSchema, MediaSchema, OutilSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import oidc
@@ -21,6 +21,16 @@ from . import taxhub
 
 api = Blueprint('api', __name__)
 MIN_SEARCH_CHARS = 3
+
+
+def track(kind, resource=None, key=None):
+    """Enregistre un événement d'usage ; un échec ne doit jamais bloquer la requête."""
+    try:
+        g.db.add(EvenementUsage(type=kind, ressource=resource, ressource_id=None if key is None else str(key)))
+        g.db.commit()
+    except Exception:  # noqa: BLE001
+        g.db.rollback()
+        current_app.logger.warning('Événement d’usage non enregistré.', exc_info=True)
 
 
 def payload(schema):
@@ -79,6 +89,7 @@ def login():
     if not user:
         abort(401, description='Identifiants invalides.')
     login_user(user)
+    track('connexion')
     return auth_session()
 
 
@@ -121,6 +132,7 @@ def oidc_callback():
         current_app.logger.warning('Connexion OpenID refusée : aucun compte pour le login reçu.')
         abort(403, description='Votre compte n’a pas été trouvé.')
     login_user(user)
+    track('connexion')
     return auth_session()
 
 
@@ -232,7 +244,10 @@ def animation_neighbors(key):
 
 @api.get('/animations/<key>')
 def animation(key):
-    return svc.animation_dict(svc.read_animation(key))
+    item = svc.read_animation(key)
+    result = svc.animation_dict(item)
+    track('consultation', 'animation', item.id)
+    return result
 
 
 @api.post('/animations')
@@ -481,7 +496,10 @@ def outils_list():
 
 @api.get('/outils/<int:key>')
 def outil(key):
-    return svc.outil_dict(svc.get(OutilFacilitateur, key))
+    item = svc.get(OutilFacilitateur, key)
+    result = svc.outil_dict(item)
+    track('consultation', 'outil', item.id)
+    return result
 
 
 @api.post('/outils')
@@ -520,14 +538,18 @@ def upload_outil(key):
 
 @api.get('/outils/<int:key>/file')
 def download_outil(key):
-    source = files.media_path(svc.get(OutilFacilitateur, key))
+    item = svc.get(OutilFacilitateur, key)
+    source = files.media_path(item)
+    track('telechargement', 'outil', item.id)
     return send_file(source, as_attachment=True, download_name=source.name)
 
 
 @api.get('/outils/<int:key>/download')
 def export_outil(key):
     item = svc.get(OutilFacilitateur, key)
-    return send_file(kit.export_kit(kit.outil_fiche(item)), mimetype='application/zip', as_attachment=True,
+    archive = kit.export_kit(kit.outil_fiche(item))
+    track('telechargement', 'outil', item.id)
+    return send_file(archive, mimetype='application/zip', as_attachment=True,
                      download_name=kit.safe_name(item.nom, 'outil') + '.zip')
 
 
@@ -664,6 +686,29 @@ def authors():
     return {'items': [name for name in names if name.casefold().startswith(prefix)][:100]}
 
 
+def usage_stats(dates):
+    """Connexions mensuelles et classements des animations et outils les plus consultés/téléchargés."""
+    month = func.date_trunc('month', EvenementUsage.date) if g.db.bind.dialect.name == 'postgresql' \
+        else func.strftime('%Y-%m-01', EvenementUsage.date)
+    rows = g.db.execute(select(month, func.count()).where(EvenementUsage.type == 'connexion').group_by(month))
+    per_month = {str(row[0])[:7]: row[1] for row in rows}
+    result = {'connexions': [per_month.get(day.isoformat()[:7], 0) for day in dates]}
+    models = {'animation': (Animation, Animation.titre), 'outil': (OutilFacilitateur, OutilFacilitateur.nom)}
+    for resource, (model, label) in models.items():
+        for kind, name in (('consultation', 'consultes'), ('telechargement', 'telecharges')):
+            total = func.count(EvenementUsage.id)
+            query = (select(model.id, label, total)
+                     .join(EvenementUsage, (EvenementUsage.ressource == resource)
+                           & (EvenementUsage.ressource_id == func.cast(model.id, String(40)))
+                           & (EvenementUsage.type == kind)))
+            if resource == 'animation':
+                query = query.where(svc.visible_animations())
+            query = query.group_by(model.id, label).order_by(total.desc(), label).limit(10)
+            result[f'top_{resource}_{name}'] = [{'id': row[0], 'titre': row[1], 'total': row[2]}
+                                                for row in g.db.execute(query)]
+    return result
+
+
 @api.get('/stats')
 def stats():
     dates = []
@@ -681,13 +726,14 @@ def stats():
             'y_anim_valid': counts([item for item in anims if item.statut == 1]),
             'y_anim_unvalid': counts([item for item in anims if item.statut != 1]),
             'y_mat_peda': counts(medias),
-            'y_outil': counts(outils)}
+            'y_outil': counts(outils), **usage_stats(dates)}
 
 
 @api.get('/animations/<key>/download')
 def export_animation(key):
     item = svc.read_animation(key)
     archive = kit.export_kit(kit.animation_fiche(item))
+    track('telechargement', 'animation', item.id)
     return send_file(archive, mimetype='application/zip', as_attachment=True,
                      download_name=kit.safe_name(item.titre, 'animation') + '.zip')
 

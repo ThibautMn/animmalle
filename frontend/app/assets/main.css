@@ -1688,3 +1688,10 @@ button.bare-icon svg {
   width: 100%;
   margin-top: 12px;
 }
+
+.chart {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  color: var(--p-primary-color, #2a7a5b);
+}

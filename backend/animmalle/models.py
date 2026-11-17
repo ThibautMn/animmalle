@@ -1,6 +1,6 @@
 """Schéma métier historique adapté à PostgreSQL, sans connexion implicite."""
 
-from sqlalchemy import Date, ForeignKey, Integer, MetaData, String, Text, UniqueConstraint, text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, MetaData, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship
 
 
@@ -155,7 +155,7 @@ class RelMediaThematique(Base):
 
 
 # Tables propres à la nouvelle application : absentes du dump historique, donc ignorées par la restauration.
-APPLICATION_TABLES = frozenset({'taxon_media'})
+APPLICATION_TABLES = frozenset({'taxon_media', 'evenement_usage'})
 
 
 class TaxonMedia(Base):
@@ -169,3 +169,14 @@ class TaxonMedia(Base):
     nom_vern = mapped_column(Text, nullable=True)
     nom_valide = mapped_column(Text, nullable=True)
     group2_inpn = mapped_column(String(100), nullable=True)
+
+
+class EvenementUsage(Base):
+    """Connexion, consultation ou téléchargement, pour les statistiques (aucune donnée personnelle)."""
+    __tablename__ = 'evenement_usage'
+
+    id = mapped_column(Integer, primary_key=True)
+    date = mapped_column(DateTime, nullable=False, index=True, server_default=text('CURRENT_TIMESTAMP'))
+    type = mapped_column(String(20), nullable=False)  # connexion | consultation | telechargement
+    ressource = mapped_column(String(20), nullable=True)  # animation | outil
+    ressource_id = mapped_column(String(40), nullable=True)

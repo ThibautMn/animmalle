@@ -23,7 +23,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 class SchemaTests(unittest.TestCase):
     def test_relationships_and_historical_nullability(self):
         configure_mappers()
-        self.assertEqual(len(Base.metadata.tables), 11)
+        self.assertEqual(len(Base.metadata.tables), 12)
         self.assertTrue(OutilFacilitateur.__table__.c.difficulte_id.nullable)
         for name in ('localisation', 'variante', 'difficulte_id', 'materiel', 'fk_type_mat_outil_id'):
             self.assertNotIn(name, Media.__table__.c)
@@ -119,9 +119,9 @@ class SchemaTests(unittest.TestCase):
             command.upgrade(config, 'head', sql=True)
             command.downgrade(config, '0003_taxon_media:base', sql=True)
         sql = output.getvalue()
-        self.assertEqual(sql.count('CREATE TABLE '), 15)
+        self.assertEqual(sql.count('CREATE TABLE '), 16)
         self.assertEqual(sql.count('DROP TABLE '), 13)
-        self.assertEqual(sql.count(' SERIAL '), 13)
+        self.assertEqual(sql.count(' SERIAL '), 14)
         self.assertNotIn('datetime(', sql)
         self.assertIn('DEFAULT CURRENT_DATE', sql)
         self.assertIn('UNIQUE (fk_anim_id, fk_sequence_id)', sql)
