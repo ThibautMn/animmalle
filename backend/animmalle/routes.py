@@ -15,6 +15,7 @@ from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSch
                       CommentSchema, PageSchema, AuthorSchema)
 from . import services as svc
 from . import files
+from . import kit
 from . import taxhub
 
 api = Blueprint('api', __name__)
@@ -549,28 +550,17 @@ def stats():
 @api.get('/animations/<key>/download')
 def export_animation(key):
     item = svc.read_animation(key)
-    data = svc.animation_dict(item)
-    sections = [(name, value) for name, value in data.items() if name not in ('sequences', 'tags')]
-    for index, seq in enumerate(item.sequences, 1):
-        sections.append((f'Séquence {index} : {seq.titre}', seq.description))
-        for name in ('objectifs', 'materiel_div', 'fk_modalite', 'fk_approche', 'duree_minutes', 'fk_type_seq'):
-            value = getattr(seq, name)
-            sections.append((name, value.label if isinstance(value, Thesaurus) else value))
-    sections.append(('Mots-clés', ', '.join(tag.label or '' for tag in item.tags)))
-    archive = files.export_archive(item.titre, data, [mat for seq in item.sequences for mat in seq.materiel], sections)
-    return send_file(archive, mimetype='application/zip', as_attachment=True, download_name=(secure_filename(item.titre) or 'animation') + '.zip')
+    archive = kit.export_kit(kit.animation_fiche(item))
+    return send_file(archive, mimetype='application/zip', as_attachment=True,
+                     download_name=kit.safe_name(item.titre, 'animation') + '.zip')
 
 
 @api.get('/materials/<int:key>/download')
 def export_tool(key):
     item = svc.get(MatPeda, key)
-    data = svc.material_dict(item)
-    sections = [(name, value) for name, value in data.items()]
-    for name in ('fk_type_mat', 'difficulte', 'fk_type_mat_outil'):
-        value = getattr(item, name)
-        sections.append((name, value.label if value else ''))
-    return send_file(files.export_archive(item.nom, data, [item], sections), mimetype='application/zip',
-                     as_attachment=True, download_name=(secure_filename(item.nom) or 'outil') + '.zip')
+    archive = kit.export_kit(kit.material_fiche(item))
+    return send_file(archive, mimetype='application/zip', as_attachment=True,
+                     download_name=kit.safe_name(item.nom, 'outil') + '.zip')
 
 
 @api.get('/thesaurus/<int:key>/pictogram')

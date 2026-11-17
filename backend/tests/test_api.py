@@ -553,11 +553,12 @@ class ApiTests(unittest.TestCase):
         response = self.client.get(f"/api/animations/{item['id']}/download")
         from xml.etree import ElementTree
         with ZipFile(io.BytesIO(response.data)) as archive:
-            self.assertEqual(json.loads(archive.read('donnees.json'))['id'], item['id'])
-            self.assertEqual(json.loads(archive.read('fichiers_absents.json')), [material['id']])
-            odt = next(name for name in archive.namelist() if name.endswith('.odt'))
+            names = archive.namelist()
+            self.assertFalse([name for name in names if name.endswith('.json')])
+            odt = next(name for name in names if name.endswith('.odt'))
             with ZipFile(io.BytesIO(archive.read(odt))) as document:
                 ElementTree.fromstring(document.read('content.xml'))
+                ElementTree.fromstring(document.read('styles.xml'))
                 self.assertEqual(document.infolist()[0].filename, 'mimetype')
                 self.assertEqual(document.infolist()[0].compress_type, 0)
 

@@ -280,8 +280,9 @@ onMounted(load)
         /><DownloadButton
           :path="`${path}/download`"
           :filename="`${item.titre}.zip`"
-          label="Exporter en ZIP / ODT"
-          icon="zip"
+          label="Télécharger le kit"
+          icon="pi-box"
+          show-label
         /><PButton
           class="icon-button"
           aria-label="Imprimer"

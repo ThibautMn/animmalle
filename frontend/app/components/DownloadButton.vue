@@ -3,6 +3,7 @@ import { downloadFilename } from '../../lib/forms.mjs'
 const props = defineProps({
   path: String,
   icon: String,
+  showLabel: Boolean,
   filename: String,
   label: { type: String, default: 'Télécharger' }
 })
@@ -42,10 +43,12 @@ async function download() {
       :label="icon ? undefined : label"
       :aria-label="label"
       :title="label"
-      :class="{ 'icon-button': icon }"
+      :class="{ 'icon-button': icon && !showLabel }"
       :disabled="busy"
       @click="download"
-      ><ActionIcon v-if="icon" :name="icon" /></PButton
+      ><i v-if="icon && icon.startsWith('pi-')" :class="['pi', icon]" aria-hidden="true" /><ActionIcon v-else-if="icon" :name="icon" /><template v-if="showLabel">
+        {{ label }}</template
+      ></PButton
     ><span v-if="error" role="alert" class="error">{{ error }}</span></span
   >
 </template>
