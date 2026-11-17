@@ -1,6 +1,6 @@
 <script setup>
 import { useSessionStore } from '~/stores/session'
-import { materialFields, materialPayload } from '../../lib/forms.mjs'
+import { mediaFields, mediaPayload } from '../../lib/forms.mjs'
 const props = defineProps({
   id: [String, Number],
   icon: Boolean,
@@ -20,7 +20,7 @@ async function loadDetails() {
   if (!props.details) return
   try {
     await catalog.load()
-    draft.value = structuredClone(toRaw(await api(`/materials/${props.id}`)))
+    draft.value = structuredClone(toRaw(await api(`/media/${props.id}`)))
   } catch (e) {
     form_error.value = e.message
   }
@@ -32,9 +32,9 @@ async function save() {
   try {
     draft.value = structuredClone(
       toRaw(
-        await api(`/materials/${props.id}`, {
+        await api(`/media/${props.id}`, {
           method: 'PUT',
-          body: materialPayload(draft.value)
+          body: mediaPayload(draft.value)
         })
       )
     )
@@ -50,7 +50,7 @@ async function remove() {
   if (!window.confirm('Supprimer cette notice et détacher ses associations ?'))
     return
   try {
-    await api(`/materials/${props.id}`, { method: 'DELETE' })
+    await api(`/media/${props.id}`, { method: 'DELETE' })
     dialog.value.close()
     emit('deleted', props.id)
   } catch (e) {
@@ -79,7 +79,7 @@ async function load(convert) {
   busy.value = true
   error.value = ''
   try {
-    const url = `${config.public.apiBase}/materials/${props.id}/preview${convert ? '' : '?natif=1'}`
+    const url = `${config.public.apiBase}/media/${props.id}/preview${convert ? '' : '?natif=1'}`
     const controller = new AbortController()
     const response = await fetch(url, {
       credentials: 'include',
@@ -158,7 +158,7 @@ onBeforeUnmount(() => {
         <h2>Aperçu de la pièce jointe</h2>
         <div class="dialog-actions">
           <DownloadButton
-            :path="`/materials/${id}/file`"
+            :path="`/media/${id}/file`"
             icon="download"
             label="Télécharger le média"
             data-tooltip="Télécharger le média"
@@ -225,10 +225,7 @@ onBeforeUnmount(() => {
             label="Type *"
             required
           />
-          <TextFields v-model="draft" :fields="materialFields" />
-          <label
-            >Localisation<input v-model="draft.localisation" maxlength="50"
-          /></label>
+          <TextFields v-model="draft" :fields="mediaFields" />
           <TagPicker
             v-model="draft.thematiques"
             :items="catalog.family('ref.thematiques')"

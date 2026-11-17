@@ -102,7 +102,7 @@ async function fixture(page, admin = true) {
         return response(animation)
       }
       if (path === '/animations/demo') return response(animation)
-      if (path === '/materials' && method === 'POST') {
+      if (path === '/media' && method === 'POST') {
         material = {
           id: 1,
           nom: 'Média test',
@@ -113,12 +113,12 @@ async function fixture(page, admin = true) {
         }
         return response(material)
       }
-      if (path === '/materials')
+      if (path === '/media')
         return response({
           items: material ? [material] : [],
           total: material ? 1 : 0
         })
-      if (path === '/materials/1/file')
+      if (path === '/media/1/file')
         return route.fulfill({
           body: 'test media',
           contentType: 'application/octet-stream',
@@ -127,7 +127,7 @@ async function fixture(page, admin = true) {
             'Access-Control-Expose-Headers': 'Content-Disposition'
           }
         })
-      if (path === '/materials/1') return response(material)
+      if (path === '/media/1') return response(material)
       if (path === '/pages/debats')
         return response({
           contenu: '## Débats',
@@ -214,7 +214,7 @@ test('Médiathèque, formulaire multipart, téléchargement et pages outils', as
     page.getByRole('heading', { name: 'Média test', exact: true })
   ).toBeVisible()
   expect(
-    calls.find((call) => call.path === '/materials' && call.method === 'POST')
+    calls.find((call) => call.path === '/media' && call.method === 'POST')
       .headers['content-type']
   ).toContain('multipart/form-data')
   const download = page.waitForEvent('download')

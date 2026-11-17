@@ -379,7 +379,7 @@ def media_list(entries, pictures):
 
 
 def build_odt(fiche, pictures):
-    """`fiche` : dict décrit par `animation_fiche` / `material_fiche`."""
+    """`fiche` : dict décrit par `animation_fiche` / `media_fiche` / `outil_fiche`."""
     body = [f'<text:p text:style-name="Titre">{escape(fiche["titre"])}</text:p>']
     if fiche.get('meta'):
         body.append(f'<text:p text:style-name="Meta">{escape(fiche["meta"])}</text:p>')
@@ -516,15 +516,27 @@ def group_label(reference):
     return GROUP_LABELS.get(reference, reference)
 
 
-def material_fiche(item):
+def media_fiche(item):
+    return {
+        'titre': item.nom,
+        'meta': f'modifié le {item.date_modif}' if item.date_modif else '',
+        'facts': [('Type', item.fk_type_mat.label)] if item.fk_type_mat.label else [],
+        'tag_groups': [('Thématiques', list(item.thematiques))],
+        'blocks': [('description', 'Description / Consigne', item.description)],
+        'sequences': [],
+        'materiel': [item],
+    }
+
+
+def outil_fiche(item):
     facts = [(label, getattr(item, name).label) for label, name in
-             (('Type', 'fk_type_mat'), ('Difficulté', 'difficulte'), ('Catégorie', 'fk_type_mat_outil'))
+             (('Type', 'fk_type_outil'), ('Difficulté', 'difficulte'), ('Catégorie', 'fk_type_mat_outil'))
              if getattr(item, name, None) is not None and getattr(item, name).label]
     return {
         'titre': item.nom,
         'meta': f'modifié le {item.date_modif}' if item.date_modif else '',
         'facts': facts,
-        'tag_groups': [('Thématiques', list(item.thematiques))],
+        'tag_groups': [],
         'blocks': [('description', 'Description / Consigne', item.description),
                    ('variante', 'Variante', item.variante), ('materiel', 'Matériel', item.materiel)],
         'sequences': [],

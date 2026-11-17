@@ -10,7 +10,11 @@ const route = useRoute();
 const animations = props.kind === "animation";
 // La médiathèque s'affiche en vignettes, comme dans les fiches animations.
 const thumbnails = props.kind === "media";
-const endpoint = animations ? "/animations" : "/materials";
+const endpoint = animations
+  ? "/animations"
+  : props.kind === "outil"
+    ? "/outils"
+    : "/media";
 const heading = animations
   ? "La pédathèque"
   : props.kind === "outil"
@@ -93,7 +97,6 @@ async function search(reset = false) {
       if (Number.isInteger(duration_max.value))
         query.duree_max = duration_max.value;
     } else {
-      query.kind = props.kind;
       query.type = types.value;
       const terms = [search_text.value, ...extra_terms.value]
         .map((term) => term.trim())
@@ -129,7 +132,7 @@ async function remove(item) {
   if (!window.confirm("Supprimer cette notice et détacher ses associations ?"))
     return;
   try {
-    await api(`/materials/${item.id}`, { method: "DELETE" });
+    await api(`${endpoint}/${item.id}`, { method: "DELETE" });
     if (items.value.length === 1 && page.value > 1) page.value--;
     await search();
   } catch (e) {
@@ -190,7 +193,7 @@ onMounted(async () => {
     <h1>{{ heading }}</h1>
     <NuxtLink
       class="button"
-      :to="`${endpoint}/nouveau${animations ? '' : '?kind=' + kind}`"
+      :to="animations ? '/animations/nouveau' : `/materials/nouveau?kind=${kind}`"
       >{{
         animations ? "Créer une animation" : "Importer une ressource"
       }}</NuxtLink
@@ -416,12 +419,12 @@ onMounted(async () => {
                 <MediaPreview v-if="item.has_file" :id="item.id" icon />
                 <DownloadButton
                   v-if="item.has_file"
-                  :path="`/materials/${item.id}/file`"
+                  :path="`${endpoint}/${item.id}/file`"
                   label="Télécharger la pièce jointe"
                   icon="download"
                 />
                 <DownloadButton
-                  :path="`/materials/${item.id}/download`"
+                  :path="`${endpoint}/${item.id}/download`"
                   :filename="`${item.nom}.zip`"
                   label="Exporter en ZIP"
                   icon="zip"
@@ -429,7 +432,7 @@ onMounted(async () => {
                 <NuxtLink
                   v-if="session.is_admin"
                   class="button icon-button"
-                  :to="`/materials/${item.id}?edit=1`"
+                  :to="`/materials/${item.id}?kind=${kind}&edit=1`"
                   title="Modifier la ressource"
                   aria-label="Modifier la ressource"
                   ><ActionIcon name="edit"
@@ -447,31 +450,34 @@ onMounted(async () => {
                 <template
                   v-for="[key, label] in [
                     ['description', 'Description / Consigne'],
-                    ['variante', 'Variante'],
-                    ['materiel', 'Matériel'],
-                    ['localisation', 'Localisation'],
+                    ...(kind === 'outil'
+                      ? [['variante', 'Variante'], ['materiel', 'Matériel']]
+                      : []),
                   ]"
                   :key="key"
                 >
                   <dt>{{ label }}</dt>
                   <dd class="prose">{{ toPlainText(item[key]) || "Non renseigné" }}</dd>
                 </template>
-                <dt>Thématiques</dt>
-                <dd>
+                <dt v-if="kind !== 'outil'">Thématiques</dt>
+                <dd v-if="kind !== 'outil'">
                   {{
                     item.thematiques.map(catalog.label).join(" · ") ||
                     "Non renseignées"
                   }}
                 </dd>
-                <dt>Difficulté</dt>
-                <dd>
+                <dt v-if="kind === 'outil'">Difficulté</dt>
+                <dd v-if="kind === 'outil'">
                   {{ catalog.label(item.difficulte_id) || "Non renseignée" }}
                 </dd>
-                <dt>Type de pièce jointe</dt>
+                <dt>{{ kind === 'outil' ? 'Type de pièce jointe' : 'Type' }}</dt>
                 <dd>
                   {{
-                    catalog.label(item.fk_type_mat_outil_id) ||
-                    catalog.label(item.fk_type_mat_id)
+                    catalog.label(
+                      kind === 'outil'
+                        ? item.fk_type_mat_outil_id || item.fk_type_outil_id
+                        : item.fk_type_mat_id
+                    )
                   }}
                 </dd>
                 <dt>Modifiée le</dt>
@@ -503,7 +509,10 @@ onMounted(async () => {
               >
             </p>
             <p class="muted">
-              {{ item.auteurs || catalog.label(item.fk_type_mat_id) }}
+              {{
+                item.auteurs ||
+                catalog.label(item.fk_type_mat_id || item.fk_type_outil_id)
+              }}
             </p>
             <small v-if="item.pertinence.requested"
               >{{ item.pertinence.matched }}/{{

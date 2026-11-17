@@ -220,26 +220,50 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('post', '/api/animations', data).status_code, 422)
 
     def test_material_file_search_delete_and_export(self):
-        response = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        response = self.mutate('post', '/api/media', content_type='multipart/form-data',
                                data={'data': json.dumps(self.material_data()), 'file': (io.BytesIO(b'%PDF test'), '../../test.pdf')})
         self.assertEqual(response.status_code, 201, response.json)
         key = response.json['id']
         self.assertNotIn('url', response.json)
-        response = self.client.get(f'/api/materials/{key}/file')
+        response = self.client.get(f'/api/media/{key}/file')
         self.assertEqual(response.data, b'%PDF test')
         response.close()
-        self.assertEqual(self.client.get('/api/materials?kind=media&tag=5').json['total'], 1)
+        self.assertEqual(self.client.get('/api/media?tag=5').json['total'], 1)
         nom = self.material_data()['nom']
-        self.assertEqual(self.client.get(f'/api/materials?kind=media&q={nom[:3].upper()}').json['total'], 1)
-        self.assertEqual(self.client.get('/api/materials?kind=media&q=%25zzz_').json['total'], 0)
-        self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 403)
-        response = self.client.get(f'/api/materials/{key}/download')
+        self.assertEqual(self.client.get(f'/api/media?q={nom[:3].upper()}').json['total'], 1)
+        self.assertEqual(self.client.get('/api/media?q=%25zzz_').json['total'], 0)
+        self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 403)
+        response = self.client.get(f'/api/media/{key}/download')
         with ZipFile(io.BytesIO(response.data)) as archive:
             self.assertTrue(any(name.endswith('.odt') for name in archive.namelist()))
             self.assertTrue(any(name.startswith('medias/') for name in archive.namelist()))
         self.login('admin')
-        self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
+        self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 204)
         self.assertTrue(list(Path(self.settings['paths']['uploads']).glob('*.pdf')))
+
+    def test_outil_facilitateur_crud_and_separation(self):
+        data = {'nom': 'Un outil', 'fk_type_outil_id': 7, 'difficulte_id': 8, 'variante': '<p>v</p>', 'materiel': '<p>m</p>'}
+        response = self.mutate('post', '/api/outils', data)
+        self.assertEqual(response.status_code, 201, response.json)
+        key = response.json['id']
+        self.assertEqual(response.json['difficulte_id'], 8)
+        self.assertNotIn('localisation', response.json)
+        # Un type de média n'est pas un type d'outil, et inversement.
+        self.assertEqual(self.mutate('post', '/api/outils', {**data, 'fk_type_outil_id': 6}).status_code, 422)
+        self.assertEqual(self.mutate('post', '/api/media', {'nom': 'x', 'fk_type_mat_id': 7}).status_code, 422)
+        self.assertEqual(self.client.get('/api/outils?q=outil').json['total'], 1)
+        self.assertEqual(self.client.get('/api/media?q=outil').json['total'], 0)
+        self.assertEqual(self.client.get(f'/api/outils/{key}').json['nom'], 'Un outil')
+        self.assertEqual(self.client.get(f'/api/media/{key}').status_code, 404)
+        response = self.client.get(f'/api/outils/{key}/download')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.mutate('delete', f'/api/outils/{key}').status_code, 403)
+        self.login('admin')
+        self.mutate('put', '/api/pages/briseglace', {'contenu': 'Page'})
+        self.assertEqual(self.client.get('/api/pages/briseglace').json['documents'][0]['id'], key)
+        self.assertEqual(self.mutate('put', f'/api/outils/{key}', {**data, 'nom': 'Renommé'}).json['nom'], 'Renommé')
+        self.assertEqual(self.mutate('delete', f'/api/outils/{key}').status_code, 204)
+        self.assertEqual(self.client.get(f'/api/outils/{key}').status_code, 404)
 
     def test_taxhub_search_media_and_import(self):
         from animmalle import taxhub
@@ -289,11 +313,11 @@ class ApiTests(unittest.TestCase):
         from PIL import Image
         picture = io.BytesIO()
         Image.new('RGBA', (2000, 1000), (255, 0, 0, 128)).save(picture, 'PNG')
-        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        result = self.mutate('post', '/api/media', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
                                    'file': (io.BytesIO(picture.getvalue()), 'grande.png')})
         key = result.json['id']
-        response = self.client.get(f'/api/materials/{key}/thumbnail')
+        response = self.client.get(f'/api/media/{key}/thumbnail')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, 'image/jpeg')
         self.assertIn('max-age', response.headers['Cache-Control'])
@@ -301,37 +325,37 @@ class ApiTests(unittest.TestCase):
             self.assertLessEqual(thumbnail.width, 480)
             self.assertLess(len(response.data), len(picture.getvalue()) + 5000)
         response.close()
-        self.assertEqual(self.client.get('/api/materials/999999/thumbnail').status_code, 404)
+        self.assertEqual(self.client.get('/api/media/999999/thumbnail').status_code, 404)
         self.login('admin')
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'zip'), 'archive.zip')})
-        self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 415)
-        self.assertEqual(self.client.get(f'/api/materials/{key}').json['extension'], 'zip')
+        self.mutate('post', f'/api/media/{key}/file', data={'file': (io.BytesIO(b'zip'), 'archive.zip')})
+        self.assertEqual(self.client.get(f'/api/media/{key}/thumbnail').status_code, 415)
+        self.assertEqual(self.client.get(f'/api/media/{key}').json['extension'], 'zip')
         page = io.BytesIO()
         Image.new('RGB', (600, 800), 'white').save(page, 'PDF')
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(page.getvalue()), 'page.pdf')})
+        self.mutate('post', f'/api/media/{key}/file', data={'file': (io.BytesIO(page.getvalue()), 'page.pdf')})
         if shutil.which('pdftoppm'):
-            response = self.client.get(f'/api/materials/{key}/thumbnail')
+            response = self.client.get(f'/api/media/{key}/thumbnail')
             self.assertEqual(response.status_code, 200)
             with Image.open(io.BytesIO(response.data)) as thumbnail:
                 self.assertEqual(thumbnail.width, 480)
             response.close()
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'%PDF casse'), 'casse.pdf')})
+        self.mutate('post', f'/api/media/{key}/file', data={'file': (io.BytesIO(b'%PDF casse'), 'casse.pdf')})
         with patch('animmalle.files.shutil.which', return_value=None):
-            self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 503)
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'x'), 'film.mp4')})
+            self.assertEqual(self.client.get(f'/api/media/{key}/thumbnail').status_code, 503)
+        self.mutate('post', f'/api/media/{key}/file', data={'file': (io.BytesIO(b'x'), 'film.mp4')})
         with patch('animmalle.files.shutil.which', return_value=None):
-            self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 503)
+            self.assertEqual(self.client.get(f'/api/media/{key}/thumbnail').status_code, 503)
         with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
             with patch('animmalle.files.subprocess.run', side_effect=subprocess.CalledProcessError(1, 'ffmpeg')):
-                self.assertEqual(self.client.get(f'/api/materials/{key}/thumbnail').status_code, 422)
+                self.assertEqual(self.client.get(f'/api/media/{key}/thumbnail').status_code, 422)
 
     def test_presentation_thumbnail(self):
         from PIL import Image
-        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        result = self.mutate('post', '/api/media', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
                                    'file': (io.BytesIO(b'pptx'), 'cours.pptx')})
         key = result.json['id']
-        self.assertEqual(self.client.get(f'/api/materials/{key}').json['extension'], 'pptx')
+        self.assertEqual(self.client.get(f'/api/media/{key}').json['extension'], 'pptx')
         calls = []
 
         def fake_run(command, **kwargs):
@@ -342,15 +366,15 @@ class ApiTests(unittest.TestCase):
                 Image.new('RGB', (800, 450), 'white').save(command[-1] + '.jpg')
         with patch('animmalle.files.shutil.which', side_effect=lambda name: f'/usr/bin/{name}'):
             with patch('animmalle.files.subprocess.run', side_effect=fake_run):
-                response = self.client.get(f'/api/materials/{key}/thumbnail')
+                response = self.client.get(f'/api/media/{key}/thumbnail')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.mimetype, 'image/jpeg')
                 response.close()
-                self.client.get(f'/api/materials/{key}/thumbnail').close()
+                self.client.get(f'/api/media/{key}/thumbnail').close()
         self.assertEqual(len(calls), 2)  # LibreOffice puis pdftoppm, une seule fois (cache)
 
     def test_audio_preview_conversion(self):
-        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        result = self.mutate('post', '/api/media', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
                                    'file': (io.BytesIO(b'wma'), 'son.wma')})
         key = result.json['id']
@@ -361,80 +385,80 @@ class ApiTests(unittest.TestCase):
                     Path(command[-1]).write_bytes(b'm4a converti')
                     return MagicMock(wait=MagicMock(return_value=0))
                 popen.side_effect = convert
-                response = self.client.get(f'/api/materials/{key}/preview')
+                response = self.client.get(f'/api/media/{key}/preview')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.mimetype, 'audio/mp4')
                 self.assertEqual(response.data, b'm4a converti')
                 response.close()
 
     def test_video_preview_conversion(self):
-        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        result = self.mutate('post', '/api/media', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
                                    'file': (io.BytesIO(b'avi'), 'film.avi')})
         key = result.json['id']
         with patch('animmalle.files.shutil.which', return_value=None):
-            self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+            self.assertEqual(self.client.get(f'/api/media/{key}/preview').status_code, 503)
         with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
             with patch('animmalle.files.subprocess.Popen') as popen:
                 def convert(command, **kwargs):
                     Path(command[-1]).write_bytes(b'mp4 converti')
                     return MagicMock(wait=MagicMock(return_value=0))
                 popen.side_effect = convert
-                response = self.client.get(f'/api/materials/{key}/preview')
+                response = self.client.get(f'/api/media/{key}/preview')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.mimetype, 'video/mp4')
                 self.assertEqual(response.data, b'mp4 converti')
                 response.close()
                 self.assertEqual(popen.call_count, 1)
-                self.client.get(f'/api/materials/{key}/preview').close()
+                self.client.get(f'/api/media/{key}/preview').close()
                 self.assertEqual(popen.call_count, 1)  # servi depuis le cache
         self.login('admin')
-        self.mutate('post', f'/api/materials/{key}/file', data={'file': (io.BytesIO(b'avi2'), 'autre.avi')})
+        self.mutate('post', f'/api/media/{key}/file', data={'file': (io.BytesIO(b'avi2'), 'autre.avi')})
         with patch('animmalle.files.shutil.which', return_value='/usr/bin/ffmpeg'):
             with patch('animmalle.files.subprocess.Popen') as popen:
                 popen.return_value = MagicMock(wait=MagicMock(side_effect=subprocess.TimeoutExpired('ffmpeg', 40)))
-                self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+                self.assertEqual(self.client.get(f'/api/media/{key}/preview').status_code, 503)
 
     def test_material_preview(self):
-        result = self.mutate('post', '/api/materials', content_type='multipart/form-data',
+        result = self.mutate('post', '/api/media', content_type='multipart/form-data',
                              data={'data': json.dumps(self.material_data()),
                                    'file': (io.BytesIO(b'%PDF test'), 'test.pdf')})
         key = result.json['id']
-        response = self.client.get(f'/api/materials/{key}/preview')
+        response = self.client.get(f'/api/media/{key}/preview')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, 'application/pdf')
         self.assertEqual(response.data, b'%PDF test')
         self.assertEqual(response.headers['Cache-Control'], 'no-store')
         response.close()
         self.login('admin')
-        self.mutate('post', f'/api/materials/{key}/file',
+        self.mutate('post', f'/api/media/{key}/file',
                     data={'file': (io.BytesIO(b'office'), 'test.odt')})
         with patch('animmalle.files.shutil.which', return_value=None):
-            self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 503)
+            self.assertEqual(self.client.get(f'/api/media/{key}/preview').status_code, 503)
         with patch('animmalle.files.shutil.which', return_value='/usr/bin/libreoffice'):
             with patch('animmalle.files.subprocess.run') as convert:
                 def produce(command, **kwargs):
                     output = Path(command[command.index('--outdir') + 1])
                     (output / (Path(command[-1]).stem + '.pdf')).write_bytes(b'%PDF converted')
                 convert.side_effect = produce
-                response = self.client.get(f'/api/materials/{key}/preview')
+                response = self.client.get(f'/api/media/{key}/preview')
                 self.assertEqual(response.data, b'%PDF converted')
                 response.close()
             with patch('animmalle.files.subprocess.run'):
-                self.assertEqual(self.client.get(f'/api/materials/{key}/preview').status_code, 422)
-        self.assertEqual(self.client.get('/api/materials/999999/preview').status_code, 404)
+                self.assertEqual(self.client.get(f'/api/media/{key}/preview').status_code, 422)
+        self.assertEqual(self.client.get('/api/media/999999/preview').status_code, 404)
 
     def test_material_relations_and_invalid_upload(self):
-        result = self.mutate('post', '/api/materials', self.material_data())
+        result = self.mutate('post', '/api/media', self.material_data())
         key = result.json['id']
         data = self.animation_data()
         data['sequences'][0]['materiel'] = [key]
         anim = self.mutate('post', '/api/animations', data).json
         self.login('admin')
-        response = self.mutate('post', f'/api/materials/{key}/file',
+        response = self.mutate('post', f'/api/media/{key}/file',
                                data={'file': (io.BytesIO(b'bad'), 'test.exe')})
         self.assertEqual(response.status_code, 422)
-        self.assertEqual(self.mutate('delete', f'/api/materials/{key}').status_code, 204)
+        self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 204)
         self.assertEqual(self.client.get(f"/api/animations/{anim['id']}").json['sequences'][0]['materiel'], [])
 
     def test_thesaurus_reserved_to_thesaurus_groups(self):
@@ -542,10 +566,10 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/pages/bad.name').status_code, 404)
 
     def test_export_missing_files_and_odt_xml(self):
-        from animmalle.models import MatPeda
-        material = self.mutate('post', '/api/materials', self.material_data()).json
+        from animmalle.models import Media
+        material = self.mutate('post', '/api/media', self.material_data()).json
         with self.db() as db:
-            db.get(MatPeda, material['id']).url = '/outside/nonexistent.pdf'
+            db.get(Media, material['id']).url = '/outside/nonexistent.pdf'
             db.commit()
         data = self.animation_data()
         data['sequences'][0]['materiel'] = [material['id']]
@@ -595,10 +619,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(self.client.get(f'/api/animations?{query}').json['total'], total, query)
         self.assertEqual(self.client.get('/api/animations?duree_min=x').status_code, 422)
         self.assertEqual(self.client.get('/api/animations?page_size=0').status_code, 422)
-        self.assertEqual(self.client.get('/api/materials?type=no').status_code, 422)
+        self.assertEqual(self.client.get('/api/media?type=no').status_code, 422)
         self.assertEqual(self.client.get('/api/stats').status_code, 200)
         self.assertEqual(self.client.get('/api/authors?q=ali').json['items'], ['alice'])
-        self.assertEqual(self.client.get('/api/materials/999').status_code, 404)
+        self.assertEqual(self.client.get('/api/media/999').status_code, 404)
         self.assertEqual(self.client.get('/api/health').json['status'], 'ok')
         self.assertEqual(self.client.get('/installation/config_principal.yaml').status_code, 404)
 

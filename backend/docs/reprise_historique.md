@@ -119,3 +119,29 @@ l'étape 3 : exécution réelle upgrade/downgrade sur PostgreSQL isolé, compara
 par introspection/Alembic et tests réels des contraintes. Restent à l'étape 4 :
 conversion, import transactionnel et validation des séquences. Ces validations
 ne sont pas assimilées à des tests déjà réussis.
+
+
+## Séparation de `mat_peda` (migration 0008)
+
+La table historique `mat_peda` mélangeait médias et outils facilitateurs (distingués par la
+famille du thésaurus de `fk_type_mat_id` : `ref.type_mat` ou `ref.type_outil`). Elle est
+remplacée par `media` et `outil_facilitateur`, avec les mêmes identifiants (452 lignes
+dans le dump : 425 médias, 27 outils).
+
+| Table | Colonnes |
+| --- | --- |
+| `media` | `id`, `fk_type_mat_id`, `nom`, `description`, `url`, `date_modif` |
+| `outil_facilitateur` | `id`, `fk_type_outil_id` (ex-`fk_type_mat_id`), `nom`, `description`, `url`, `variante`, `difficulte_id`, `materiel`, `date_modif`, `fk_type_mat_outil_id` |
+| `rel_media_sequence`, `rel_media_thematique` | ex-`rel_mat_peda_*`, `fk_mat_peda_id` devient `fk_media_id` |
+
+Abandonnées : `localisation` (vide partout), et pour les médias `variante`, `difficulte_id`,
+`materiel` (vides) et `fk_type_mat_outil_id` (24 valeurs résiduelles sans sens pour un média,
+perdues). Dans le dump, aucune liaison séquence/thématique ne concerne un outil ; la migration
+et la reprise refusent d'abandonner une telle liaison. La migration n'a pas de retour arrière.
+La reprise du dump (`installation/lib/restore.py`) lit toujours le format historique et
+convertit `mat_peda` à l'import ; les prochains identifiants (`AUTO_INCREMENT`) sont repris.
+L'API passe de `/materials` à `/media` et `/outils`.
+
+Vérifié : tests unitaires backend (SQLite, DDL de la migration comparé aux modèles), tests de
+`installation/` et conversion du vrai dump en lecture seule (425 + 27 lignes, 489 + 688
+liaisons). Non vérifié : exécution de la migration 0008 et de la reprise sur PostgreSQL réel.

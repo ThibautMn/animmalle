@@ -9,9 +9,9 @@ from sqlalchemy.orm import aliased, load_only
 from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, require_admin, require_thesaurus_editor
-from .models import (Animation, MatPeda, Thesaurus, Commentaire,
-                     RelMatPedaSequence, RelMatPedaThematique, RelAnimTag, RelAnimSequence, Sequence)
-from .schemas import (LoginSchema, AnimationSchema, MaterialSchema, ThesaurusSchema,
+from .models import (Animation, Media, OutilFacilitateur, Thesaurus, Commentaire,
+                     RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, Sequence)
+from .schemas import (LoginSchema, AnimationSchema, MediaSchema, OutilSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import services as svc
 from . import files
@@ -262,52 +262,63 @@ def remove_comment(key, comment_id):
     return '', 204
 
 
-@api.get('/materials')
-def materials():
-    query = select(MatPeda).order_by(MatPeda.nom, MatPeda.id)
-    kind = request.args.get('kind')
-    if kind not in (None, 'media', 'outil'):
-        raise ValidationError({'kind': ['media ou outil attendu.']})
-    if kind:
-        query = query.join(Thesaurus, Thesaurus.id == MatPeda.fk_type_mat_id).where(Thesaurus.reference == ('ref.type_mat' if kind == 'media' else 'ref.type_outil'))
-    types = id_args('type')
-    if types:
-        query = query.where(MatPeda.fk_type_mat_id.in_(types))
-    # Chaque paramètre q répété est un critère (ET) cherché dans tous les champs du média.
-    type_alias, difficulty_alias, tool_alias = (aliased(Thesaurus) for _ in range(3))
-    if any(value.strip() for value in request.args.getlist('q')):
-        query = (query.outerjoin(type_alias, type_alias.id == MatPeda.fk_type_mat_id)
-                 .outerjoin(difficulty_alias, difficulty_alias.id == MatPeda.difficulte_id)
-                 .outerjoin(tool_alias, tool_alias.id == MatPeda.fk_type_mat_outil_id))
+def search_terms():
+    """Chaque paramètre q répété est un critère (ET) : renvoie (motif LIKE, motif d'extension) échappés."""
     for text_query in (value.strip() for value in request.args.getlist('q')):
         if not text_query:
             continue
         if len(text_query) > 100:
             raise ValidationError({'q': ['100 caractères maximum.']})
         escaped = text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        pattern = f'%{escaped}%'
+        yield f'%{escaped}%', f'%.{escaped}'
+
+
+def like(column, pattern):
+    return column.ilike(pattern, escape='\\')
+
+
+def multipart_data(schema):
+    """Corps JSON, ou multipart avec le champ `data` (JSON) et un fichier optionnel `file`."""
+    if request.mimetype == 'multipart/form-data':
+        try:
+            data = json.loads(request.form.get('data', ''))
+        except ValueError:
+            raise ValidationError({'data': ['Objet JSON requis.']}) from None
+        return schema.load(data)
+    return payload(schema)
+
+
+def upload_file(item):
+    file = request.files.get('file')
+    if not file:
+        abort(422, description='Champ multipart file requis.')
+    item.url = files.store_upload(file)
+    item.date_modif = date.today()
+    g.db.commit()
+    return item
+
+
+@api.get('/media')
+def media_list():
+    type_alias = aliased(Thesaurus)
+    query = select(Media).outerjoin(type_alias, type_alias.id == Media.fk_type_mat_id).order_by(Media.nom, Media.id)
+    types = id_args('type')
+    if types:
+        query = query.where(Media.fk_type_mat_id.in_(types))
+    for pattern, extension in search_terms():
         theme_alias = aliased(Thesaurus)
-        theme = (select(RelMatPedaThematique.id)
-                 .join(theme_alias, theme_alias.id == RelMatPedaThematique.fk_thes_id)
-                 .where(RelMatPedaThematique.fk_mat_peda_id == MatPeda.id, theme_alias.label.ilike(pattern, escape='\\')))
-        query = query.where(or_(
-            MatPeda.nom.ilike(pattern, escape='\\'),
-            MatPeda.description.ilike(pattern, escape='\\'),
-            MatPeda.variante.ilike(pattern, escape='\\'),
-            MatPeda.materiel.ilike(pattern, escape='\\'),
-            MatPeda.localisation.ilike(pattern, escape='\\'),
-            MatPeda.url.ilike(f'%.{escaped}', escape='\\'),
-            type_alias.label.ilike(pattern, escape='\\'),
-            difficulty_alias.label.ilike(pattern, escape='\\'),
-            tool_alias.label.ilike(pattern, escape='\\'),
-            theme.exists()))
+        theme = (select(RelMediaThematique.id)
+                 .join(theme_alias, theme_alias.id == RelMediaThematique.fk_thes_id)
+                 .where(RelMediaThematique.fk_media_id == Media.id, like(theme_alias.label, pattern)))
+        query = query.where(or_(like(Media.nom, pattern), like(Media.description, pattern),
+                                like(Media.url, extension), like(type_alias.label, pattern), theme.exists()))
     tags = id_args('tag')
     result = []
     for item in g.db.scalars(query):
         matched = len(tags & {tag.id for tag in item.thematiques})
         if tags and not matched:
             continue
-        value = svc.material_dict(item)
+        value = svc.media_dict(item)
         value['pertinence'] = {'matched': matched, 'requested': len(tags)}
         result.append(value)
     if tags:
@@ -315,84 +326,148 @@ def materials():
     return paginate(result)
 
 
-@api.get('/materials/<int:key>')
-def material(key):
-    return svc.material_dict(svc.get(MatPeda, key))
+@api.get('/media/<int:key>')
+def media(key):
+    return svc.media_dict(svc.get(Media, key))
 
 
-@api.post('/materials')
-def create_material():
-    if request.mimetype == 'multipart/form-data':
-        try:
-            data = json.loads(request.form.get('data', ''))
-        except ValueError:
-            raise ValidationError({'data': ['Objet JSON requis.']}) from None
-        data = MaterialSchema().load(data)
-    else:
-        data = payload(MaterialSchema())
-    item = svc.save_material(data)
+@api.post('/media')
+def create_media():
+    item = svc.save_media(multipart_data(MediaSchema()))
     if file := request.files.get('file'):
         item.url = files.store_upload(file)
-    result = svc.material_dict(item)
+    result = svc.media_dict(item)
     g.db.commit()
     return result, 201
 
 
-@api.put('/materials/<int:key>')
-def update_material(key):
+@api.put('/media/<int:key>')
+def update_media(key):
     require_admin()
-    item = svc.save_material(payload(MaterialSchema()), svc.get(MatPeda, key))
-    result = svc.material_dict(item)
+    item = svc.save_media(payload(MediaSchema()), svc.get(Media, key))
+    result = svc.media_dict(item)
     g.db.commit()
     return result
 
 
-@api.delete('/materials/<int:key>')
-def remove_material(key):
+@api.delete('/media/<int:key>')
+def remove_media(key):
     require_admin()
-    item = svc.get(MatPeda, key)
-    for model in (RelMatPedaSequence, RelMatPedaThematique):
-        g.db.execute(delete(model).where(model.fk_mat_peda_id == key))
+    item = svc.get(Media, key)
+    for model in (RelMediaSequence, RelMediaThematique):
+        g.db.execute(delete(model).where(model.fk_media_id == key))
     g.db.delete(item)
     g.db.commit()
     # Garder les fichiers : d'autres notices peuvent les référencer.
     return '', 204
 
 
-@api.post('/materials/<int:key>/file')
-def upload_material(key):
+@api.post('/media/<int:key>/file')
+def upload_media(key):
     require_admin()
-    item = svc.get(MatPeda, key)
-    file = request.files.get('file')
-    if not file:
-        abort(422, description='Champ multipart file requis.')
-    item.url = files.store_upload(file)
-    item.date_modif = date.today()
-    g.db.commit()
-    return svc.material_dict(item)
+    return svc.media_dict(upload_file(svc.get(Media, key)))
 
 
-@api.get('/materials/<int:key>/preview')
-def preview_material(key):
-    source, mime = files.preview_file(svc.get(MatPeda, key), native=request.args.get('natif') == '1')
+@api.get('/media/<int:key>/preview')
+def preview_media(key):
+    source, mime = files.preview_file(svc.get(Media, key), native=request.args.get('natif') == '1')
     response = send_file(source, mimetype=mime, download_name='apercu.pdf' if mime == 'application/pdf' else None)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
 
-@api.get('/materials/<int:key>/thumbnail')
-def thumbnail_material(key):
-    response = send_file(files.thumbnail_file(svc.get(MatPeda, key)), mimetype='image/jpeg')
+@api.get('/media/<int:key>/thumbnail')
+def thumbnail_media(key):
+    response = send_file(files.thumbnail_file(svc.get(Media, key)), mimetype='image/jpeg')
     response.headers['Cache-Control'] = 'private, max-age=86400'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
 
 
-@api.get('/materials/<int:key>/file')
-def download_material(key):
-    source = files.media_path(svc.get(MatPeda, key))
+@api.get('/media/<int:key>/file')
+def download_media(key):
+    source = files.media_path(svc.get(Media, key))
     return send_file(source, as_attachment=True, download_name=source.name)
+
+
+@api.get('/media/<int:key>/download')
+def export_media(key):
+    item = svc.get(Media, key)
+    return send_file(kit.export_kit(kit.media_fiche(item)), mimetype='application/zip', as_attachment=True,
+                     download_name=kit.safe_name(item.nom, 'media') + '.zip')
+
+
+@api.get('/outils')
+def outils_list():
+    type_alias, difficulty_alias, media_alias = (aliased(Thesaurus) for _ in range(3))
+    query = (select(OutilFacilitateur)
+             .outerjoin(type_alias, type_alias.id == OutilFacilitateur.fk_type_outil_id)
+             .outerjoin(difficulty_alias, difficulty_alias.id == OutilFacilitateur.difficulte_id)
+             .outerjoin(media_alias, media_alias.id == OutilFacilitateur.fk_type_mat_outil_id)
+             .order_by(OutilFacilitateur.nom, OutilFacilitateur.id))
+    types = id_args('type')
+    if types:
+        query = query.where(OutilFacilitateur.fk_type_outil_id.in_(types))
+    for pattern, extension in search_terms():
+        query = query.where(or_(
+            like(OutilFacilitateur.nom, pattern), like(OutilFacilitateur.description, pattern),
+            like(OutilFacilitateur.variante, pattern), like(OutilFacilitateur.materiel, pattern),
+            like(OutilFacilitateur.url, extension), like(type_alias.label, pattern),
+            like(difficulty_alias.label, pattern), like(media_alias.label, pattern)))
+    return paginate([svc.outil_dict(item) for item in g.db.scalars(query)])
+
+
+@api.get('/outils/<int:key>')
+def outil(key):
+    return svc.outil_dict(svc.get(OutilFacilitateur, key))
+
+
+@api.post('/outils')
+def create_outil():
+    item = svc.save_outil(multipart_data(OutilSchema()))
+    if file := request.files.get('file'):
+        item.url = files.store_upload(file)
+    result = svc.outil_dict(item)
+    g.db.commit()
+    return result, 201
+
+
+@api.put('/outils/<int:key>')
+def update_outil(key):
+    require_admin()
+    item = svc.save_outil(payload(OutilSchema()), svc.get(OutilFacilitateur, key))
+    result = svc.outil_dict(item)
+    g.db.commit()
+    return result
+
+
+@api.delete('/outils/<int:key>')
+def remove_outil(key):
+    require_admin()
+    g.db.delete(svc.get(OutilFacilitateur, key))
+    g.db.commit()
+    # Garder les fichiers : d'autres notices peuvent les référencer.
+    return '', 204
+
+
+@api.post('/outils/<int:key>/file')
+def upload_outil(key):
+    require_admin()
+    return svc.outil_dict(upload_file(svc.get(OutilFacilitateur, key)))
+
+
+@api.get('/outils/<int:key>/file')
+def download_outil(key):
+    source = files.media_path(svc.get(OutilFacilitateur, key))
+    return send_file(source, as_attachment=True, download_name=source.name)
+
+
+@api.get('/outils/<int:key>/download')
+def export_outil(key):
+    item = svc.get(OutilFacilitateur, key)
+    return send_file(kit.export_kit(kit.outil_fiche(item)), mimetype='application/zip', as_attachment=True,
+                     download_name=kit.safe_name(item.nom, 'outil') + '.zip')
 
 
 @api.get('/taxhub/taxa')
@@ -420,12 +495,12 @@ def taxhub_import():
     media, file = taxhub.download_media(data['cd_ref'], data['id_media'], current_app.config['MAX_CONTENT_LENGTH'])
     nom = (media['titre'] or file.filename.rsplit('.', 1)[0])[:100]
     credit = ' - '.join(part for part in (media['auteur'], media['source'], media['licence']) if part)
-    fields = MaterialSchema().load({'nom': nom, 'fk_type_mat_id': data.get('fk_type_mat_id'),
+    fields = MediaSchema().load({'nom': nom, 'fk_type_mat_id': data.get('fk_type_mat_id'),
                                     'description': f'Crédit : {credit}' if credit else '',
                                     'thematiques': data.get('thematiques', [])})
-    item = svc.save_material(fields)
+    item = svc.save_media(fields)
     item.url = files.store_upload(file)
-    result = svc.material_dict(item)
+    result = svc.media_dict(item)
     g.db.commit()
     return result, 201
 
@@ -507,7 +582,7 @@ def remove_tag(key):
 @api.get('/pages/<name>')
 def page(name):
     result = files.read_page(name)
-    result['documents'] = [svc.material_dict(item) for item in g.db.scalars(select(MatPeda).join(Thesaurus, Thesaurus.id == MatPeda.fk_type_mat_id).where(Thesaurus.reference == 'ref.type_outil', Thesaurus.code == name).order_by(MatPeda.nom))]
+    result['documents'] = [svc.outil_dict(item) for item in g.db.scalars(select(OutilFacilitateur).join(Thesaurus, Thesaurus.id == OutilFacilitateur.fk_type_outil_id).where(Thesaurus.code == name).order_by(OutilFacilitateur.nom))]
     return result
 
 
@@ -537,14 +612,15 @@ def stats():
         day = day.replace(day=1) - timedelta(days=1)
     dates.reverse()
     anims = list(g.db.scalars(select(Animation).where(svc.visible_animations())))
-    mats = list(g.db.scalars(select(MatPeda)))
+    medias = list(g.db.scalars(select(Media)))
+    outils = list(g.db.scalars(select(OutilFacilitateur)))
     def counts(items):
         return [sum(item.date_modif is not None and item.date_modif <= day for item in items) for day in dates]
     return {'dates': [day.isoformat() for day in dates], 'y_anim_all': counts(anims),
             'y_anim_valid': counts([item for item in anims if item.statut == 1]),
             'y_anim_unvalid': counts([item for item in anims if item.statut != 1]),
-            'y_mat_peda': counts([item for item in mats if item.fk_type_mat.reference == 'ref.type_mat']),
-            'y_outil': counts([item for item in mats if item.fk_type_mat.reference == 'ref.type_outil'])}
+            'y_mat_peda': counts(medias),
+            'y_outil': counts(outils)}
 
 
 @api.get('/animations/<key>/download')
@@ -553,14 +629,6 @@ def export_animation(key):
     archive = kit.export_kit(kit.animation_fiche(item))
     return send_file(archive, mimetype='application/zip', as_attachment=True,
                      download_name=kit.safe_name(item.titre, 'animation') + '.zip')
-
-
-@api.get('/materials/<int:key>/download')
-def export_tool(key):
-    item = svc.get(MatPeda, key)
-    archive = kit.export_kit(kit.material_fiche(item))
-    return send_file(archive, mimetype='application/zip', as_attachment=True,
-                     download_name=kit.safe_name(item.nom, 'outil') + '.zip')
 
 
 @api.get('/thesaurus/<int:key>/pictogram')

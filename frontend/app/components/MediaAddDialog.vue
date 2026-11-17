@@ -59,7 +59,7 @@ async function upload() {
     const body = new FormData()
     body.append('data', JSON.stringify({ nom: name.value, fk_type_mat_id: Number(typeId.value), thematiques: themes.value }))
     body.append('file', file.value)
-    const media = await api('/materials', { method: 'POST', body })
+    const media = await api('/media', { method: 'POST', body })
     emit('add', media)
     close()
   } catch (e) {
@@ -73,8 +73,8 @@ async function search(reset = true) {
   busy.value = true
   error.value = ''
   try {
-    const result = await api('/materials', {
-      query: { kind: 'media', q: query.value, type: types.value, page: page.value, page_size: PAGE_SIZE }
+    const result = await api('/media', {
+      query: { q: query.value, type: types.value, page: page.value, page_size: PAGE_SIZE }
     })
     results.value = result.items
     total.value = result.total

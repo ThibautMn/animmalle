@@ -129,11 +129,15 @@ l’ancien dans le client. `POST /api/auth/logout` ferme la session.
 | `GET, POST /animations/{id}/comments` | Commentaires, auteur/date calculés côté serveur |
 | `DELETE /animations/{id}/comments/{comment_id}` | Auteur du commentaire ou administrateur |
 | `GET /animations/{id}/download` | Archive ZIP avec ODT et médias disponibles |
-| `GET, POST /materials` | Médias et outils facilitateurs |
-| `GET, PUT, DELETE /materials/{id}` | Consultation ; modification/suppression administrateur |
-| `POST /materials/{id}/file` | Ajout/remplacement de pièce jointe administrateur |
-| `GET /materials/{id}/file` | Pièce jointe en téléchargement authentifié |
-| `GET /materials/{id}/download` | Fiche ODT et pièce jointe en ZIP |
+| `GET, POST /media` | Médias (médiathèque) |
+| `GET, PUT, DELETE /media/{id}` | Consultation ; modification/suppression administrateur |
+| `POST /media/{id}/file` | Ajout/remplacement de pièce jointe administrateur |
+| `GET /media/{id}/file` | Pièce jointe en téléchargement authentifié |
+| `GET /media/{id}/download` | Fiche ODT et pièce jointe en ZIP |
+| `GET, POST /outils` | Outils facilitateurs |
+| `GET, PUT, DELETE /outils/{id}` | Consultation ; modification/suppression administrateur |
+| `POST, GET /outils/{id}/file` | Pièce jointe (ajout administrateur / téléchargement) |
+| `GET /outils/{id}/download` | Fiche ODT et pièce jointe en ZIP |
 | `GET, POST /thesaurus`, `PUT, DELETE /thesaurus/{id}` | Lecture ; administration des mots-clés |
 | `GET /thesaurus/{id}/pictogram` | PNG du terme (thématiques, lieux, saisons), si présent |
 | `PUT /thesaurus/{id}/pictogram` | Administrateur : ajoute ou remplace le PNG (champ multipart `file`, 1 Mo max). Le fichier est `<libellé>.png` ; renommer le terme renomme le fichier |
@@ -142,7 +146,7 @@ l’ancien dans le client. `POST /api/auth/logout` ferme la session.
 | `GET /authors?q=…`, `GET /users?q=…` | Suggestions d’auteurs et utilisateurs (2 caractères pour users) |
 | `GET /stats` | Séries cumulées historiques selon la dernière date de modification |
 
-Les listes animations/materials acceptent `page` (défaut 1), `page_size` (1–200,
+Les listes animations/media/outils acceptent `page` (défaut 1), `page_size` (1–200,
 défaut 50), `tag` répété. Elles renvoient `items`, `total`, `page`, `page_size` et
 une pertinence numérique `{matched, requested}` ; au moins un tag doit correspondre.
 Animations : `auteur`, `statut` (1 validée, 2 complète à valider, 3 brouillon).
@@ -176,7 +180,7 @@ La suppression d’une fiche supprime ses commentaires et associations ; celle d
 matériau détache ses associations, en conservant le fichier physique. Les mots-clés
 encore référencés ne sont pas supprimables.
 
-Création d’un média avec fichier : `POST /materials` multipart, champ `data` contenant
+Création d’un média avec fichier : `POST /media` multipart, champ `data` contenant
 l’objet JSON (`nom`, `fk_type_mat_id`, `thematiques`…), champ `file` facultatif.
 C’est accessible à tout utilisateur connecté, sans permettre de remplacer le
 fichier d’une notice existante. Les fichiers sont nommés par SHA-256 et nom sécurisé,
@@ -282,7 +286,7 @@ Les identifiants, codes et références sont conservés.
 
 ### Aperçus de pièces jointes
 
-`GET /api/materials/<id>/preview` renvoie les images PNG/JPEG/GIF/WebP,
+`GET /api/media/<id>/preview` renvoie les images PNG/JPEG/GIF/WebP,
 les PDF, les médias audio et vidéo, ou convertit les documents ODT/ODS/ODP,
 DOC/DOCX, XLS/XLSX, PPT/PPTX et RTF en PDF. La route suit l’authentification
 existante et n’expose pas les chemins des fichiers.
@@ -298,7 +302,7 @@ Référence : https://help.libreoffice.org/latest/en-US/text/shared/guide/pdf_pa
 
 ### Lecture des vidéos
 
-L’aperçu (`/materials/<id>/preview`) convertit en MP4 H.264/AAC (720p max) les vidéos que les navigateurs ne lisent
+L’aperçu (`/media/<id>/preview`) convertit en MP4 H.264/AAC (720p max) les vidéos que les navigateurs ne lisent
 pas : conteneurs AVI, WMV, MPEG, MKV…, et MP4/MOV dont le codec n’est pas H.264/VP8/VP9/AV1 (par exemple HEVC) ou dont le débit dépasse 40 Mbit/s (décodeur bloqué sur la
 première image ; `MAX_NATIVE_BIT_RATE`).
 La copie est mise en cache dans `<paths.thumbnails>/lecture`, l’original n’est pas modifié. La conversion attend
@@ -309,7 +313,7 @@ servi sans conversion ; test unitaire avec `ffmpeg` simulé. Les téléchargemen
 
 ### Vignettes des médias
 
-`GET /api/materials/<id>/thumbnail` renvoie une vignette JPEG (480×360 max, qualité 70) pour les images et les
+`GET /api/media/<id>/thumbnail` renvoie une vignette JPEG (480×360 max, qualité 70) pour les images et les
 vidéos, la première page (480 px de large) des PDF via `pdftoppm` (paquet `poppler-utils`, 503 s’il est absent) la première diapositive ou page des présentations et documents `.ppt/.pptx/.odp/.doc/.docx/.odt/.rtf` (LibreOffice vers PDF, puis `pdftoppm`) ; elle est générée au premier appel puis mise en cache dans `paths.thumbnails` (facultatif, par défaut le
 dossier `uploads` suffixé par `_vignettes`, ignoré par Git et régénérable). Les originaux ne sont jamais modifiés.
 Les images utilisent Pillow (`requirements.txt`) ; les vidéos nécessitent l’exécutable système `ffmpeg`

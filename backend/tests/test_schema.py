@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import configure_mappers
 
 from animmalle.config import CONFIG_PATH, load_database_url
-from animmalle.models import APPLICATION_TABLES, Animation, Base, Commentaire, MatPeda
+from animmalle.models import APPLICATION_TABLES, Animation, Base, Commentaire, Media, OutilFacilitateur
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -23,8 +23,10 @@ BACKEND = Path(__file__).resolve().parents[1]
 class SchemaTests(unittest.TestCase):
     def test_relationships_and_historical_nullability(self):
         configure_mappers()
-        self.assertEqual(len(Base.metadata.tables), 10)
-        self.assertTrue(MatPeda.__table__.c.difficulte_id.nullable)
+        self.assertEqual(len(Base.metadata.tables), 11)
+        self.assertTrue(OutilFacilitateur.__table__.c.difficulte_id.nullable)
+        for name in ('localisation', 'variante', 'difficulte_id', 'materiel', 'fk_type_mat_outil_id'):
+            self.assertNotIn(name, Media.__table__.c)
         self.assertFalse(Commentaire.__table__.c.fk_id_anim_id.nullable)
         self.assertTrue(Animation.sequences.property.viewonly)
         self.assertEqual(Animation.commentaires.property.back_populates, 'fk_id_anim')
@@ -45,6 +47,7 @@ class SchemaTests(unittest.TestCase):
             migration.upgrade()
         self.apply_duration_migration(metadata, indexes)
         self.apply_position_migration(metadata)
+        self.apply_media_migration(metadata, indexes)
         dialect = postgresql.dialect()
         self.assertEqual(set(metadata.tables), set(Base.metadata.tables) - APPLICATION_TABLES)
         for name, table in Base.metadata.tables.items():
@@ -91,6 +94,24 @@ class SchemaTests(unittest.TestCase):
                 patch.object(migration.op, 'execute'):
             migration.upgrade()
 
+    def apply_media_migration(self, metadata, indexes):
+        """Rejoue la migration 0008 (séparation de mat_peda en media et outil_facilitateur)."""
+        spec = importlib.util.spec_from_file_location(
+            'media', BACKEND / 'migrations/versions/0008_separation_media_outil.py')
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        def create_table(name, *items, **kwargs):
+            Table(name, metadata, *items, **kwargs)
+        def drop_table(name):
+            metadata.remove(metadata.tables[name])
+            indexes[:] = [item for item in indexes if item[1] != name]
+        with patch.object(migration.op, 'f', side_effect=conv), \
+                patch.object(migration.op, 'create_table', side_effect=create_table), \
+                patch.object(migration.op, 'create_index', side_effect=lambda *a, **k: indexes.append(a)), \
+                patch.object(migration.op, 'drop_table', side_effect=drop_table), \
+                patch.object(migration.op, 'execute'):
+            migration.upgrade()
+
     def test_offline_upgrade_and_downgrade_without_configuration(self):
         output = io.StringIO()
         config = Config(str(BACKEND / 'alembic.ini'), output_buffer=output)
@@ -98,9 +119,9 @@ class SchemaTests(unittest.TestCase):
             command.upgrade(config, 'head', sql=True)
             command.downgrade(config, '0003_taxon_media:base', sql=True)
         sql = output.getvalue()
-        self.assertEqual(sql.count('CREATE TABLE '), 11)
-        self.assertEqual(sql.count('DROP TABLE '), 10)
-        self.assertEqual(sql.count(' SERIAL '), 9)
+        self.assertEqual(sql.count('CREATE TABLE '), 15)
+        self.assertEqual(sql.count('DROP TABLE '), 13)
+        self.assertEqual(sql.count(' SERIAL '), 13)
         self.assertNotIn('datetime(', sql)
         self.assertIn('DEFAULT CURRENT_DATE', sql)
         self.assertIn('UNIQUE (fk_anim_id, fk_sequence_id)', sql)

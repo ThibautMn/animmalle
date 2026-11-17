@@ -77,19 +77,27 @@ class AnimationSchema(Schema):
     tags = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
 
 
-class MaterialSchema(Schema):
+class MediaSchema(Schema):
     id = identifier(dump_only=True)
     nom = fields.String(required=True, validate=validate.Length(min=1, max=100))
     fk_type_mat_id = identifier(required=True)
     description = rich_field(load_default='')
-    localisation = text_field(50, load_default='')
+    url = text_field(250, dump_only=True)
+    date_modif = fields.Date(dump_only=True)
+    thematiques = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
+
+
+class OutilSchema(Schema):
+    id = identifier(dump_only=True)
+    nom = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    fk_type_outil_id = identifier(required=True)
+    description = rich_field(load_default='')
     variante = rich_field(load_default='')
     difficulte_id = identifier(allow_none=True, load_default=None)
     materiel = rich_field(load_default='')
     fk_type_mat_outil_id = identifier(allow_none=True, load_default=None)
     url = text_field(250, dump_only=True)
     date_modif = fields.Date(dump_only=True)
-    thematiques = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
 
 
 class ThesaurusSchema(Schema):

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import {
   downloadFilename,
   animationPayload,
-  materialPayload,
+  mediaPayload,
+  outilPayload,
   newSequence,
   moveSequence
 } from '../lib/forms.mjs'
@@ -37,7 +38,7 @@ test('Le remplacement conserve les identifiants, l’ordre et les associations s
   assert.equal(item.sequences[0], second)
 })
 test('Les fichiers et les identifiants de notice sont exclus du PUT', () => {
-  const data = materialPayload({
+  const data = mediaPayload({
     id: 9,
     nom: 'Image',
     has_file: true,
@@ -47,6 +48,29 @@ test('Les fichiers et les identifiants de notice sont exclus du PUT', () => {
   assert.deepEqual(data.thematiques, [1, 2])
   assert.ok(!('has_file' in data))
   assert.ok(!('id' in data))
+  assert.ok(!('localisation' in data))
+})
+
+test('Un outil facilitateur n’envoie que ses propres champs', () => {
+  const data = outilPayload({
+    id: 3,
+    nom: 'Outil',
+    fk_type_outil_id: 7,
+    difficulte_id: 8,
+    variante: 'v',
+    materiel: 'm',
+    thematiques: [1],
+    localisation: 'x'
+  })
+  assert.deepEqual(Object.keys(data).sort(), [
+    'description',
+    'difficulte_id',
+    'fk_type_mat_outil_id',
+    'fk_type_outil_id',
+    'materiel',
+    'nom',
+    'variante'
+  ])
 })
 
 test('Le nom de téléchargement conserve l’extension et les accents', () => {

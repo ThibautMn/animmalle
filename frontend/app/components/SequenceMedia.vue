@@ -56,7 +56,7 @@ async function loadThumbnails() {
   await Promise.all(items.value.filter(item => THUMBNAILED.includes(kind(item)) && !sources.value[item.id] && !errors.value[item.id]).map(async item => {
     try {
       // Vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
-      const blob = await api(`/materials/${item.id}/thumbnail`, { responseType: 'blob' })
+      const blob = await api(`/media/${item.id}/thumbnail`, { responseType: 'blob' })
       if (disposed) return
       if (!blob.type.startsWith('image/')) throw new Error('Format de fichier incompatible avec ce type de média.')
       sources.value[item.id] = URL.createObjectURL(blob)
@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
         >
         <NuxtLink v-else :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
         <DownloadButton
-          :path="`/materials/${item.id}/file`"
+          :path="`/media/${item.id}/file`"
           icon="download"
           :label="`Télécharger ${item.nom}`"
         />

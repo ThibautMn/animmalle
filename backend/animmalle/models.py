@@ -61,28 +61,42 @@ class Sequence(Base):
     fk_modalite = relationship('Thesaurus', foreign_keys=[fk_modalite_id])
     fk_approche = relationship('Thesaurus', foreign_keys=[fk_approche_id])
     fk_type_seq = relationship('Thesaurus', foreign_keys=[fk_type_seq_id])
-    materiel = relationship('MatPeda', secondary='rel_mat_peda_sequence', viewonly=True)
+    materiel = relationship('Media', secondary='rel_media_sequence', viewonly=True)
 
 
-class MatPeda(Base):
-    __tablename__ = 'mat_peda'
+class Media(Base):
+    """Média de la médiathèque (image, vidéo, document…), issu des lignes `ref.type_mat` de `mat_peda`."""
+    __tablename__ = 'media'
 
     id = mapped_column(Integer, primary_key=True)
     fk_type_mat_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
     nom = mapped_column(String(100), nullable=False)
     description = mapped_column(Text, nullable=False)
     url = mapped_column(String(250), nullable=False)
-    localisation = mapped_column(String(50), nullable=False)
+    date_modif = mapped_column(Date, nullable=True, server_default=text('CURRENT_DATE'))
+    fk_type_mat = relationship('Thesaurus', foreign_keys=[fk_type_mat_id])
+    sequence = relationship('Sequence', secondary='rel_media_sequence', viewonly=True)
+    thematiques = relationship('Thesaurus', secondary='rel_media_thematique', viewonly=True)
+
+
+class OutilFacilitateur(Base):
+    """Outil facilitateur, issu des lignes `ref.type_outil` de `mat_peda`."""
+    __tablename__ = 'outil_facilitateur'
+
+    id = mapped_column(Integer, primary_key=True)
+    fk_type_outil_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
+    nom = mapped_column(String(100), nullable=False)
+    description = mapped_column(Text, nullable=False)
+    url = mapped_column(String(250), nullable=False)
     variante = mapped_column(Text, nullable=False)
     difficulte_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=True)
     materiel = mapped_column(Text, nullable=False)
     date_modif = mapped_column(Date, nullable=True, server_default=text('CURRENT_DATE'))
+    # Type du média (ref.type_mat) associé à l'outil quand il a un fichier.
     fk_type_mat_outil_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=True)
-    fk_type_mat = relationship('Thesaurus', foreign_keys=[fk_type_mat_id])
+    fk_type_outil = relationship('Thesaurus', foreign_keys=[fk_type_outil_id])
     difficulte = relationship('Thesaurus', foreign_keys=[difficulte_id])
     fk_type_mat_outil = relationship('Thesaurus', foreign_keys=[fk_type_mat_outil_id])
-    sequence = relationship('Sequence', secondary='rel_mat_peda_sequence', viewonly=True)
-    thematiques = relationship('Thesaurus', secondary='rel_mat_peda_thematique', viewonly=True)
 
 
 class Commentaire(Base):
@@ -118,25 +132,25 @@ class RelAnimTag(Base):
     fk_thes = relationship('Thesaurus', foreign_keys=[fk_thes_id])
 
 
-class RelMatPedaSequence(Base):
-    __tablename__ = 'rel_mat_peda_sequence'
-    __table_args__ = (UniqueConstraint('fk_mat_peda_id', 'fk_sequence_id', name='uq_rel_mat_peda_sequence_pair'),)
+class RelMediaSequence(Base):
+    __tablename__ = 'rel_media_sequence'
+    __table_args__ = (UniqueConstraint('fk_media_id', 'fk_sequence_id', name='uq_rel_media_sequence_pair'),)
 
     id = mapped_column(Integer, primary_key=True)
-    fk_mat_peda_id = mapped_column(Integer, ForeignKey('mat_peda.id'), index=True, nullable=False)
+    fk_media_id = mapped_column(Integer, ForeignKey('media.id'), index=True, nullable=False)
     fk_sequence_id = mapped_column(Integer, ForeignKey('sequence.id'), index=True, nullable=False)
-    fk_mat_peda = relationship('MatPeda', foreign_keys=[fk_mat_peda_id])
+    fk_media = relationship('Media', foreign_keys=[fk_media_id])
     fk_sequence = relationship('Sequence', foreign_keys=[fk_sequence_id])
 
 
-class RelMatPedaThematique(Base):
-    __tablename__ = 'rel_mat_peda_thematique'
-    __table_args__ = (UniqueConstraint('fk_mat_peda_id', 'fk_thes_id', name='uq_rel_mat_peda_thematique_pair'),)
+class RelMediaThematique(Base):
+    __tablename__ = 'rel_media_thematique'
+    __table_args__ = (UniqueConstraint('fk_media_id', 'fk_thes_id', name='uq_rel_media_thematique_pair'),)
 
     id = mapped_column(Integer, primary_key=True)
-    fk_mat_peda_id = mapped_column(Integer, ForeignKey('mat_peda.id'), index=True, nullable=False)
+    fk_media_id = mapped_column(Integer, ForeignKey('media.id'), index=True, nullable=False)
     fk_thes_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
-    fk_mat_peda = relationship('MatPeda', foreign_keys=[fk_mat_peda_id])
+    fk_media = relationship('Media', foreign_keys=[fk_media_id])
     fk_thes = relationship('Thesaurus', foreign_keys=[fk_thes_id])
 
 

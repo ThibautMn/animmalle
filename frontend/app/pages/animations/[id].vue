@@ -59,7 +59,7 @@ async function load() {
       await Promise.all(
         mediaIds.map(async (id) => {
           try {
-            const media = await api(`/materials/${id}`)
+            const media = await api(`/media/${id}`)
             mediaItems.value[id] = media
           } catch {
             mediaItems.value[id] = { id, nom: 'Média indisponible' }

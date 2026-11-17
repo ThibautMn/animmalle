@@ -97,7 +97,7 @@ onMounted(load)
       <div class="card page-html" v-html="page.html" />
       <h2>Documents associés</h2>
       <article v-for="item in page.documents" :key="item.id" class="card">
-        <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
+        <NuxtLink :to="`/materials/${item.id}?kind=outil`">{{ item.nom }}</NuxtLink>
         <p>{{ item.description }}</p>
       </article></template
     ></template

@@ -25,6 +25,16 @@ HISTORICAL = {name: table for name, table in Base.metadata.tables.items() if nam
 RENAMED = {'sequence': ('fk_duree_id', 'duree_minutes')}
 # Colonnes absentes de l'ancien dump, calculées à l'import : table -> colonnes.
 ADDED = {'thesaurus': {'position'}}
+# Tables du dump absentes des modèles actuels : `mat_peda` est séparée en `media` et `outil_facilitateur`.
+SOURCE_ONLY = {
+    'mat_peda': ['id', 'fk_type_mat_id', 'nom', 'description', 'url', 'localisation', 'variante',
+                 'difficulte_id', 'materiel', 'date_modif', 'fk_type_mat_outil_id'],
+    'rel_mat_peda_sequence': ['id', 'fk_mat_peda_id', 'fk_sequence_id'],
+    'rel_mat_peda_thematique': ['id', 'fk_mat_peda_id', 'fk_thes_id'],
+}
+# Tables actuelles construites à l'import à partir des précédentes.
+DERIVED = {'media', 'outil_facilitateur', 'rel_media_sequence', 'rel_media_thematique'}
+SOURCE_TABLES = (set(HISTORICAL) - DERIVED) | set(SOURCE_ONLY)
 HISTORICAL_SORTED = [table for table in Base.metadata.sorted_tables if table.name in HISTORICAL]
 
 
@@ -142,11 +152,12 @@ def read_dump(path):
         insert = re.fullmatch(r'INSERT INTO `([^`]+)` VALUES\s*(.*)', statement, re.S)
         if ddl:
             name, body, options = ddl.groups()
-            if name in tables or name not in HISTORICAL:
+            if name in tables or name not in SOURCE_TABLES:
                 raise ValueError('Table source inconnue ou répétée.')
             columns[name] = re.findall(r'^\s*`([^`]+)`', body, re.M)
-            expected = {RENAMED[name][0] if name in RENAMED and key == RENAMED[name][1] else key
-                        for key in HISTORICAL[name].c.keys() if key not in ADDED.get(name, ())}
+            expected = set(SOURCE_ONLY[name]) if name in SOURCE_ONLY else {
+                RENAMED[name][0] if name in RENAMED and key == RENAMED[name][1] else key
+                for key in HISTORICAL[name].c.keys() if key not in ADDED.get(name, ())}
             if set(columns[name]) != expected or len(set(columns[name])) != len(columns[name]):
                 raise ValueError('Colonnes source incompatibles.')
             tables[name] = []
@@ -163,11 +174,43 @@ def read_dump(path):
                 tables[name].append(dict(zip(columns[name], row)))
         elif not re.match(r'^(CREATE DATABASE\b|USE\b|DROP TABLE IF EXISTS\b|LOCK TABLES\b|UNLOCK TABLES\b|SET\b)', statement):
             raise ValueError('Instruction source non prise en charge.')
-    if set(tables) != set(HISTORICAL):
+    if set(tables) != SOURCE_TABLES:
         raise ValueError('Inventaire des tables source incompatible.')
+    convert_materials(tables, next_ids)
     convert_durations(tables)
     validate(tables)
     return tables, next_ids
+
+
+def convert_materials(tables, next_ids):
+    """Sépare `mat_peda` en médias et outils facilitateurs (identifiants conservés).
+
+    Un outil est une ligne dont le type relève de `ref.type_outil`. `localisation` et, pour les médias,
+    `variante`, `difficulte_id`, `materiel` et `fk_type_mat_outil_id` ne sont pas repris. Les liaisons
+    avec séquences et thématiques ne concernent que des médias : une liaison sur un outil est refusée.
+    """
+    families = {row['id']: row['reference'] for row in tables['thesaurus']}
+    tables['media'], tables['outil_facilitateur'] = [], []
+    tool_ids = set()
+    for row in tables.pop('mat_peda'):
+        if families.get(row['fk_type_mat_id']) == 'ref.type_outil':
+            tool_ids.add(row['id'])
+            tables['outil_facilitateur'].append({
+                'id': row['id'], 'fk_type_outil_id': row['fk_type_mat_id'], 'nom': row['nom'],
+                'description': row['description'], 'url': row['url'], 'variante': row['variante'],
+                'difficulte_id': row['difficulte_id'], 'materiel': row['materiel'],
+                'date_modif': row['date_modif'], 'fk_type_mat_outil_id': row['fk_type_mat_outil_id']})
+        else:
+            tables['media'].append({key: row[key] for key in ('id', 'fk_type_mat_id', 'nom', 'description', 'url', 'date_modif')})
+    for old, new in (('rel_mat_peda_sequence', 'rel_media_sequence'), ('rel_mat_peda_thematique', 'rel_media_thematique')):
+        rows = tables.pop(old)
+        if any(row['fk_mat_peda_id'] in tool_ids for row in rows):
+            raise ValueError('Liaison source sur un outil facilitateur : import refusé.')
+        tables[new] = [{('fk_media_id' if key == 'fk_mat_peda_id' else key): value for key, value in row.items()} for row in rows]
+        if old in next_ids:
+            next_ids[new] = next_ids.pop(old)
+    if 'mat_peda' in next_ids:
+        next_ids['media'] = next_ids['outil_facilitateur'] = next_ids.pop('mat_peda')
 
 
 def convert_durations(tables):
@@ -185,7 +228,7 @@ def convert_durations(tables):
     # La famille ref.duree_seq n'existe plus dans le thésaurus (migration 0005).
     removed = {row['id'] for row in tables['thesaurus'] if 'ref.duree_seq' in (row['reference'], row['code'])}
     tables['thesaurus'][:] = [row for row in tables['thesaurus'] if row['id'] not in removed]
-    for name, column in (('rel_anim_tag', 'fk_thes_id'), ('rel_mat_peda_thematique', 'fk_thes_id')):
+    for name, column in (('rel_anim_tag', 'fk_thes_id'), ('rel_media_thematique', 'fk_thes_id')):
         tables[name][:] = [row for row in tables[name] if row[column] not in removed]
 
 

@@ -1,29 +1,44 @@
 <script setup>
 import { useSessionStore } from '~/stores/session'
-import { materialFields, materialPayload } from '../../../lib/forms.mjs'
+import {
+  mediaFields,
+  mediaPayload,
+  outilFields,
+  outilPayload
+} from '../../../lib/forms.mjs'
 const route = useRoute()
+// Même identifiant possible pour un média et un outil : recharger la page quand le type change.
+definePageMeta({ key: (route) => route.fullPath })
 const api = useApi()
 const session = useSessionStore()
 const catalog = useCatalog()
 const creating = route.params.id === 'nouveau'
-const kind = ref(route.query.kind === 'outil' ? 'outil' : 'media')
-const item = ref({
-  nom: '',
-  fk_type_mat_id: null,
-  description: '',
-  localisation: '',
-  variante: '',
-  difficulte_id: null,
-  materiel: '',
-  fk_type_mat_outil_id: null,
-  thematiques: []
-})
+// Les médias et les outils facilitateurs sont deux ressources distinctes de l'API.
+const kind = route.query.kind === 'outil' ? 'outil' : 'media'
+const tool = kind === 'outil'
+const base = tool ? '/outils' : '/media'
+const fields = tool ? outilFields : mediaFields
+const payloadOf = tool ? outilPayload : mediaPayload
+const typeKey = tool ? 'fk_type_outil_id' : 'fk_type_mat_id'
+const item = ref(
+  tool
+    ? {
+        nom: '',
+        fk_type_outil_id: null,
+        description: '',
+        variante: '',
+        difficulte_id: null,
+        materiel: '',
+        fk_type_mat_outil_id: null
+      }
+    : { nom: '', fk_type_mat_id: null, description: '', thematiques: [] }
+)
 const draft = ref(null)
 const file = ref(null)
 const editing = ref(creating || (session.is_admin && route.query.edit === '1'))
 const busy = ref(true)
 const error = ref('')
-const path = `/materials/${route.params.id}`
+const path = `${base}/${route.params.id}`
 async function load() {
   busy.value = true
   error.value = ''
@@ -31,11 +46,6 @@ async function load() {
     await catalog.load()
     if (!creating) {
       item.value = await api(path)
-      kind.value =
-        catalog.items.value.find((tag) => tag.id === item.value.fk_type_mat_id)
-          ?.reference === 'ref.type_outil'
-          ? 'outil'
-          : 'media'
     }
     draft.value = structuredClone(toRaw(item.value))
   } catch (e) {
@@ -51,15 +61,15 @@ async function save() {
     let result
     if (creating) {
       const body = new FormData()
-      body.append('data', JSON.stringify(materialPayload(draft.value)))
+      body.append('data', JSON.stringify(payloadOf(draft.value)))
       if (file.value) body.append('file', file.value)
-      result = await api('/materials', { method: 'POST', body })
+      result = await api(base, { method: 'POST', body })
       editing.value = false
-      await navigateTo(`/materials/${result.id}`)
+      await navigateTo(`/materials/${result.id}?kind=${kind}`)
     } else {
       result = await api(path, {
         method: 'PUT',
-        body: materialPayload(draft.value)
+        body: payloadOf(draft.value)
       })
       // Conserver le formulaire si le remplacement du fichier échoue après la notice.
       item.value = result
@@ -85,7 +95,7 @@ async function remove() {
   error.value = ''
   try {
     await api(path, { method: 'DELETE' })
-    await navigateTo(kind.value === 'outil' ? '/outils' : '/materials')
+    await navigateTo(tool ? '/outils' : '/materials')
   } catch (e) {
     error.value = e.message
   } finally {
@@ -105,7 +115,7 @@ onBeforeRouteLeave(
 onMounted(load)
 </script>
 <template>
-  <NuxtLink :to="kind === 'outil' ? '/outils' : '/materials'"
+  <NuxtLink :to="tool ? '/outils' : '/materials'"
     >← Retour aux ressources</NuxtLink
   >
   <p v-if="error" role="alert" class="error">{{ error }}</p>
@@ -119,17 +129,12 @@ onMounted(load)
         <label
           >Nom *<input v-model="draft.nom" required maxlength="100" /></label
         ><RefSelect
-          v-model="draft.fk_type_mat_id"
-          :items="
-            catalog.family(kind === 'outil' ? 'ref.type_outil' : 'ref.type_mat')
-          "
+          v-model="draft[typeKey]"
+          :items="catalog.family(tool ? 'ref.type_outil' : 'ref.type_mat')"
           label="Type *"
           required
-        /><TextFields v-model="draft" :fields="materialFields" /><label
-          >Localisation<input
-            v-model="draft.localisation"
-            maxlength="50" /></label
-        ><template v-if="kind === 'outil'"
+        /><TextFields v-model="draft" :fields="fields" /><template
+          v-if="tool"
           ><RefSelect
             v-model="draft.difficulte_id"
             :items="catalog.family('ref.difficulte')"
@@ -138,6 +143,7 @@ onMounted(load)
             :items="catalog.family('ref.type_mat')"
             label="Type de pièce jointe" /></template
         ><TagPicker
+          v-if="!tool"
           v-model="draft.thematiques"
           :items="catalog.family('ref.thematiques')"
           legend="Thématiques"
@@ -162,9 +168,9 @@ onMounted(load)
     <template v-else
       ><div class="toolbar">
         <h1>{{ item.nom }}</h1>
-        <span class="badge">{{ catalog.label(item.fk_type_mat_id) }}</span>
+        <span class="badge">{{ catalog.label(item[typeKey]) }}</span>
       </div>
-      <p>{{ item.date_modif }} · {{ item.localisation }}</p>
+      <p>{{ item.date_modif }}</p>
       <div class="actions">
         <DownloadButton
           :path="`${path}/download`"
@@ -186,15 +192,15 @@ onMounted(load)
           @click="remove"
         />
       </div>
-      <MediaPreview v-if="item.has_file" :id="item.id" />
-      <section v-for="[key, label] in materialFields" :key="key" class="card">
+      <MediaPreview v-if="item.has_file && !tool" :id="item.id" />
+      <section v-for="[key, label] in fields" :key="key" class="card">
         <h2>{{ label }}</h2>
         <RichText v-if="item[key]" :text="item[key]" /><p v-else class="prose">Non renseigné</p>
       </section>
-      <p>
+      <p v-if="tool">
         Difficulté : {{ catalog.label(item.difficulte_id) || 'Non renseignée' }}
       </p>
-      <p class="pictos">
+      <p v-if="!tool" class="pictos">
         <PictoIcon
           v-for="tag in item.thematiques"
           :id="tag"
@@ -202,7 +208,9 @@ onMounted(load)
           :size="40"
         />
       </p>
-      <p>{{ item.thematiques.map(catalog.label).join(' · ') }}</p></template
+      <p v-if="!tool">
+        {{ item.thematiques.map(catalog.label).join(' · ') }}
+      </p></template
     ></template
   >
 </template>

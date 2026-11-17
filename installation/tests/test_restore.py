@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'lib'))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'backend'))
-from restore import head_revisions, statements, values, validate
+from restore import convert_materials, head_revisions, statements, values, validate
 
 
 class ConversionTests(unittest.TestCase):
@@ -31,6 +31,28 @@ class ConversionTests(unittest.TestCase):
         for source in ["INSERT ('incomplet);", '/* incomplet', "/*! SET SQL_MODE='NO_BACKSLASH_ESCAPES' */;"]:
             with self.subTest(source=source), self.assertRaises(ValueError):
                 list(statements(source))
+
+    def test_mat_peda_is_split_into_media_and_tools(self):
+        row = dict(nom='n', description='', url='', localisation='', variante='', difficulte_id=None,
+                   materiel='', date_modif=None, fk_type_mat_outil_id=None)
+        tables = {'thesaurus': [dict(id=1, reference='ref.type_mat'), dict(id=2, reference='ref.type_outil')],
+                  'mat_peda': [dict(row, id=10, fk_type_mat_id=1, fk_type_mat_outil_id=1),
+                               dict(row, id=11, fk_type_mat_id=2, difficulte_id=3, variante='v')],
+                  'rel_mat_peda_sequence': [dict(id=1, fk_mat_peda_id=10, fk_sequence_id=4)],
+                  'rel_mat_peda_thematique': [dict(id=2, fk_mat_peda_id=10, fk_thes_id=1)]}
+        next_ids = {'mat_peda': 12, 'rel_mat_peda_sequence': 2}
+        convert_materials(tables, next_ids)
+        self.assertEqual([r['id'] for r in tables['media']], [10])
+        self.assertEqual(set(tables['media'][0]), {'id', 'fk_type_mat_id', 'nom', 'description', 'url', 'date_modif'})
+        self.assertEqual(tables['outil_facilitateur'][0]['fk_type_outil_id'], 2)
+        self.assertEqual(tables['outil_facilitateur'][0]['difficulte_id'], 3)
+        self.assertEqual(tables['rel_media_sequence'], [dict(id=1, fk_media_id=10, fk_sequence_id=4)])
+        self.assertNotIn('mat_peda', tables)
+        self.assertEqual((next_ids['media'], next_ids['outil_facilitateur'], next_ids['rel_media_sequence']), (12, 12, 2))
+        tables['rel_mat_peda_sequence'] = [dict(id=1, fk_mat_peda_id=11, fk_sequence_id=4)]
+        tables.update(mat_peda=[dict(row, id=11, fk_type_mat_id=2)], rel_mat_peda_thematique=[])
+        with self.assertRaisesRegex(ValueError, 'outil'):
+            convert_materials(tables, {})
 
     def test_duplicate_and_orphan_rejected(self):
         from animmalle.models import Base

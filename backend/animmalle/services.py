@@ -7,8 +7,8 @@ from flask import g, abort
 from marshmallow import ValidationError
 from sqlalchemy import select, delete, or_
 
-from .models import (Animation, Sequence, MatPeda, Thesaurus, Commentaire,
-                     RelAnimSequence, RelAnimTag, RelMatPedaSequence, RelMatPedaThematique)
+from .models import (Animation, Sequence, Media, OutilFacilitateur, Thesaurus, Commentaire,
+                     RelAnimSequence, RelAnimTag, RelMediaSequence, RelMediaThematique)
 
 
 def get(model, key):
@@ -52,7 +52,7 @@ def replace_links(model, owner_column, owner_id, target_column, ids):
 
 def orphan_sequence(key):
     if not g.db.scalar(select(RelAnimSequence.id).where(RelAnimSequence.fk_sequence_id == key)):
-        g.db.execute(delete(RelMatPedaSequence).where(RelMatPedaSequence.fk_sequence_id == key))
+        g.db.execute(delete(RelMediaSequence).where(RelMediaSequence.fk_sequence_id == key))
         g.db.execute(delete(Sequence).where(Sequence.id == key))
 
 
@@ -77,7 +77,7 @@ def save_animation(data, item=None):
                             ('fk_approche_id', 'ref.approches'), ('fk_type_seq_id', 'ref.type_seq')):
             reference(seq[key], [family])
         for key in seq['materiel']:
-            if not g.db.get(MatPeda, key):
+            if not g.db.get(Media, key):
                 raise ValidationError({'materiel': [f'Matériel {key} introuvable.']})
         if 'id' in seq:
             owners = list(g.db.scalars(select(RelAnimSequence.fk_anim_id).where(RelAnimSequence.fk_sequence_id == seq['id'])))
@@ -102,7 +102,7 @@ def save_animation(data, item=None):
         g.db.add(obj)
         g.db.flush()
         g.db.add(RelAnimSequence(fk_anim_id=item.id, fk_sequence_id=obj.id))
-        replace_links(RelMatPedaSequence, 'fk_sequence_id', obj.id, 'fk_mat_peda_id', materials)
+        replace_links(RelMediaSequence, 'fk_sequence_id', obj.id, 'fk_media_id', materials)
     g.db.flush()
     for key in old_ids - set(submitted_ids):
         orphan_sequence(key)
@@ -121,23 +121,35 @@ def delete_animation(item):
     g.db.delete(item)
 
 
-def save_material(data, item=None):
-    reference(data['fk_type_mat_id'], ['ref.type_mat', 'ref.type_outil'])
-    reference(data['difficulte_id'], ['ref.difficulte'])
-    reference(data['fk_type_mat_outil_id'], ['ref.type_mat'])
+def save_media(data, item=None):
+    reference(data['fk_type_mat_id'], ['ref.type_mat'])
     for key in data['thematiques']:
         reference(key, ['ref.thematiques'])
     themes = data.pop('thematiques')
     if item is None:
-        item = MatPeda(url='')
+        item = Media(url='')
         g.db.add(item)
     for key, value in data.items():
         setattr(item, key, value)
     item.date_modif = date.today()
     g.db.flush()
-    replace_links(RelMatPedaThematique, 'fk_mat_peda_id', item.id, 'fk_thes_id', themes)
+    replace_links(RelMediaThematique, 'fk_media_id', item.id, 'fk_thes_id', themes)
     g.db.flush()
     g.db.expire(item, ['thematiques'])
+    return item
+
+
+def save_outil(data, item=None):
+    reference(data['fk_type_outil_id'], ['ref.type_outil'])
+    reference(data['difficulte_id'], ['ref.difficulte'])
+    reference(data['fk_type_mat_outil_id'], ['ref.type_mat'])
+    if item is None:
+        item = OutilFacilitateur(url='')
+        g.db.add(item)
+    for key, value in data.items():
+        setattr(item, key, value)
+    item.date_modif = date.today()
+    g.db.flush()
     return item
 
 
@@ -153,11 +165,20 @@ def animation_dict(item):
     return result
 
 
-def material_dict(item):
-    from .schemas import MaterialSchema
-    result = MaterialSchema(exclude=['thematiques', 'url']).dump(item)
+def file_info(result, item):
     result['has_file'] = bool(item.url)
     # Extension seule (jamais le chemin) : le frontend choisit l'icône ou la vignette.
     result['extension'] = Path(item.url).suffix.lower().lstrip('.') if item.url else ''
+    return result
+
+
+def media_dict(item):
+    from .schemas import MediaSchema
+    result = file_info(MediaSchema(exclude=['thematiques', 'url']).dump(item), item)
     result['thematiques'] = [tag.id for tag in item.thematiques]
     return result
+
+
+def outil_dict(item):
+    from .schemas import OutilSchema
+    return file_info(OutilSchema(exclude=['url']).dump(item), item)

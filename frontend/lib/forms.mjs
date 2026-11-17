@@ -10,7 +10,8 @@ export const sequenceFields = [
   ['objectifs', 'Objectifs'],
   ['materiel_div', 'Matériel complémentaire']
 ]
-export const materialFields = [
+export const mediaFields = [['description', 'Description / Consigne']]
+export const outilFields = [
   ['description', 'Description / Consigne'],
   ['variante', 'Variante'],
   ['materiel', 'Matériel']
@@ -63,18 +64,24 @@ export function animationPayload(item) {
     )
   }
 }
-export function materialPayload(item) {
+export function mediaPayload(item) {
+  return Object.fromEntries(
+    ['nom', 'fk_type_mat_id', 'description', 'thematiques'].map((key) => [
+      key,
+      item[key]
+    ])
+  )
+}
+export function outilPayload(item) {
   return Object.fromEntries(
     [
       'nom',
-      'fk_type_mat_id',
+      'fk_type_outil_id',
       'description',
-      'localisation',
       'variante',
       'difficulte_id',
       'materiel',
-      'fk_type_mat_outil_id',
-      'thematiques'
+      'fk_type_mat_outil_id'
     ].map((key) => [key, item[key]])
   )
 }
