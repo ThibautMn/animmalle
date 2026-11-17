@@ -514,9 +514,9 @@ onMounted(async () => {
                 catalog.label(item.fk_type_mat_id || item.fk_type_outil_id)
               }}
             </p>
-            <small v-if="item.pertinence.requested"
-              >{{ item.pertinence.matched }}/{{
-                item.pertinence.requested
+            <small v-if="item.pertinence?.requested"
+              >{{ item.pertinence?.matched }}/{{
+                item.pertinence?.requested
               }}
               mots-clés</small
             >

@@ -8,7 +8,7 @@ const version = useState('picto_version', () => 0)
 watch(version, () => (missing.value = false))
 watch(missing, (value) => value && emit('missing'))
 const item = computed(() => catalog.items.value.find((i) => i.id === props.id))
-const visible = computed(() => !missing.value && item.value)
+const visible = computed(() => !missing.value && item.value?.pictogramme)
 </script>
 <template>
   <img

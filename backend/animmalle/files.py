@@ -82,6 +82,14 @@ def pictogram_path(item, must_exist=True):
     return source
 
 
+def has_pictogram(item):
+    """Vrai si le PNG du terme existe (sans lever d'erreur HTTP)."""
+    try:
+        return pictogram_path(item).is_file()
+    except Exception:
+        return False
+
+
 def store_pictogram(item, file):
     target = pictogram_path(item, must_exist=False)
     data = file.stream.read(PICTOGRAM_MAX_BYTES + 1)

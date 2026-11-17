@@ -106,6 +106,11 @@ class ThesaurusSchema(Schema):
     label = fields.String(required=True, validate=validate.Length(min=1, max=80))
     code = text_field(200, load_default='')
     position = fields.Integer(dump_only=True)
+    pictogramme = fields.Method('has_pictogram', dump_only=True)
+
+    def has_pictogram(self, item):
+        from .files import has_pictogram
+        return has_pictogram(item)
 
 
 class CommentSchema(Schema):

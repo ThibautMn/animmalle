@@ -2,6 +2,7 @@
 const props = defineProps({ item: Object })
 const version = useState('picto_version', () => 0)
 const api = useApi()
+const catalog = useCatalog()
 const dialog = ref(null)
 const input = ref(null)
 const config = useRuntimeConfig()
@@ -39,6 +40,7 @@ async function save() {
     const body = new FormData()
     body.append('file', file.value)
     await api(`/thesaurus/${props.item.id}/pictogram`, { method: 'PUT', body })
+    await catalog.load()
     version.value++
     dialog.value.close()
   } catch (e) {
@@ -54,6 +56,7 @@ async function remove() {
   error.value = ''
   try {
     await api(`/thesaurus/${props.item.id}/pictogram`, { method: 'DELETE' })
+    await catalog.load()
     version.value++
     dialog.value.close()
   } catch (e) {
