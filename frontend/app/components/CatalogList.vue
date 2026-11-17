@@ -74,6 +74,8 @@ const busy = ref(false);
 const error = ref("");
 // Dernière recherche de la pédathèque, réutilisée par la fiche pour les flèches précédente/suivante
 const animation_search = useState("animation_search", () => null);
+// Critères de la dernière recherche de la médiathèque, pour les flèches de l'aperçu.
+const media_filters = ref(null);
 let requestId = 0;
 let duration_max_ready = false;
 let skip_duration_watch = false;
@@ -109,6 +111,9 @@ async function search(reset = false) {
         const { page: _page, page_size: _size, ...filters } = query;
         animation_search.value = filters;
         marked_terms.value = query.q || [];
+      } else if (thumbnails) {
+        const { page: _page, page_size: _size, ...filters } = query;
+        media_filters.value = filters;
       }
       items.value = result.items;
       total.value = result.total;
@@ -360,6 +365,7 @@ onMounted(async () => {
         <SequenceMedia
           v-if="thumbnails"
           :items="items"
+          :query="media_filters"
           details
           @deleted="
             (id) => {

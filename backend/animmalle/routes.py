@@ -298,8 +298,7 @@ def upload_file(item):
     return item
 
 
-@api.get('/media')
-def media_list():
+def filtered_media():
     type_alias = aliased(Thesaurus)
     query = select(Media).outerjoin(type_alias, type_alias.id == Media.fk_type_mat_id).order_by(Media.nom, Media.id)
     types = id_args('type')
@@ -323,7 +322,24 @@ def media_list():
         result.append(value)
     if tags:
         result.sort(key=lambda item: -item['pertinence']['matched'])
-    return paginate(result)
+    return result
+
+
+@api.get('/media')
+def media_list():
+    return paginate(filtered_media())
+
+
+@api.get('/media/<int:key>/neighbors')
+def media_neighbors(key):
+    """Médias voisins de `key` dans la liste filtrée (mêmes paramètres que /media)."""
+    rows = [item['id'] for item in filtered_media()]
+    if key not in rows:
+        return {'found': False, 'previous': None, 'next': None, 'position': None, 'total': len(rows)}
+    position = rows.index(key)
+    return {'found': True, 'position': position + 1, 'total': len(rows),
+            'previous': rows[position - 1] if position > 0 else None,
+            'next': rows[position + 1] if position + 1 < len(rows) else None}
 
 
 @api.get('/media/<int:key>')

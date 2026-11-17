@@ -5,7 +5,9 @@ const props = defineProps({
   // Mode choix : la vignette est un bouton qui sélectionne le média.
   selectable: Boolean,
   // Fenêtre d'aperçu avec le formulaire d'informations du média.
-  details: Boolean
+  details: Boolean,
+  // Critères de la liste filtrée, pour naviguer entre médias dans l'aperçu.
+  query: { type: Object, default: null }
 })
 const emit = defineEmits(['remove', 'select', 'updated', 'deleted'])
 const api = useApi()
@@ -105,6 +107,7 @@ onBeforeUnmount(() => {
         icon
         :ref="(component) => (previews[item.id] = component)"
         :details="details"
+        :query="query"
         class="thumbnail-preview"
         @updated="emit('updated', $event)"
         @deleted="emit('deleted', $event)"

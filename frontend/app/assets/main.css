@@ -1651,3 +1651,36 @@ button.bare-icon svg {
 .rich-view {
   overflow-x: auto;
 }
+
+.preview-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  background: var(--c-surface, #fff);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.preview-arrow:hover,
+.preview-arrow:focus-visible {
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  opacity: 1;
+}
+.preview-prev {
+  left: 4px;
+}
+.preview-next {
+  right: 4px;
+}
+.preview-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

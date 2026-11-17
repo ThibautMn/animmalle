@@ -232,6 +232,9 @@ class ApiTests(unittest.TestCase):
         nom = self.material_data()['nom']
         self.assertEqual(self.client.get(f'/api/media?q={nom[:3].upper()}').json['total'], 1)
         self.assertEqual(self.client.get('/api/media?q=%25zzz_').json['total'], 0)
+        neighbors = self.client.get(f'/api/media/{key}/neighbors').json
+        self.assertEqual((neighbors['found'], neighbors['previous'], neighbors['next'], neighbors['total']), (True, None, None, 1))
+        self.assertFalse(self.client.get(f'/api/media/{key}/neighbors?q=%25zzz_').json['found'])
         self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 403)
         response = self.client.get(f'/api/media/{key}/download')
         with ZipFile(io.BytesIO(response.data)) as archive:
