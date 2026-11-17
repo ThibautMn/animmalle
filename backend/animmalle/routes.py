@@ -8,11 +8,12 @@ from sqlalchemy import select, delete, text, or_, func
 from sqlalchemy.orm import aliased, load_only
 from werkzeug.utils import secure_filename
 
-from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, require_admin, require_thesaurus_editor
+from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, lookup_user, require_admin, require_thesaurus_editor
 from .models import (Animation, Media, OutilFacilitateur, Thesaurus, Commentaire,
                      RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, Sequence)
 from .schemas import (LoginSchema, AnimationSchema, MediaSchema, OutilSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
+from . import oidc
 from . import services as svc
 from . import files
 from . import kit
@@ -71,10 +72,54 @@ def auth_session():
 
 @api.post('/auth/login')
 def login():
+    if oidc.only_oidc():
+        abort(403, description='Connexion par mot de passe désactivée.')
     data = payload(LoginSchema())
     user = authenticate(data['login'].strip(), data['password'])
     if not user:
         abort(401, description='Identifiants invalides.')
+    login_user(user)
+    return auth_session()
+
+
+@api.get('/auth/oidc/config')
+def oidc_config():
+    cfg = oidc.settings()
+    return {'enabled': oidc.is_enabled(), 'provider': cfg['provider_name'], 'only': oidc.only_oidc()}
+
+
+@api.get('/auth/oidc/authorize')
+def oidc_authorize():
+    """URL du fournisseur ; `state` et code_verifier PKCE restent côté navigateur (seule l'empreinte est transmise)."""
+    state = request.args.get('state', '')
+    challenge = request.args.get('code_challenge', '')
+    if not oidc.is_enabled() or not oidc.RE_STATE.match(state) or not oidc.RE_CHALLENGE.match(challenge):
+        abort(400, description='Connexion OpenID indisponible.')
+    try:
+        return {'url': oidc.authorize_url(state, challenge, request.args.get('silent') == '1')}
+    except (OSError, ValueError, KeyError):
+        abort(503, description='Fournisseur OpenID indisponible.')
+
+
+@api.post('/auth/oidc/callback')
+def oidc_callback():
+    data = request.get_json(silent=True)
+    data = data if isinstance(data, dict) else {}
+    code = data.get('code')
+    verifier = data.get('code_verifier')
+    if (not oidc.is_enabled() or not isinstance(code, str) or not code or len(code) > 2048
+            or not isinstance(verifier, str) or not oidc.RE_VERIFIER.match(verifier)):
+        abort(400, description='Connexion OpenID indisponible.')
+    try:
+        login = oidc.login_from_claims(oidc.exchange_code(code, verifier))
+    except oidc.InvalidOidcAuth:
+        abort(401, description='Connexion OpenID refusée.')
+    except (OSError, ValueError, KeyError):
+        abort(503, description='Fournisseur OpenID indisponible.')
+    user = lookup_user(login) if login else None
+    if not user:
+        current_app.logger.warning('Connexion OpenID refusée : aucun compte pour le login reçu.')
+        abort(403, description='Votre compte n’a pas été trouvé.')
     login_user(user)
     return auth_session()
 

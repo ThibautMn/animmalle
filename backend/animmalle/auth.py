@@ -20,6 +20,23 @@ def close_directory(connection):
             pass
 
 
+def search_directory_user(connection, cfg, login):
+    """Entrée unique de l'annuaire pour ce login, sous la forme {name, groups}, sinon None."""
+    from ldap3.utils.conv import escape_filter_chars
+    from ldap3.utils.dn import parse_dn
+    if not connection.search(cfg['base_dn'], f"({cfg['login_attribute']}={escape_filter_chars(login)})",
+                             attributes=[cfg['name_attribute'], cfg['group_attribute']], size_limit=2):
+        return None
+    if len(connection.entries) != 1:
+        return None
+    data = connection.entries[0].entry_attributes_as_dict
+    names = data.get(cfg['name_attribute'], [])
+    if not names or len(str(names[0])) > 100:
+        return None
+    groups = [parse_dn(value)[0][1] for value in data.get(cfg['group_attribute'], [])]
+    return {'name': str(names[0]), 'groups': groups}
+
+
 def authenticate(login, password):
     config = current_app.extensions['settings']['auth']
     if config['mode'] == 'local':
@@ -28,8 +45,7 @@ def authenticate(login, password):
                 return {'name': user['name'], 'groups': user['groups']}
         return None
     import ldap3
-    from ldap3.utils.conv import escape_filter_chars
-    from ldap3.utils.dn import escape_rdn, parse_dn
+    from ldap3.utils.dn import escape_rdn
     cfg = config['ldap']
     connection = None
     try:
@@ -44,17 +60,37 @@ def authenticate(login, password):
                 abort(503, description='Connexion TLS à l’annuaire impossible.')
         if not connection.bind():
             return None
-        if not connection.search(cfg['base_dn'], f"({cfg['login_attribute']}={escape_filter_chars(login)})",
-                                 attributes=[cfg['name_attribute'], cfg['group_attribute']], size_limit=2):
-            return None
-        if len(connection.entries) != 1:
-            return None
-        data = connection.entries[0].entry_attributes_as_dict
-        names = data.get(cfg['name_attribute'], [])
-        if not names or len(str(names[0])) > 100:
-            return None
-        groups = [parse_dn(value)[0][1] for value in data.get(cfg['group_attribute'], [])]
-        return {'name': str(names[0]), 'groups': groups}
+        return search_directory_user(connection, cfg, login)
+    except (ldap3.core.exceptions.LDAPException, ValueError, OSError):
+        abort(503, description='Annuaire indisponible.')
+    finally:
+        close_directory(connection)
+
+
+def lookup_user(login):
+    """Compte correspondant à un login déjà authentifié par OpenID, sans mot de passe ; None si inconnu."""
+    config = current_app.extensions['settings']['auth']
+    if config['mode'] == 'local':
+        for user in config['users']:
+            if secrets.compare_digest(user['login'], login):
+                return {'name': user['name'], 'groups': user['groups']}
+        return None
+    import ldap3
+    cfg = config['ldap']
+    connection = None
+    try:
+        server = ldap3.Server(cfg['host'], port=cfg['port'], use_ssl=cfg['ssl'],
+                              tls=directory_tls(cfg) if cfg['ssl'] or cfg.get('start_tls', True) else None,
+                              connect_timeout=cfg['timeout'])
+        connection = ldap3.Connection(server, user=cfg['service_bind_dn'], password=cfg['service_password'],
+                                      receive_timeout=cfg['timeout'], auto_referrals=False)
+        if not cfg['ssl'] and cfg.get('start_tls', True):
+            connection.open()
+            if not connection.start_tls():
+                abort(503, description='Connexion TLS à l’annuaire impossible.')
+        if not connection.bind():
+            abort(503, description='Annuaire indisponible.')
+        return search_directory_user(connection, cfg, login)
     except (ldap3.core.exceptions.LDAPException, ValueError, OSError):
         abort(503, description='Annuaire indisponible.')
     finally:
@@ -76,7 +112,8 @@ def install_auth(app):
             token = request.headers.get('X-CSRF-Token', '')
             if not secrets.compare_digest(token, session['csrf_token']):
                 abort(403, description='Jeton CSRF manquant ou invalide.')
-        if request.path in ('/api/auth/login', '/api/auth/session'):
+        if request.path in ('/api/auth/login', '/api/auth/session', '/api/auth/oidc/config',
+                            '/api/auth/oidc/authorize', '/api/auth/oidc/callback'):
             return
         user = session.get('user')
         if not user:

@@ -1684,3 +1684,7 @@ button.bare-icon svg {
   opacity: 0.4;
   cursor: default;
 }
+.oidc-button {
+  width: 100%;
+  margin-top: 12px;
+}

@@ -15,20 +15,115 @@ async function connect() {
     session.apply(
       await api('/auth/login', {
         method: 'POST',
-        body: { login: login.value, password: password.value }
-      })
+        body: { login: login.value, password: password.value },
+      }),
     )
     password.value = ''
+    remember(TRIED, null)
   } catch (e) {
     error.value = e.message
   } finally {
     busy.value = false
   }
 }
+const oidc = ref({ enabled: false, provider: '', only: false })
+const KEY = 'animmalle:oidc'
+const base64url = (bytes) =>
+  btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+// PKCE : le fournisseur ne reçoit que l'empreinte du code_verifier, conservé dans l'onglet
+const TRIED = 'animmalle:oidc_tried'
+const remember = (key, value) => {
+  try {
+    if (value === null) sessionStorage.removeItem(key)
+    else sessionStorage.setItem(key, value)
+  } catch {
+    // sans stockage, la connexion silencieuse n'est pas tentée
+  }
+}
+// Connexion sans interaction d'un visiteur déjà connecté chez le fournisseur : une seule tentative
+// par onglet entre deux connexions, donc jamais de boucle de redirections.
+async function trySilentOidc() {
+  try {
+    if (sessionStorage.getItem(TRIED)) return false
+    remember(TRIED, '1')
+    if (sessionStorage.getItem(TRIED) !== '1') return false
+  } catch {
+    return false
+  }
+  return connectOidc(true)
+}
+async function connectOidc(silent = false) {
+  error.value = ''
+  try {
+    const state = base64url(crypto.getRandomValues(new Uint8Array(16)))
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)))
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(verifier),
+    )
+    const { url } = await api('/auth/oidc/authorize', {
+      query: {
+        state,
+        code_challenge: base64url(new Uint8Array(digest)),
+        ...(silent ? { silent: 1 } : {}),
+      },
+    })
+    sessionStorage.setItem(
+      KEY,
+      JSON.stringify({ state, verifier, back: route.fullPath, silent }),
+    )
+    window.location.assign(url)
+    return true
+  } catch (e) {
+    if (!silent) error.value = e.message
+    return false
+  }
+}
+// retour du fournisseur sur /oidc?code=…&state=… (ou ?error=…)
+async function finishOidc() {
+  let saved = null
+  try {
+    saved = JSON.parse(sessionStorage.getItem(KEY))
+    sessionStorage.removeItem(KEY)
+  } catch {
+    saved = null
+  }
+  const code = route.query.code
+  // connexion silencieuse sans succès (pas connecté chez le fournisseur) : page de connexion, sans erreur
+  if (
+    saved?.silent &&
+    saved.state === route.query.state &&
+    typeof code !== 'string'
+  ) {
+    return navigateTo('/', { replace: true })
+  }
+  if (!saved || saved.state !== route.query.state || typeof code !== 'string') {
+    error.value = 'La connexion a été refusée ou a expiré. Réessayez.'
+    return navigateTo('/', { replace: true })
+  }
+  if (!session.csrf_token) session.apply(await api('/auth/session'))
+  const data = await api('/auth/oidc/callback', {
+    method: 'POST',
+    body: { code, code_verifier: saved.verifier },
+  })
+  const back =
+    saved.back.startsWith('/') &&
+    !saved.back.startsWith('//') &&
+    !saved.back.startsWith('/oidc')
+      ? saved.back
+      : '/'
+  await navigateTo(back, { replace: true })
+  remember(TRIED, null) // une future perte de session pourra être rattrapée
+  session.apply(data)
+}
 async function logout() {
   error.value = ''
   try {
     await api('/auth/logout', { method: 'POST' })
+    remember(TRIED, '1') // déconnexion voulue : pas de reconnexion silencieuse dans cet onglet
     session.clear()
     await navigateTo('/')
   } catch (e) {
@@ -41,13 +136,20 @@ onMounted(() => {
   new ResizeObserver(() => {
     document.documentElement.style.setProperty(
       '--site-h',
-      `${el.offsetHeight}px`
+      `${el.offsetHeight}px`,
     )
   }).observe(el)
 })
 onMounted(async () => {
   try {
-    session.apply(await api('/auth/session'))
+    const returning = route.path === '/oidc'
+    if (returning) await finishOidc()
+    else session.apply(await api('/auth/session'))
+    if (!session.user) {
+      oidc.value = await api('/auth/oidc/config').catch(() => oidc.value)
+      // le navigateur part chez le fournisseur : on garde l'écran de chargement
+      if (oidc.value.enabled && !returning && (await trySilentOidc())) return
+    }
   } catch (e) {
     error.value = e.message
   } finally {
@@ -69,7 +171,9 @@ onMounted(async () => {
       <NuxtLink to="/materials">Médiathèque</NuxtLink>
       <NuxtLink to="/outils">Outils facilitateurs</NuxtLink>
       <NuxtLink to="/stats">Statistiques</NuxtLink>
-      <NuxtLink v-if="session.can_edit_thesaurus" to="/thesaurus">Thésaurus</NuxtLink>
+      <NuxtLink v-if="session.can_edit_thesaurus" to="/thesaurus"
+        >Thésaurus</NuxtLink
+      >
     </nav>
     <div v-if="session.user" class="userbox">
       <span class="avatar" aria-hidden="true">{{ initials }}</span>
@@ -86,7 +190,15 @@ onMounted(async () => {
       <p class="muted">
         Connectez-vous pour consulter et enrichir les ressources de l’équipe.
       </p>
-      <form @submit.prevent="connect">
+      <PButton
+        v-if="oidc.enabled"
+        class="oidc-button"
+        type="button"
+        :label="`Se connecter avec ${oidc.provider}`"
+        @click="connectOidc"
+      />
+      <p v-if="oidc.enabled && !oidc.only" class="muted">ou</p>
+      <form v-if="!oidc.only" @submit.prevent="connect">
         <label
           >Identifiant<input
             v-model="login"

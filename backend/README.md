@@ -50,6 +50,19 @@ PostgreSQL restauré. Le YAML reste privé avec des permissions 600.
   `service_bind_dn` et `service_password`
   permettent l’autocomplétion des utilisateurs de l’annuaire ; sinon les auteurs
   déjà présents servent de suggestions. Aucune requête LDAP anonyme.
+- `auth.oidc` : connexion OpenID Connect facultative (code + PKCE), désactivée si
+  `discovery_url` ou `client_id` est vide. `redirect_uri` vaut par défaut
+  `<public.frontend_url>/oidc` et doit être déclarée à l’identique chez le
+  fournisseur. Le compte est cherché par `preferred_username` (jamais par e-mail)
+  dans `auth.users` ou l’annuaire LDAP (qui exige alors `service_bind_dn` et
+  `service_password`) ; aucun compte n’est créé. `only_oidc_connexion: true`
+  masque le formulaire et fait refuser `POST /auth/login` (403) ; sans effet si
+  OpenID est désactivé. Routes : `GET /auth/oidc/config`, `GET /auth/oidc/authorize`
+  (`state`, `code_challenge`, `silent=1` pour `prompt=none`), `POST /auth/oidc/callback` (`code`, `code_verifier`).
+  Connexion silencieuse : un visiteur non connecté est envoyé une seule fois par onglet
+  chez le fournisseur avec `prompt=none` ; sans session là-bas, il revient sans erreur
+  sur le formulaire. Une déconnexion volontaire la suspend dans l’onglet ; la
+  déconnexion chez le fournisseur n’est pas reprise de l’intranet.
 - `paths` : chemins relatifs à la racine du dépôt ou absolus. Les nouveaux fichiers
   et pages sont écrits hors de l’historique, dans des dossiers ignorés par Git.
 - `proxy` : nombres exacts de relais de confiance par en-tête, zéro par défaut.

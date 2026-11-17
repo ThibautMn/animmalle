@@ -153,6 +153,51 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/animations').status_code, 401)
         self.assertEqual(self.client.get('/api/auth/session').status_code, 200)
 
+    def enable_oidc(self, only=False):
+        self.settings['auth']['oidc'] = {'provider_name': 'Échange', 'discovery_url': 'http://idp.test/.well-known',
+                                         'client_id': 'cid', 'client_secret': 'secret', 'only_oidc_connexion': only}
+        self.config_path.write_text(yaml.safe_dump(self.settings))
+        self.client = create_app(self.config_path, engine=self.app.extensions['db_engine']).test_client()
+        self.client.application.config['TESTING'] = True
+        self.client.application.extensions['db_sessions'] = self.app.extensions['db_sessions']
+        self.token = self.client.get('/api/auth/session').json['csrf_token']
+
+    def test_oidc_disabled_by_default(self):
+        self.assertEqual(self.client.get('/api/auth/oidc/config').json,
+                         {'enabled': False, 'provider': 'OpenID', 'only': False})
+        self.assertEqual(self.client.get('/api/auth/oidc/authorize?state=abcdefgh&code_challenge=' + 'a' * 43).status_code, 400)
+
+    def test_oidc_login_flow_and_only_mode(self):
+        from unittest import mock
+        self.enable_oidc(only=True)
+        self.assertEqual(self.client.get('/api/auth/oidc/config').json, {'enabled': True, 'provider': 'Échange', 'only': True})
+        # le formulaire est refusé, même avec de bons identifiants
+        self.assertEqual(self.mutate('post', '/api/auth/login', {'login': 'alice', 'password': 'test-password'}).status_code, 403)
+        discovery = {'authorization_endpoint': 'http://idp.test/authorize'}
+        with mock.patch('animmalle.oidc.discovery', return_value=discovery):
+            url = self.client.get('/api/auth/oidc/authorize?state=abcdefgh&code_challenge=' + 'a' * 43).json['url']
+            self.assertIn('code_challenge_method=S256', url)
+            self.assertIn('redirect_uri=http%3A%2F%2Ffront.test%2Foidc', url)
+            self.assertNotIn('prompt=none', url)
+            silent = self.client.get('/api/auth/oidc/authorize?silent=1&state=abcdefgh&code_challenge=' + 'a' * 43).json['url']
+            self.assertIn('prompt=none', silent)
+            self.assertEqual(self.client.get('/api/auth/oidc/authorize?state=abcdefgh&code_challenge=court').status_code, 400)
+        body = {'code': 'c', 'code_verifier': 'v' * 43}
+        self.assertEqual(self.mutate('post', '/api/auth/oidc/callback', {'code': 'c'}).status_code, 400)
+        with mock.patch('animmalle.oidc.exchange_code', return_value={'preferred_username': 'inconnu'}):
+            self.assertEqual(self.mutate('post', '/api/auth/oidc/callback', body).status_code, 403)
+        with mock.patch('animmalle.oidc.exchange_code', return_value={'preferred_username': 'admin', 'email': 'alice@x'}):
+            response = self.mutate('post', '/api/auth/oidc/callback', body)
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(response.json['user']['name'], 'admin')
+        self.assertTrue(response.json['is_admin'])
+        self.assertEqual(self.client.get('/api/animations').status_code, 200)
+
+    def test_oidc_with_password_form_still_allowed(self):
+        self.enable_oidc(only=False)
+        self.assertFalse(self.client.get('/api/auth/oidc/config').json['only'])
+        self.login('alice')
+
     def test_login_invalid_and_session_rotation(self):
         previous = self.token
         self.assertEqual(self.mutate('post', '/api/auth/login', {'login': 'alice', 'password': 'bad'}).status_code, 401)

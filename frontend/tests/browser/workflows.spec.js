@@ -67,6 +67,8 @@ async function fixture(page, admin = true) {
           csrf_token: 'rotated-token'
         })
       }
+      if (path === '/auth/oidc/config')
+        return response({ enabled: false, provider: 'OpenID', only: false })
       if (path === '/auth/session')
         return response({
           user: logged ? { name: 'Alice' } : null,

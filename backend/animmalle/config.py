@@ -29,6 +29,33 @@ def load_database_url(path=CONFIG_PATH):
                       database=pg['database'])
 
 
+def validate_oidc(auth, public):
+    """Complète et valide auth.oidc (facultatif) ; désactivé si discovery_url ou client_id est vide."""
+    oidc = auth.get('oidc') or {}
+    if not isinstance(oidc, dict):
+        raise ValueError('auth.oidc invalide.')
+    only = oidc.get('only_oidc_connexion', False)
+    if type(only) is not bool:
+        raise ValueError('auth.oidc.only_oidc_connexion doit être un booléen.')
+    cfg = {'provider_name': oidc.get('provider_name') or 'OpenID', 'discovery_url': oidc.get('discovery_url') or '',
+           'client_id': oidc.get('client_id') or '', 'client_secret': oidc.get('client_secret') or '',
+           'scope': oidc.get('scope') or 'openid profile email',
+           'redirect_uri': oidc.get('redirect_uri') or public['frontend_url'].rstrip('/') + '/oidc',
+           'only_oidc_connexion': only}
+    for key in ('provider_name', 'discovery_url', 'client_id', 'client_secret', 'scope', 'redirect_uri'):
+        if not isinstance(cfg[key], str) or '\n' in cfg[key] or '\r' in cfg[key]:
+            raise ValueError(f'auth.oidc.{key} invalide.')
+    if cfg['discovery_url'] and cfg['client_id']:
+        parsed = urlsplit(cfg['discovery_url'])
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.username or parsed.fragment:
+            raise ValueError('auth.oidc.discovery_url doit être une adresse HTTP(S).')
+        if not cfg['client_secret']:
+            raise ValueError('auth.oidc.client_secret requis.')
+        if auth['mode'] == 'ldap' and not (auth.get('ldap', {}).get('service_bind_dn') and auth['ldap'].get('service_password')):
+            raise ValueError('OpenID avec LDAP requiert auth.ldap.service_bind_dn et service_password (recherche du compte).')
+    auth['oidc'] = cfg
+
+
 def load_settings(path=CONFIG_PATH):
     """Valide les paramètres applicatifs ; aucune valeur secrète par défaut."""
     try:
@@ -89,6 +116,7 @@ def load_settings(path=CONFIG_PATH):
             raise ValueError('Configuration LDAP invalide.')
         if type(ldap.get('start_tls', True)) is not bool:
             raise ValueError('auth.ldap.start_tls doit être un booléen.')
+    validate_oidc(auth, data['public'])
     root = Path(__file__).resolve().parents[2]
     if auth['mode'] == 'ldap':
         ca_file = auth['ldap'].get('ca_certs_file')
