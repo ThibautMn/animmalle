@@ -35,7 +35,7 @@ class ConversionTests(unittest.TestCase):
     def test_duplicate_and_orphan_rejected(self):
         from animmalle.models import Base
         tables = {name: [] for name in Base.metadata.tables}
-        tables['thesaurus'] = [dict(id=1, label='a', code='', reference='')] * 2
+        tables['thesaurus'] = [dict(id=1, label='a', code='', reference='', position=0)] * 2
         with self.assertRaisesRegex(ValueError, 'dupliquée'):
             validate(tables)
         tables['thesaurus'] = []

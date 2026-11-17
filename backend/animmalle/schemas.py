@@ -97,6 +97,7 @@ class ThesaurusSchema(Schema):
     reference = text_field(200, required=True)
     label = fields.String(required=True, validate=validate.Length(min=1, max=80))
     code = text_field(200, load_default='')
+    position = fields.Integer(dump_only=True)
 
 
 class CommentSchema(Schema):

@@ -466,6 +466,23 @@ class ApiTests(unittest.TestCase):
         self.create_animation()
         self.assertEqual(self.mutate('delete', '/api/thesaurus/1').status_code, 409)
 
+    def test_thesaurus_move_changes_display_order(self):
+        self.login('admin')
+        first = self.mutate('post', '/api/thesaurus', {'label': 'B', 'reference': 'ref.thematiques'}).json
+        second = self.mutate('post', '/api/thesaurus', {'label': 'A', 'reference': 'ref.thematiques'}).json
+        self.assertEqual(second['position'], first['position'] + 1)
+
+        def order():
+            items = self.client.get('/api/thesaurus?reference=ref.thematiques').json['items']
+            return [item['label'] for item in items if item['label'] in ('A', 'B')]
+
+        self.assertEqual(order(), ['B', 'A'])
+        self.assertEqual(self.mutate('put', f"/api/thesaurus/{second['id']}/move", {'direction': 'up'}).status_code, 200)
+        self.assertEqual(order(), ['A', 'B'])
+        self.assertEqual(self.mutate('put', f"/api/thesaurus/{second['id']}/move", {'direction': 'up'}).status_code, 200)
+        self.assertEqual(order(), ['A', 'B'])
+        self.assertEqual(self.mutate('put', f"/api/thesaurus/{second['id']}/move", {'direction': 'x'}).status_code, 422)
+
     def test_pictogram_upload_replace_rename_delete(self):
         png = b'\x89PNG\r\n\x1a\n' + b'0' * 20
         def send(data, name='a.png'):

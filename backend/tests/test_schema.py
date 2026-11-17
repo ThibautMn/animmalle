@@ -44,6 +44,7 @@ class SchemaTests(unittest.TestCase):
                 patch.object(migration.op, 'create_index', side_effect=lambda *a, **k: indexes.append(a)):
             migration.upgrade()
         self.apply_duration_migration(metadata, indexes)
+        self.apply_position_migration(metadata)
         dialect = postgresql.dialect()
         self.assertEqual(set(metadata.tables), set(Base.metadata.tables) - APPLICATION_TABLES)
         for name, table in Base.metadata.tables.items():
@@ -77,6 +78,17 @@ class SchemaTests(unittest.TestCase):
                 patch.object(migration.op, 'drop_index', side_effect=drop_index), \
                 patch.object(migration.op, 'drop_constraint', side_effect=drop_constraint), \
                 patch.object(migration.op, 'drop_column', side_effect=drop_column):
+            migration.upgrade()
+
+    def apply_position_migration(self, metadata):
+        """Rejoue la migration 0007 (position des termes du thésaurus)."""
+        spec = importlib.util.spec_from_file_location(
+            'position', BACKEND / 'migrations/versions/0007_position_thesaurus.py')
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        table = metadata.tables['thesaurus']
+        with patch.object(migration.op, 'add_column', side_effect=lambda _t, column: table.append_column(column)), \
+                patch.object(migration.op, 'execute'):
             migration.upgrade()
 
     def test_offline_upgrade_and_downgrade_without_configuration(self):

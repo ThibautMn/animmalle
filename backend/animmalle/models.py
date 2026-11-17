@@ -21,6 +21,8 @@ class Thesaurus(Base):
     reference = mapped_column(Text, nullable=True, default='', server_default=text("''"))
     label = mapped_column(String(80), nullable=True)
     code = mapped_column(Text, nullable=True, default='', server_default=text("''"))
+    # Ordre d'affichage parmi les termes de même référence (formulaires, listes de cases à cocher).
+    position = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
 
 
 class Animation(Base):

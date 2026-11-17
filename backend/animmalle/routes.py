@@ -431,7 +431,7 @@ def taxhub_import():
 
 @api.get('/thesaurus')
 def thesaurus():
-    query = select(Thesaurus).order_by(Thesaurus.label, Thesaurus.id)
+    query = select(Thesaurus).order_by(Thesaurus.position, Thesaurus.label, Thesaurus.id)
     if 'reference' in request.args:
         query = query.where(Thesaurus.reference == request.args['reference'])
     return {'items': ThesaurusSchema(many=True).dump(g.db.scalars(query))}
@@ -446,7 +446,8 @@ def create_tag():
             raise ValidationError({'reference': ['Catégorie introuvable.']})
     elif not data['code']:
         raise ValidationError({'code': ['Code requis pour une catégorie.']})
-    item = Thesaurus(**data)
+    last = g.db.scalar(select(func.max(Thesaurus.position)).where(Thesaurus.reference == data['reference']))
+    item = Thesaurus(**data, position=0 if last is None else last + 1)
     g.db.add(item)
     g.db.commit()
     return ThesaurusSchema().dump(item), 201
@@ -466,6 +467,24 @@ def update_tag(key):
     item.label = data['label']
     g.db.commit()
     return ThesaurusSchema().dump(item)
+
+
+@api.put('/thesaurus/<int:key>/move')
+def move_tag(key):
+    require_thesaurus_editor()
+    item = svc.get(Thesaurus, key)
+    direction = (request.get_json(silent=True) or {}).get('direction')
+    if direction not in ('up', 'down'):
+        raise ValidationError({'direction': ['Valeur attendue : up ou down.']})
+    siblings = list(g.db.scalars(select(Thesaurus).where(Thesaurus.reference == item.reference).order_by(Thesaurus.position, Thesaurus.label, Thesaurus.id)))
+    index = siblings.index(item)
+    target = index - 1 if direction == 'up' else index + 1
+    if 0 <= target < len(siblings):
+        siblings[index], siblings[target] = siblings[target], siblings[index]
+    for number, sibling in enumerate(siblings):
+        sibling.position = number
+    g.db.commit()
+    return {'items': ThesaurusSchema(many=True).dump(siblings)}
 
 
 @api.delete('/thesaurus/<int:key>')

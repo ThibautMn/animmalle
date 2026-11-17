@@ -23,6 +23,8 @@ def head_revisions():
 HISTORICAL = {name: table for name, table in Base.metadata.tables.items() if name not in APPLICATION_TABLES}
 # Colonnes de l'ancien dump remplacées depuis : table -> (colonne historique, colonne actuelle).
 RENAMED = {'sequence': ('fk_duree_id', 'duree_minutes')}
+# Colonnes absentes de l'ancien dump, calculées à l'import : table -> colonnes.
+ADDED = {'thesaurus': {'position'}}
 HISTORICAL_SORTED = [table for table in Base.metadata.sorted_tables if table.name in HISTORICAL]
 
 
@@ -144,7 +146,7 @@ def read_dump(path):
                 raise ValueError('Table source inconnue ou répétée.')
             columns[name] = re.findall(r'^\s*`([^`]+)`', body, re.M)
             expected = {RENAMED[name][0] if name in RENAMED and key == RENAMED[name][1] else key
-                        for key in HISTORICAL[name].c.keys()}
+                        for key in HISTORICAL[name].c.keys() if key not in ADDED.get(name, ())}
             if set(columns[name]) != expected or len(set(columns[name])) != len(columns[name]):
                 raise ValueError('Colonnes source incompatibles.')
             tables[name] = []
@@ -176,6 +178,10 @@ def convert_durations(tables):
         hours = re.fullmatch(r'\s*(\d+)\s*h\s*(\d+)?\s*', label)
         short = re.fullmatch(r'\s*(\d+)\s*min\s*', label)
         row['duree_minutes'] = (int(hours[1]) * 60 + int(hours[2] or 0)) if hours else int(short[1]) if short else 0
+    # Position initiale des termes : ordre alphabétique au sein de chaque référence.
+    ranks = {}
+    for row in sorted(tables['thesaurus'], key=lambda r: (r['reference'] or '', r['label'] or '', r['id'])):
+        row['position'] = ranks[row['reference'] or ''] = ranks.get(row['reference'] or '', -1) + 1
     # La famille ref.duree_seq n'existe plus dans le thésaurus (migration 0005).
     removed = {row['id'] for row in tables['thesaurus'] if 'ref.duree_seq' in (row['reference'], row['code'])}
     tables['thesaurus'][:] = [row for row in tables['thesaurus'] if row['id'] not in removed]

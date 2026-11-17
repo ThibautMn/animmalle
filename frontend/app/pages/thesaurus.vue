@@ -91,6 +91,21 @@ async function remove(item) {
     busy.value = false
   }
 }
+async function move(item, direction) {
+  busy.value = true
+  error.value = ''
+  try {
+    await api(`/thesaurus/${item.id}/move`, {
+      method: 'PUT',
+      body: { direction },
+    })
+    await load()
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
 onMounted(load)
 </script>
 <template>
@@ -118,6 +133,22 @@ onMounted(load)
     <section v-for="group in catalog.family('')" :key="group.id" class="card">
       <div class="toolbar">
         <div class="row-actions">
+          <PButton
+            class="bare-icon"
+            title="Monter : définit l’ordre d’affichage dans les formulaires et les listes"
+            :aria-label="`Monter ${group.label}`"
+            :disabled="busy || catalog.family('').findIndex((s) => s.id === group.id) === 0"
+            @click="move(group, 'up')"
+            ><ActionIcon name="up"
+          /></PButton>
+          <PButton
+            class="bare-icon"
+            title="Descendre : définit l’ordre d’affichage dans les formulaires et les listes"
+            :aria-label="`Descendre ${group.label}`"
+            :disabled="busy || catalog.family('').findIndex((s) => s.id === group.id) === catalog.family('').length - 1"
+            @click="move(group, 'down')"
+            ><ActionIcon name="down"
+          /></PButton>
           <PButton
             class="bare-icon"
             title="Ajouter une entrée"
@@ -232,6 +263,22 @@ onMounted(load)
           </form>
           <template v-else>
             <span class="row-actions">
+              <PButton
+                class="bare-icon"
+                title="Monter : définit l’ordre d’affichage dans les formulaires et les listes"
+                :aria-label="`Monter ${item.label}`"
+                :disabled="busy || catalog.family(group.code).findIndex((s) => s.id === item.id) === 0"
+                @click="move(item, 'up')"
+                ><ActionIcon name="up"
+              /></PButton>
+              <PButton
+                class="bare-icon"
+                title="Descendre : définit l’ordre d’affichage dans les formulaires et les listes"
+                :aria-label="`Descendre ${item.label}`"
+                :disabled="busy || catalog.family(group.code).findIndex((s) => s.id === item.id) === catalog.family(group.code).length - 1"
+                @click="move(item, 'down')"
+                ><ActionIcon name="down"
+              /></PButton>
               <PictoDialog :item="item" />
               <PButton
                 class="bare-icon"
