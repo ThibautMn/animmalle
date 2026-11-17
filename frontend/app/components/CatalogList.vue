@@ -1,6 +1,7 @@
 <script setup>
 import { useSessionStore } from "~/stores/session";
 import { formatMinutes } from "../../lib/forms.mjs";
+import { toPlainText } from "../../lib/richtext.mjs";
 const props = defineProps({ kind: { type: String, default: "animation" } });
 const session = useSessionStore();
 const api = useApi();
@@ -47,7 +48,8 @@ const extra_terms = ref([]);
 // Termes de la dernière recherche aboutie, surlignés dans les résultats.
 const marked_terms = ref([]);
 // Découpe un texte en segments, ceux qui contiennent un terme recherché ayant hit = true.
-function highlight(text) {
+function highlight(raw) {
+  const text = toPlainText(raw);
   const terms = [...marked_terms.value].sort((a, b) => b.length - a.length);
   if (!text || !terms.length) return [{ text, hit: false }];
   const pattern = terms
@@ -93,6 +95,10 @@ async function search(reset = false) {
     } else {
       query.kind = props.kind;
       query.type = types.value;
+      const terms = [search_text.value, ...extra_terms.value]
+        .map((term) => term.trim())
+        .filter(Boolean);
+      if (terms.length) query.q = terms;
     }
     const result = await api(endpoint, { query });
     if (current === requestId) {
@@ -192,14 +198,18 @@ onMounted(async () => {
   </div>
   <div :class="['catalog-layout', animations && 'with-sidebar']">
     <form class="card filters" @submit.prevent="search(true)">
-      <div v-if="animations" class="search-field">
+      <div class="search-field">
         <label
           >Recherche<span class="search-row"
             ><input
               v-model="search_text"
               type="search"
               maxlength="100"
-              placeholder="Titre, description ou objectifs…"
+              :placeholder="
+                animations
+                  ? 'Titre, description ou objectifs…'
+                  : 'Nom, description, type, thématique, matériel…'
+              "
             />
             <PButton
               v-if="search_text.trim()"
@@ -220,7 +230,7 @@ onMounted(async () => {
             v-model="extra_terms[index]"
             type="search"
             maxlength="100"
-            placeholder="ET titre, description ou objectifs…"
+            placeholder="ET autre critère…"
             :aria-label="`Critère de recherche ${index + 2}`"
           />
           <PButton
@@ -344,7 +354,23 @@ onMounted(async () => {
           :busy="busy"
           @go="go"
         />
-        <SequenceMedia v-if="thumbnails" :items="items" />
+        <SequenceMedia
+          v-if="thumbnails"
+          :items="items"
+          details
+          @deleted="
+            (id) => {
+              items = items.filter((entry) => entry.id !== id)
+              search()
+            }
+          "
+          @updated="
+            (updated) =>
+              (items = items.map((entry) =>
+                entry.id === updated.id ? { ...entry, ...updated } : entry
+              ))
+          "
+        />
         <div v-else :class="['resource-list', animations && 'cards-list']">
           <article v-for="item in items" :key="item.id" class="card">
             <span v-if="animations" class="badge">{{
@@ -428,7 +454,7 @@ onMounted(async () => {
                   :key="key"
                 >
                   <dt>{{ label }}</dt>
-                  <dd class="prose">{{ item[key] || "Non renseigné" }}</dd>
+                  <dd class="prose">{{ toPlainText(item[key]) || "Non renseigné" }}</dd>
                 </template>
                 <dt>Thématiques</dt>
                 <dd>

@@ -11,7 +11,7 @@ export default defineNuxtConfig({
     }
   },
   modules: ['@pinia/nuxt'],
-  css: ['~/assets/main.css'],
+  css: ['primeicons/primeicons.css', '~/assets/main.css'],
   runtimeConfig: { centralConfigPath: configPath, public: { apiBase: '' } },
   app: {
     head: {

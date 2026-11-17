@@ -5,7 +5,7 @@ import json
 from flask import Blueprint, abort, g, request, session, current_app, send_file
 from marshmallow import ValidationError
 from sqlalchemy import select, delete, text, or_, func
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import aliased, load_only
 from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, require_admin, require_thesaurus_editor
@@ -272,9 +272,34 @@ def materials():
     types = id_args('type')
     if types:
         query = query.where(MatPeda.fk_type_mat_id.in_(types))
-    if search := request.args.get('q', '').strip()[:100]:
-        escaped = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        query = query.where(MatPeda.nom.ilike(f'%{escaped}%', escape='\\'))
+    # Chaque paramètre q répété est un critère (ET) cherché dans tous les champs du média.
+    type_alias, difficulty_alias, tool_alias = (aliased(Thesaurus) for _ in range(3))
+    if any(value.strip() for value in request.args.getlist('q')):
+        query = (query.outerjoin(type_alias, type_alias.id == MatPeda.fk_type_mat_id)
+                 .outerjoin(difficulty_alias, difficulty_alias.id == MatPeda.difficulte_id)
+                 .outerjoin(tool_alias, tool_alias.id == MatPeda.fk_type_mat_outil_id))
+    for text_query in (value.strip() for value in request.args.getlist('q')):
+        if not text_query:
+            continue
+        if len(text_query) > 100:
+            raise ValidationError({'q': ['100 caractères maximum.']})
+        escaped = text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        pattern = f'%{escaped}%'
+        theme_alias = aliased(Thesaurus)
+        theme = (select(RelMatPedaThematique.id)
+                 .join(theme_alias, theme_alias.id == RelMatPedaThematique.fk_thes_id)
+                 .where(RelMatPedaThematique.fk_mat_peda_id == MatPeda.id, theme_alias.label.ilike(pattern, escape='\\')))
+        query = query.where(or_(
+            MatPeda.nom.ilike(pattern, escape='\\'),
+            MatPeda.description.ilike(pattern, escape='\\'),
+            MatPeda.variante.ilike(pattern, escape='\\'),
+            MatPeda.materiel.ilike(pattern, escape='\\'),
+            MatPeda.localisation.ilike(pattern, escape='\\'),
+            MatPeda.url.ilike(f'%.{escaped}', escape='\\'),
+            type_alias.label.ilike(pattern, escape='\\'),
+            difficulty_alias.label.ilike(pattern, escape='\\'),
+            tool_alias.label.ilike(pattern, escape='\\'),
+            theme.exists()))
     tags = id_args('tag')
     result = []
     for item in g.db.scalars(query):
@@ -348,7 +373,7 @@ def upload_material(key):
 
 @api.get('/materials/<int:key>/preview')
 def preview_material(key):
-    source, mime = files.preview_file(svc.get(MatPeda, key))
+    source, mime = files.preview_file(svc.get(MatPeda, key), native=request.args.get('natif') == '1')
     response = send_file(source, mimetype=mime, download_name='apercu.pdf' if mime == 'application/pdf' else None)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'

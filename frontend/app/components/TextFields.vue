@@ -3,7 +3,7 @@ defineProps({ fields: Array })
 const model = defineModel({ required: true })
 </script>
 <template>
-  <label v-for="[key, label] in fields" :key="key"
-    >{{ label }}<textarea v-model="model[key]" maxlength="100000" />
-  </label>
+  <div v-for="[key, label] in fields" :key="key" class="rich-field"
+    ><span class="rich-label">{{ label }}</span><RichEditor v-model="model[key]" :label="label" />
+  </div>
 </template>

@@ -3,13 +3,17 @@ const props = defineProps({
   items: { type: Array, required: true },
   editable: Boolean,
   // Mode choix : la vignette est un bouton qui sélectionne le média.
-  selectable: Boolean
+  selectable: Boolean,
+  // Fenêtre d'aperçu avec le formulaire d'informations du média.
+  details: Boolean
 })
-const emit = defineEmits(['remove', 'select'])
+const emit = defineEmits(['remove', 'select', 'updated', 'deleted'])
 const api = useApi()
 const catalog = useCatalog()
 const sources = ref({})
 const errors = ref({})
+// Fenêtres d'aperçu par média, pour ouvrir l'aperçu depuis le titre.
+const previews = {}
 let disposed = false
 const items = computed(() => props.items.filter(Boolean))
 const EXTENSIONS = {
@@ -99,7 +103,11 @@ onBeforeUnmount(() => {
         v-else-if="PREVIEWABLE.includes(kind(item))"
         :id="item.id"
         icon
+        :ref="(component) => (previews[item.id] = component)"
+        :details="details"
         class="thumbnail-preview"
+        @updated="emit('updated', $event)"
+        @deleted="emit('deleted', $event)"
       >
         <MediaTile :item="item" :kind="kind(item)" :source="sources[item.id]" :image="showsImage(item)" :extension="extensionLabel(item)" />
       </MediaPreview>
@@ -111,7 +119,13 @@ onBeforeUnmount(() => {
       </NuxtLink>
       <figcaption v-if="selectable">{{ item.nom }}</figcaption>
       <figcaption v-else>
-        <NuxtLink :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
+        <a
+          v-if="details && PREVIEWABLE.includes(kind(item))"
+          href="#"
+          @click.prevent="previews[item.id]?.preview()"
+          >{{ item.nom }}</a
+        >
+        <NuxtLink v-else :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
         <DownloadButton
           :path="`/materials/${item.id}/file`"
           icon="download"

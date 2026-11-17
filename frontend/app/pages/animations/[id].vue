@@ -375,11 +375,7 @@ onMounted(load)
             :class="`block-${key}`"
           >
             <legend>{{ label }}</legend>
-            <textarea
-              v-model="draft[key]"
-              :aria-label="label"
-              maxlength="100000"
-            />
+            <RichEditor v-model="draft[key]" :label="label" />
           </fieldset>
           <h2>Les séquences</h2>
           <ol class="timeline">
@@ -458,11 +454,7 @@ onMounted(load)
                   :class="`block-seq-${key}`"
                 >
                   <legend>{{ label }}</legend>
-                  <textarea
-                    v-model="seq[key]"
-                    :aria-label="label"
-                    maxlength="100000"
-                  />
+                  <RichEditor v-model="seq[key]" :label="label" />
                 </fieldset>
                 <MediaEditor v-model="seq.materiel" :media="mediaItems" />
               </article>
@@ -490,7 +482,7 @@ onMounted(load)
             :class="`block-${key}`"
           >
             <legend>{{ label }}</legend>
-            <p class="prose">{{ item[key] }}</p>
+            <RichText :text="item[key]" />
           </fieldset>
           <h2>Les séquences</h2>
           <ol class="timeline">
@@ -528,21 +520,21 @@ onMounted(load)
                   class="block block-sequence block-deroulement"
                 >
                   <legend>Déroulement</legend>
-                  <p class="prose">{{ seq.description }}</p>
+                  <RichText :text="seq.description" />
                 </fieldset>
                 <fieldset
                   v-show="seq.objectifs"
                   class="block block-sequence block-objectifs"
                 >
                   <legend>Objectifs</legend>
-                  <p class="prose">{{ seq.objectifs }}</p>
+                  <RichText :text="seq.objectifs" />
                 </fieldset>
                 <fieldset
                   v-show="seq.materiel_div"
                   class="block block-sequence block-materiel"
                 >
                   <legend>Matériel complémentaire</legend>
-                  <p class="prose">{{ seq.materiel_div }}</p>
+                  <RichText :text="seq.materiel_div" />
                 </fieldset>
                 <div v-if="seq.materiel.length">
                   <h4>Médias</h4>
@@ -802,8 +794,7 @@ onMounted(load)
 .block-seq-materiel_div {
   --accent: #b07a1a;
 }
-.block textarea {
-  min-height: 90px;
+.block .rich {
   margin-top: 0;
   border-color: color-mix(in srgb, var(--accent) 30%, white);
 }

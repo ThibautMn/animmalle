@@ -375,10 +375,15 @@ def playable_video(source, audio=False):
     return target
 
 
-def preview_file(item):
-    """Renvoie un média natif ou un PDF temporaire, sans toucher à l'original."""
+def preview_file(item, native=False):
+    """Renvoie un média natif ou un PDF temporaire, sans toucher à l'original.
+
+    Avec native=True, l'audio et la vidéo sont servis tels quels (aucune conversion) ;
+    le client redemande une copie convertie si son navigateur ne sait pas les lire."""
     source = media_path(item)
     mime = mimetypes.guess_type(source.name)[0] or 'application/octet-stream'
+    if native and mime.startswith(('audio/', 'video/')):
+        return source, mime
     if source.suffix.lower() in FOREIGN_AUDIO_EXTENSIONS:
         return playable_video(source, audio=True), 'audio/mp4'
     if mime.startswith('video/') and needs_video_conversion(source):

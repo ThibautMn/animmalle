@@ -189,7 +189,7 @@ onMounted(load)
       <MediaPreview v-if="item.has_file" :id="item.id" />
       <section v-for="[key, label] in materialFields" :key="key" class="card">
         <h2>{{ label }}</h2>
-        <p class="prose">{{ item[key] || 'Non renseigné' }}</p>
+        <RichText v-if="item[key]" :text="item[key]" /><p v-else class="prose">Non renseigné</p>
       </section>
       <p>
         Difficulté : {{ catalog.label(item.difficulte_id) || 'Non renseignée' }}

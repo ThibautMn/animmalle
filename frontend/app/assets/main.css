@@ -1385,3 +1385,269 @@ button.bare-icon svg {
   padding: 0 1px;
   border-radius: 2px;
 }
+
+.preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 480px);
+  gap: 20px;
+  align-items: start;
+}
+.media-details {
+  min-width: 0;
+  margin-top: 20px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+.media-details h3 {
+  margin: 0 0 8px;
+}
+@media (max-width: 800px) {
+  .preview-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.preview-dialog:has(.preview-layout) {
+  width: min(1400px, 96vw);
+}
+
+.preview-dialog .toolbar {
+  align-items: center;
+}
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+.dialog-actions [data-tooltip] {
+  position: relative;
+}
+.dialog-actions [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #222;
+  color: #fff;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+.dialog-actions [data-tooltip]:hover::after,
+.dialog-actions [data-tooltip]:has(:focus-visible)::after,
+.dialog-actions [data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+.preview-dialog .toolbar h2 {
+  flex: 1;
+  margin: 0;
+}
+.dialog-actions .close-button {
+  background: #374151;
+  border: 1px solid #374151;
+  color: #fff;
+}
+.dialog-actions .close-button svg {
+  width: 26px;
+  height: 26px;
+  stroke-width: 3;
+}
+.dialog-actions .close-button:hover,
+.dialog-actions .close-button:focus-visible {
+  background: #111827;
+}
+
+/* Éditeur WYSIWYG : 3 lignes minimum, puis la hauteur suit le contenu */
+.rich {
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+.rich:focus-within {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px var(--c-primary-soft);
+}
+.rich-tools {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-bottom: 1px solid var(--c-line);
+}
+.rich-tools button {
+  min-width: 2rem;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.rich-tools button.on {
+  background: var(--c-primary-soft);
+  border-color: var(--c-primary);
+}
+.rich-body .ProseMirror {
+  min-height: calc(3 * 1.5em);
+  padding: 10px 12px;
+  line-height: 1.5;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.rich-body .ProseMirror p,
+.rich-view p {
+  margin: 0 0 0.5em;
+}
+.rich-body .ProseMirror > :last-child,
+.rich-view > :last-child {
+  margin-bottom: 0;
+}
+.rich-body .ProseMirror ul,
+.rich-body .ProseMirror ol,
+.rich-view ul,
+.rich-view ol {
+  margin: 0 0 0.5em;
+  padding-left: 1.5em;
+}
+.rich-view {
+  overflow-wrap: anywhere;
+}
+.rich-field {
+  display: block;
+  margin-bottom: 12px;
+}
+.rich-label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.rich-tools {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.rich-pop {
+  position: relative;
+}
+.rich-panel {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: 15rem;
+  padding: 6px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.15);
+}
+.rich-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--c-line) !important;
+}
+.rich-color {
+  border-bottom: 3px solid;
+  line-height: 1;
+  font-weight: 700;
+}
+.rich-view i.pi,
+.rich-body i.pi {
+  font-size: 0.95em;
+}
+.rich-body .ProseMirror ul,
+.rich-view ul {
+  list-style: disc;
+}
+.rich-body .ProseMirror ol,
+.rich-view ol {
+  list-style: decimal;
+}
+.rich-body .ProseMirror li,
+.rich-view li {
+  color: inherit;
+}
+.rich-body .ProseMirror li::marker,
+.rich-view li::marker {
+  color: #000;
+}
+.rich-tools select.rich-size {
+  width: auto;
+  margin: 0;
+  padding: 2px 6px;
+}
+.rich-tools button[aria-label='Gras'] { font-weight: 700; }
+.rich-tools button[aria-label='Italique'] { font-style: italic; }
+.rich-tools button[aria-label='Souligné'] { text-decoration: underline; }
+.rich-tools button[aria-label='Barré'] { text-decoration: line-through; }
+.rich-body .ProseMirror hr,
+.rich-view hr {
+  border: 0;
+  border-top: 2px solid #8a8f98;
+  margin: 0.8em 0;
+}
+.rich-body .ProseMirror hr.ProseMirror-selectednode {
+  border-top-color: var(--c-primary);
+}
+
+/* tableaux */
+.rich-body .ProseMirror table,
+.rich-view table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  table-layout: fixed;
+  width: 100%;
+}
+.rich-body .ProseMirror th,
+.rich-body .ProseMirror td,
+.rich-view th,
+.rich-view td {
+  position: relative;
+  padding: 0.35em 0.6em;
+  border: 1px solid #8a8f98;
+  vertical-align: top;
+  text-align: left;
+}
+.rich-body .ProseMirror th,
+.rich-view th {
+  background: var(--c-primary-soft);
+}
+.rich-body .ProseMirror td > p,
+.rich-body .ProseMirror th > p,
+.rich-view td > p,
+.rich-view th > p {
+  margin: 0;
+}
+.rich-body .tableWrapper {
+  overflow-x: auto;
+}
+.rich-body .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: -2px;
+  width: 4px;
+  background: var(--c-primary);
+  pointer-events: none;
+}
+.rich-body .ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+.rich-body .ProseMirror .selectedCell {
+  background: var(--c-primary-soft);
+}
+.rich-table-tools {
+  border-top: 1px solid var(--c-line);
+  border-bottom: 0;
+}
+.rich-view {
+  overflow-x: auto;
+}
