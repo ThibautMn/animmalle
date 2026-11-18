@@ -34,6 +34,7 @@ const tabs = [
 function open() {
   error.value = ''
   tab.value = 'upload'
+  if (!allowed.value) loadAllowed()
   if (props.tool) typeId.value = props.typeId
   dialog.value.showModal()
 }
@@ -54,6 +55,26 @@ function reset() {
   error.value = ''
 }
 defineExpose({ open })
+// Extensions acceptées par le serveur ; null tant qu'elles ne sont pas connues (aucun blocage alors).
+const allowed = ref(null)
+async function loadAllowed() {
+  try {
+    allowed.value = (await api('/files/config')).allowed_extensions.map((item) => item.toLowerCase())
+  } catch {
+    allowed.value = null
+  }
+}
+const extension = computed(() => (file.value ? file.value.name.split('.').pop().toLowerCase() : ''))
+const forbidden = computed(
+  () => Boolean(file.value) && Boolean(allowed.value) && !allowed.value.includes(extension.value)
+)
+const fileSize = computed(() => {
+  const bytes = file.value?.size
+  if (bytes == null) return ''
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace('.', ',')} Ko`
+  return `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} Mo`
+})
 const IMAGES = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 const AUDIOS = ['mp3', 'wma', 'wav', 'ogg', 'm4a', 'aac', 'flac']
 const VIDEOS = ['mp4', 'm4v', 'mov', 'avi', 'wmv', 'mpg', 'mpeg', 'mkv', 'webm', 'flv', '3gp']
@@ -92,7 +113,7 @@ function onFile(event) {
   if (file.value && !name.value) name.value = file.value.name.replace(/\.[^.]+$/, '').slice(0, 100)
 }
 async function upload() {
-  if (!file.value || !typeId.value) return
+  if (!file.value || !typeId.value || forbidden.value) return
   if (props.tool) {
     emit('pick-file', { file: file.value, typeId: Number(typeId.value) })
     close()
@@ -164,7 +185,14 @@ onBeforeUnmount(() => clearTimeout(timer))
   >
     <div class="toolbar">
       <h2>Ajouter un média</h2>
-      <PButton type="button" label="Fermer" @click="close" />
+      <PButton
+        type="button"
+        class="icon-button secondary dialog-close"
+        aria-label="Fermer"
+        title="Fermer"
+        @click="close"
+        ><ActionIcon name="close"
+      /></PButton>
     </div>
     <div v-if="!tool" class="media-add-tabs" role="tablist">
       <button
@@ -195,30 +223,37 @@ onBeforeUnmount(() => clearTimeout(timer))
           <span class="file-picker-name">{{ file ? file.name : 'Aucun fichier sélectionné' }}</span>
         </span>
       </label>
-      <div v-if="file" class="file-preview" aria-label="Aperçu du fichier">
-        <img v-if="previewKind === 'image'" :src="previewUrl" :alt="file.name" />
-        <video v-else-if="previewKind === 'video'" :src="previewUrl" controls preload="metadata" />
-        <audio v-else-if="previewKind === 'audio'" :src="previewUrl" controls />
-        <iframe v-else-if="previewKind === 'pdf'" :src="previewUrl" :title="file.name" />
-        <p v-else class="file-preview-name">{{ file.name }}</p>
+      <div v-if="file" class="file-details">
+        <div class="file-preview" aria-label="Aperçu du fichier">
+          <img v-if="previewKind === 'image'" :src="previewUrl" :alt="file.name" />
+          <video v-else-if="previewKind === 'video'" :src="previewUrl" controls preload="metadata" />
+          <audio v-else-if="previewKind === 'audio'" :src="previewUrl" controls />
+          <iframe v-else-if="previewKind === 'pdf'" :src="previewUrl" :title="file.name" />
+          <p v-else class="file-preview-name">{{ extension.toUpperCase() }}</p>
+        </div>
+        <div class="file-info">
+          <p class="file-info-name">{{ file.name }}</p>
+          <p v-if="fileSize" class="muted">{{ fileSize }}</p>
+          <p v-if="forbidden" role="alert" class="file-forbidden">Format de fichier non autorisé</p>
+          <label>
+            {{ tool ? 'Type de pièce jointe' : 'Type de média' }}
+            <select v-model="typeId" required>
+              <option :value="null" disabled>Choisir…</option>
+              <option v-for="type in catalog.family('ref.type_mat')" :key="type.id" :value="type.id">
+                {{ type.label }}
+              </option>
+            </select>
+          </label>
+        </div>
       </div>
       <label v-if="!tool">Nom du média<input v-model="name" required maxlength="100" /></label>
-      <label>
-        {{ tool ? 'Type de pièce jointe' : 'Type de média' }}
-        <select v-model="typeId" required>
-          <option :value="null" disabled>Choisir…</option>
-          <option v-for="type in catalog.family('ref.type_mat')" :key="type.id" :value="type.id">
-            {{ type.label }}
-          </option>
-        </select>
-      </label>
       <TagPicker
         v-if="!tool"
         v-model="themes"
         :items="catalog.family('ref.thematiques')"
         legend="Thématiques"
       />
-      <PButton type="submit" :label="tool ? 'Ajouter' : 'Télécharger et ajouter'" :disabled="busy" />
+      <PButton type="submit" :label="tool ? 'Ajouter' : 'Télécharger et ajouter'" :disabled="busy || forbidden" />
     </form>
     <div v-else-if="tab === 'library'" role="tabpanel" aria-labelledby="media-tab-library">
       <p class="pnc-intro">Ces médias sont ceux déjà enregistrés dans les autres animations</p>

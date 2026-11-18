@@ -627,6 +627,12 @@ def taxhub_import():
     return result, 201
 
 
+@api.get('/files/config')
+def files_config():
+    """Extensions de fichier acceptées au téléversement (pour prévenir l'utilisateur avant l'envoi)."""
+    return {'allowed_extensions': sorted(current_app.extensions['settings']['backend']['allowed_extensions'])}
+
+
 @api.get('/thesaurus')
 def thesaurus():
     query = select(Thesaurus).order_by(Thesaurus.position, Thesaurus.label, Thesaurus.id)

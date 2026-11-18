@@ -2192,6 +2192,16 @@ button.bare-icon svg {
 .tool-side > :first-child:not(fieldset) {
   margin-top: calc(0.98rem * 1.6 / 2);
 }
+/* Colonne de droite 12 % plus étroite, et l'encart général se resserre d'autant (4 % du corps)
+   pour ne laisser aucun vide à droite. */
+@media (min-width: 801px) {
+  .tool-body:not(.tool-body-single) {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 0.88fr);
+  }
+  .tool-sheet:has(.tool-side) {
+    max-width: 96%;
+  }
+}
 
 /* Aperçu d'un PDF choisi mais pas encore enregistré : première page, sans interaction. */
 .pdf-live iframe {
@@ -2202,4 +2212,40 @@ button.bare-icon svg {
   border: 0;
   background: #fff;
   pointer-events: none;
+}
+
+/* Fenêtre d'ajout : croix de fermeture, puis aperçu à gauche et informations à droite. */
+.media-add-dialog .dialog-close {
+  margin-left: auto;
+}
+.file-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.file-details .file-preview {
+  min-height: 140px;
+  align-items: center;
+}
+.file-info {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.file-info p {
+  margin: 0;
+}
+.file-info-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.file-forbidden {
+  color: #d00000;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .file-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -289,6 +289,19 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 204)
         self.assertTrue(list(Path(self.settings['paths']['uploads']).glob('*.pdf')))
 
+    def test_upload_too_large_has_french_message(self):
+        self.login('admin')
+        self.app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024
+        response = self.mutate('post', '/api/media', data={'data': '{}', 'file': (io.BytesIO(b'x' * 2 * 1024 * 1024), 'a.mp4')},
+                               content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 413)
+        self.assertIn('limite : 1 Mo', response.json['error']['message'])
+
+    def test_files_config_lists_allowed_extensions(self):
+        response = self.client.get('/api/files/config')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['allowed_extensions'], sorted(self.settings['backend']['allowed_extensions']))
+
     def test_outil_facilitateur_crud_and_separation(self):
         data = {'nom': 'Un outil', 'fk_type_outil_id': 7, 'difficulte_id': 8, 'variante': '<p>v</p>', 'materiel': '<p>m</p>'}
         response = self.mutate('post', '/api/outils', data)

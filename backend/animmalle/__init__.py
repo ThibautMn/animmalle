@@ -6,7 +6,7 @@ from marshmallow import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import CONFIG_PATH, load_database_url, load_settings
@@ -50,6 +50,11 @@ def create_app(config_path=CONFIG_PATH, *, engine=None):
     def database_error(error):
         g.db.rollback()
         return jsonify(error={'code': 'database', 'message': 'Base de données indisponible.'}), 503
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def too_large(error):
+        limit = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+        return jsonify(error={'code': '413', 'message': f'Fichier trop volumineux (limite : {limit} Mo).'}), 413
 
     @app.errorhandler(HTTPException)
     def http_error(error):
