@@ -2043,9 +2043,15 @@ button.bare-icon svg {
   justify-content: flex-end;
 }
 /* Au-dessus des pastilles de l'encart, pour que les info-bulles ne soient pas masquées. */
-.actions-end {
+.actions-end,
+.tip-below {
   position: relative;
   z-index: 30;
+}
+.form-buttons,
+.add-sequence {
+  display: flex;
+  gap: 8px;
 }
 .nav-arrow[data-tooltip]::after {
   content: attr(data-tooltip);
@@ -2324,11 +2330,15 @@ button.bare-icon svg {
 
 /* Info-bulles de la fiche d'un outil : sous les boutons d'action, au-dessus en édition. */
 .actions-end [data-tooltip],
-.tool-edit [data-tooltip] {
+.tool-edit [data-tooltip],
+.tip-below [data-tooltip],
+.tip-above [data-tooltip] {
   position: relative;
 }
 .actions-end [data-tooltip]::after,
-.tool-edit [data-tooltip]::after {
+.tool-edit [data-tooltip]::after,
+.tip-below [data-tooltip]::after,
+.tip-above [data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
   right: 0;
@@ -2350,11 +2360,17 @@ button.bare-icon svg {
   transition: opacity 0.15s;
   z-index: 20;
 }
-.actions-end [data-tooltip]::after {
+.actions-end [data-tooltip]::after,
+.tip-below [data-tooltip]::after {
   top: calc(100% + 6px);
 }
-.tool-edit [data-tooltip]::after {
+.tool-edit [data-tooltip]::after,
+.tip-above [data-tooltip]::after {
   bottom: calc(100% + 6px);
+}
+.tip-start [data-tooltip]::after {
+  left: 0;
+  right: auto;
 }
 .tool-edit .media-add-tile[data-tooltip]::after,
 .tool-edit .secondary[data-tooltip]::after {
@@ -2365,7 +2381,11 @@ button.bare-icon svg {
 .actions-end [data-tooltip]:has(:focus-visible)::after,
 .actions-end [data-tooltip]:focus-visible::after,
 .tool-edit [data-tooltip]:hover::after,
-.tool-edit [data-tooltip]:focus-visible::after {
+.tool-edit [data-tooltip]:focus-visible::after,
+.tip-below [data-tooltip]:hover::after,
+.tip-below [data-tooltip]:focus-visible::after,
+.tip-above [data-tooltip]:hover::after,
+.tip-above [data-tooltip]:focus-visible::after {
   opacity: 1;
 }
 

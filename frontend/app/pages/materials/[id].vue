@@ -286,13 +286,18 @@ onMounted(load)
           La notice est enregistrée avant le remplacement du fichier ; vous
           pourrez réessayer si le transfert échoue.
         </p>
-        <PButton type="submit" label="Enregistrer" /><PButton
+        <div class="tip-above tip-start form-buttons"><PButton
+          type="submit"
+          label="Enregistrer"
+          data-tooltip="Enregistre les modifications de la ressource"
+        /><PButton
           v-if="!creating"
           type="button"
           class="secondary"
           label="Annuler"
+          data-tooltip="Abandonne les modifications et revient à la fiche"
           @click="cancel"
-        />
+        /></div>
       </fieldset>
     </form>
     <template v-else

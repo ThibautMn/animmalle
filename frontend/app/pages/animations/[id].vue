@@ -245,11 +245,12 @@ onMounted(load)
       <p v-else class="muted">
         {{ item.auteurs }} · modifiée le {{ item.date_modif }}
       </p>
-      <div v-if="editing" class="actions">
+      <div v-if="editing" class="actions tip-below tip-start">
         <PButton
           type="submit"
           form="fiche-form"
           label="Enregistrer"
+          data-tooltip="Enregistre l'animation avec l'état choisi"
           :disabled="busy"
         />
         <PButton
@@ -257,6 +258,7 @@ onMounted(load)
           type="button"
           class="secondary"
           label="Annuler"
+          data-tooltip="Abandonne les modifications et revient à la fiche"
           @click="cancel"
         />
         <label class="state-field"
@@ -267,27 +269,30 @@ onMounted(load)
           </select></label
         >
       </div>
-      <div v-else class="actions">
+      <div v-else class="actions tip-below tip-start">
         <PButton
           v-if="canEdit"
           label="Modifier"
+          data-tooltip="Passe la fiche en mode modification"
           :disabled="busy"
           @click="editing = true"
         /><PButton
           v-if="session.is_admin && item.statut !== 1"
           label="Valider"
+          data-tooltip="Marque l'animation comme validée (réservé aux administrateurs)"
           :disabled="busy"
           @click="action('/validate', 'POST')"
         /><DownloadButton
           :path="`${path}/download`"
           :filename="`${item.titre}.zip`"
           label="Télécharger le kit"
+          data-tooltip="Télécharge l'animation et ses médias dans une archive ZIP"
           icon="pi-box"
           show-label
         /><PButton
           class="icon-button"
           aria-label="Imprimer"
-          title="Imprimer"
+          data-tooltip="Ouvre la fenêtre d'impression de la fiche"
           @click="window.print()"
           ><ActionIcon name="print"
         /></PButton>
@@ -295,7 +300,7 @@ onMounted(load)
           <summary
             class="icon-button"
             aria-label="Autres actions"
-            title="Autres actions"
+            data-tooltip="Réattribuer ou supprimer l'animation"
           >
             <ActionIcon name="more" />
           </summary>
@@ -325,7 +330,7 @@ onMounted(load)
           class="nav-arrow nav-prev"
           :to="`/animations/${neighbors.previous.id}`"
           :aria-label="`Animation précédente : ${neighbors.previous.titre}`"
-          :title="`Précédente : ${neighbors.previous.titre}`"
+          :data-tooltip="`Passe à l'animation précédente : ${neighbors.previous.titre}`"
           >‹</NuxtLink
         >
         <NuxtLink
@@ -333,7 +338,7 @@ onMounted(load)
           class="nav-arrow nav-next"
           :to="`/animations/${neighbors.next.id}`"
           :aria-label="`Animation suivante : ${neighbors.next.titre}`"
-          :title="`Suivante : ${neighbors.next.titre}`"
+          :data-tooltip="`Passe à l'animation suivante : ${neighbors.next.titre}`"
           >›</NuxtLink
         >
       </nav>
@@ -399,12 +404,12 @@ onMounted(load)
                     required
                     maxlength="100"
                   />
-                  <div class="seq-tools">
+                  <div class="seq-tools tip-above">
                     <PButton
                       type="button"
                       class="icon-button secondary"
                       aria-label="Monter la séquence"
-                      title="Monter"
+                      data-tooltip="Monte la séquence d'un cran"
                       :disabled="index === 0"
                       @click="moveSequence(draft.sequences, index, -1)"
                       ><ActionIcon name="up"
@@ -413,7 +418,7 @@ onMounted(load)
                       type="button"
                       class="icon-button secondary"
                       aria-label="Descendre la séquence"
-                      title="Descendre"
+                      data-tooltip="Descend la séquence d'un cran"
                       :disabled="index === draft.sequences.length - 1"
                       @click="moveSequence(draft.sequences, index, 1)"
                       ><ActionIcon name="down"
@@ -422,7 +427,7 @@ onMounted(load)
                       type="button"
                       class="icon-button secondary danger-icon"
                       aria-label="Retirer la séquence"
-                      title="Retirer la séquence"
+                      data-tooltip="Retire la séquence de l'animation"
                       @click="removeSequence(index)"
                       ><ActionIcon name="delete"
                     /></PButton>
@@ -462,12 +467,13 @@ onMounted(load)
               </article>
             </li>
           </ol>
-          <PButton
+          <div class="tip-above tip-start add-sequence"><PButton
             type="button"
             class="secondary"
             label="Ajouter une séquence"
+            data-tooltip="Ajoute une séquence vide à la fin de l'animation"
             @click="draft.sequences.push(newSequence())"
-          />
+          /></div>
         </div>
       </form>
       <div v-else class="fiche-layout">
