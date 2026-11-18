@@ -3,6 +3,8 @@ import { useSessionStore } from '~/stores/session'
 import { mediaFields, mediaPayload } from '../../lib/forms.mjs'
 const props = defineProps({
   id: [String, Number],
+  // Ressource de l'API : '/media' ou '/outils'.
+  base: { type: String, default: '/media' },
   icon: Boolean,
   // Affiche à droite du média ses informations, modifiables par un administrateur.
   details: Boolean,
@@ -111,7 +113,7 @@ async function load(convert) {
   busy.value = true
   error.value = ''
   try {
-    const url = `${config.public.apiBase}/media/${current.value}/preview${convert ? '' : '?natif=1'}`
+    const url = `${config.public.apiBase}${props.base}/${current.value}/preview${convert ? '' : '?natif=1'}`
     const controller = new AbortController()
     const response = await fetch(url, {
       credentials: 'include',
@@ -192,7 +194,7 @@ onBeforeUnmount(() => {
         <h2>Aperçu de la pièce jointe</h2>
         <div class="dialog-actions">
           <DownloadButton
-            :path="`/media/${current}/file`"
+            :path="`${base}/${current}/file`"
             icon="download"
             label="Télécharger le média"
             data-tooltip="Télécharger le média"

@@ -1,6 +1,10 @@
 <script setup>
 const props = defineProps({
   items: { type: Array, required: true },
+  // Ressource de l'API : '/media' ou '/outils'.
+  base: { type: String, default: '/media' },
+  // Vignettes seules, sans légende.
+  bare: Boolean,
   editable: Boolean,
   // Mode choix : la vignette est un bouton qui sélectionne le média.
   selectable: Boolean,
@@ -35,7 +39,7 @@ function kind(item) {
   const extension = (item.extension || '').toLowerCase()
   const found = Object.keys(EXTENSIONS).find((name) => EXTENSIONS[name].includes(extension))
   if (found) return found
-  const label = catalog.label(item.fk_type_mat_id).toLocaleLowerCase()
+  const label = catalog.label(item.fk_type_mat_id || item.fk_type_mat_outil_id).toLocaleLowerCase()
   if (/image|photo/.test(label)) return 'image'
   if (/vid[ée]o|film/.test(label)) return 'video'
   if (/son|audio|musique/.test(label)) return 'audio'
@@ -58,7 +62,7 @@ async function loadThumbnails() {
   await Promise.all(items.value.filter(item => THUMBNAILED.includes(kind(item)) && !sources.value[item.id] && !errors.value[item.id]).map(async item => {
     try {
       // Vignette légère ; l'original n'est chargé qu'à l'ouverture de l'aperçu.
-      const blob = await api(`/media/${item.id}/thumbnail`, { responseType: 'blob' })
+      const blob = await api(`${props.base}/${item.id}/thumbnail`, { responseType: 'blob' })
       if (disposed) return
       if (!blob.type.startsWith('image/')) throw new Error('Format de fichier incompatible avec ce type de média.')
       sources.value[item.id] = URL.createObjectURL(blob)
@@ -104,6 +108,7 @@ onBeforeUnmount(() => {
       <MediaPreview
         v-else-if="PREVIEWABLE.includes(kind(item))"
         :id="item.id"
+        :base="base"
         icon
         :ref="(component) => (previews[item.id] = component)"
         :details="details"
@@ -121,7 +126,7 @@ onBeforeUnmount(() => {
         </span>
       </NuxtLink>
       <figcaption v-if="selectable">{{ item.nom }}</figcaption>
-      <figcaption v-else>
+      <figcaption v-else-if="!bare">
         <a
           v-if="details && PREVIEWABLE.includes(kind(item))"
           href="#"
@@ -130,7 +135,7 @@ onBeforeUnmount(() => {
         >
         <NuxtLink v-else :to="`/materials/${item.id}`">{{ item.nom }}</NuxtLink>
         <DownloadButton
-          :path="`/media/${item.id}/file`"
+          :path="`${base}/${item.id}/file`"
           icon="download"
           :label="`Télécharger ${item.nom}`"
         />

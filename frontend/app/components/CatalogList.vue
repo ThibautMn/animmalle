@@ -77,6 +77,8 @@ const error = ref("");
 const animation_search = useState("animation_search", () => null);
 // Critères de la dernière recherche de la médiathèque, pour les flèches de l'aperçu.
 const media_filters = ref(null);
+// Dernière recherche des outils facilitateurs, réutilisée par la fiche pour les flèches.
+const outil_search = useState("outil_search", () => null);
 let requestId = 0;
 let duration_max_ready = false;
 let skip_duration_watch = false;
@@ -115,6 +117,9 @@ async function search(reset = false) {
       } else if (thumbnails) {
         const { page: _page, page_size: _size, ...filters } = query;
         media_filters.value = filters;
+      } else if (props.kind === "outil") {
+        const { page: _page, page_size: _size, ...filters } = query;
+        outil_search.value = filters;
       }
       marked_terms.value = query.q || [];
       items.value = result.items;
@@ -469,7 +474,7 @@ onMounted(async () => {
           <article v-for="item in items" :key="item.id" class="card tool-card">
             <header class="tool-head">
               <h2>
-                <NuxtLink :to="`${endpoint}/${item.id}`"><template
+                <NuxtLink :to="`/materials/${item.id}?kind=outil`"><template
                 v-for="(part, index) in highlight(item.titre || item.nom)"
                 :key="index"
                 ><mark v-if="part.hit">{{ part.text }}</mark
@@ -521,7 +526,7 @@ onMounted(async () => {
                 >Modifiée le {{ item.date_modif || "—" }}</small
               >
                 <div class="actions resource-actions">
-                  <MediaPreview v-if="item.has_file" :id="item.id" icon />
+                  <MediaPreview v-if="item.has_file" :id="item.id" base="/outils" icon />
                   <DownloadButton
                     v-if="item.has_file"
                     :path="`${endpoint}/${item.id}/file`"

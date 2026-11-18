@@ -1894,3 +1894,147 @@ button.bare-icon svg {
 .catalog-layout.tools-tint .search-field > label {
   font-size: inherit;
 }
+
+/* Fiche d'un outil facilitateur : texte à gauche, vignette et matériel à droite. */
+.tool-header {
+  align-items: flex-start;
+}
+.tool-title {
+  display: grid;
+  gap: 4px;
+}
+.tool-title h1 {
+  margin: 0;
+}
+.tool-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tool-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 12px;
+}
+.tool-body-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.tool-main,
+.tool-side {
+  display: grid;
+  gap: 12px;
+}
+.tool-side .tool-thumb {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+}
+@media (max-width: 800px) {
+  .tool-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.tool-header .tool-badges .badge {
+  padding: 6px 14px;
+  font-size: 1rem;
+}
+/* Encart global qui regroupe les encarts de la fiche. */
+.tool-sheet {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1.5px solid #d6cfee;
+  border-radius: var(--radius);
+  background: var(--c-surface);
+  box-shadow: 0 2px 8px rgb(74 63 122 / 12%);
+}
+/* Titre, date et pastilles alignés sur le texte des encarts (même marge que .card). */
+.tool-sheet .tool-header {
+  padding: 0 22px;
+}
+/* Encarts de la fiche outil : même forme que les blocs « Déroulement » des animations. */
+.tool-block {
+  --accent: #6a55b8;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 20px 14px 22px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, white);
+  border-radius: var(--radius);
+  background: var(--c-surface);
+}
+.tool-block legend {
+  padding: 0 10px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--accent) 75%, black);
+}
+.tool-block .prose {
+  margin: 0;
+}
+.tool-block-materiel {
+  background: color-mix(in srgb, var(--accent) 7%, white);
+}
+/* Pastilles collées au coin supérieur droit de l'encart général. */
+.tool-sheet {
+  position: relative;
+}
+.tool-sheet .tool-header .tool-badges {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  justify-content: flex-end;
+  max-width: 45%;
+}
+.tool-sheet .tool-header {
+  padding-right: 280px;
+}
+@media (max-width: 800px) {
+  .tool-sheet .tool-header {
+    padding-right: 22px;
+    padding-top: 40px;
+  }
+}
+
+.nav-arrow {
+  position: fixed;
+  top: 50%;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 76px;
+  transform: translateY(-50%);
+  border-radius: var(--radius);
+  background: var(--c-primary-mid);
+  color: var(--c-primary-dark);
+  font-size: 2.4rem;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgb(180 100 0 / 20%);
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.nav-arrow:hover,
+.nav-arrow:focus-visible {
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  opacity: 1;
+}
+.nav-prev {
+  left: 6px;
+}
+.nav-next {
+  right: 6px;
+}
+@media (max-width: 900px) {
+  .nav-arrow {
+    width: 30px;
+    height: 48px;
+  }
+}
+
+.actions-end {
+  justify-content: flex-end;
+}

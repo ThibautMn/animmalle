@@ -1,5 +1,6 @@
 <script setup>
 import { useSessionStore } from '~/stores/session'
+import { toPlainText } from '../../../lib/richtext.mjs'
 import {
   mediaFields,
   mediaPayload,
@@ -34,6 +35,8 @@ const item = ref(
     : { nom: '', fk_type_mat_id: null, description: '', thematiques: [] }
 )
 const draft = ref(null)
+const neighbors = ref(null)
+const outilSearch = useState('outil_search', () => null)
 const file = ref(null)
 const editing = ref(creating || (session.is_admin && route.query.edit === '1'))
 const busy = ref(true)
@@ -48,10 +51,26 @@ async function load() {
       item.value = await api(path)
     }
     draft.value = structuredClone(toRaw(item.value))
+    if (tool && !creating) loadNeighbors()
   } catch (e) {
     error.value = e.message
   } finally {
     busy.value = false
+  }
+}
+async function loadNeighbors() {
+  try {
+    const fetchNeighbors = (query) =>
+      api(`${path}/neighbors`, { query, retry: 0 })
+    let result = await fetchNeighbors(outilSearch.value || {})
+    // Fiche absente de la dernière recherche : on revient à la liste complète
+    if (!result.found && outilSearch.value) {
+      outilSearch.value = null
+      result = await fetchNeighbors({})
+    }
+    neighbors.value = result.found ? result : null
+  } catch {
+    neighbors.value = null
   }
 }
 async function save() {
@@ -118,6 +137,24 @@ onMounted(load)
   <NuxtLink :to="tool ? '/outils' : '/materials'"
     >← Retour aux ressources</NuxtLink
   >
+  <nav v-if="tool && neighbors && !editing" class="fiche-nav" aria-label="Outils voisins">
+    <NuxtLink
+      v-if="neighbors.previous"
+      class="nav-arrow nav-prev"
+      :to="`/materials/${neighbors.previous.id}?kind=outil`"
+      :aria-label="`Outil précédent : ${neighbors.previous.nom}`"
+      :title="`Précédent : ${neighbors.previous.nom}`"
+      >‹</NuxtLink
+    >
+    <NuxtLink
+      v-if="neighbors.next"
+      class="nav-arrow nav-next"
+      :to="`/materials/${neighbors.next.id}?kind=outil`"
+      :aria-label="`Outil suivant : ${neighbors.next.nom}`"
+      :title="`Suivant : ${neighbors.next.nom}`"
+      >›</NuxtLink
+    >
+  </nav>
   <p v-if="error" role="alert" class="error">{{ error }}</p>
   <p v-if="busy" role="status">Chargement…</p>
   <template v-if="draft"
@@ -166,51 +203,122 @@ onMounted(load)
       </fieldset>
     </form>
     <template v-else
-      ><div class="toolbar">
-        <h1>{{ item.nom }}</h1>
-        <span class="badge">{{ catalog.label(item[typeKey]) }}</span>
-      </div>
-      <p>{{ item.date_modif }}</p>
-      <div class="actions">
-        <DownloadButton
-          :path="`${path}/download`"
-          :filename="`${item.nom}.zip`"
-          label="Exporter en ZIP / ODT"
-        /><DownloadButton
-          v-if="item.has_file"
-          :path="`${path}/file`"
-          label="Télécharger la pièce jointe"
-        /><PButton
+      ><div class="actions actions-end">
+        <PButton
           v-if="session.is_admin"
           label="Modifier"
           @click="editing = true"
+        /><DownloadButton
+          :path="`${path}/download`"
+          :filename="`${item.nom}.zip`"
+          label="Télécharger le kit"
+          icon="pi-box"
+          show-label
         /><PButton
           v-if="session.is_admin"
-          class="danger"
-          label="Supprimer"
+          class="danger icon-button"
+          aria-label="Supprimer"
+          title="Supprimer"
           :disabled="busy"
           @click="remove"
-        />
+          ><ActionIcon name="delete"
+        /></PButton>
       </div>
-      <MediaPreview v-if="item.has_file && !tool" :id="item.id" />
-      <section v-for="[key, label] in fields" :key="key" class="card">
-        <h2>{{ label }}</h2>
-        <RichText v-if="item[key]" :text="item[key]" /><p v-else class="prose">Non renseigné</p>
-      </section>
-      <p v-if="tool">
-        Difficulté : {{ catalog.label(item.difficulte_id) || 'Non renseignée' }}
-      </p>
-      <p v-if="!tool" class="pictos">
-        <PictoIcon
-          v-for="tag in item.thematiques"
-          :id="tag"
-          :key="tag"
-          :size="40"
-        />
-      </p>
-      <p v-if="!tool">
-        {{ item.thematiques.map(catalog.label).join(' · ') }}
-      </p></template
+      <div v-if="tool" class="tool-sheet tools-tint">
+        <header :class="['toolbar', tool && 'tool-header']">
+        <div class="tool-title">
+          <h1>{{ item.nom }}</h1>
+          <small v-if="tool" class="muted"
+            >Modifiée le {{ item.date_modif || '—' }}</small
+          >
+          <p v-else>{{ item.date_modif }}</p>
+        </div>
+        <span class="tool-badges">
+          <span class="badge">{{ catalog.label(item[typeKey]) }}</span>
+          <span v-if="tool && catalog.label(item.difficulte_id)" class="badge">{{
+            catalog.label(item.difficulte_id)
+          }}</span>
+        </span>
+      </header>
+        <div
+          :class="[
+            'tool-body',
+            !item.has_file && !toPlainText(item.materiel) && 'tool-body-single'
+          ]"
+        >
+        <div class="tool-main">
+          <fieldset
+            v-for="[key, label] in fields.filter(
+              ([key]) => key !== 'materiel' && (key !== 'variante' || item[key])
+            )"
+            :key="key"
+            class="tool-block"
+          >
+            <legend>{{ label }}</legend>
+            <RichText v-if="item[key]" :text="item[key]" /><p
+              v-else
+              class="prose"
+            >
+              Non renseigné
+            </p>
+          </fieldset>
+        </div>
+        <aside
+          v-if="item.has_file || toPlainText(item.materiel)"
+          class="tool-side"
+        >
+          <SequenceMedia
+            v-if="item.has_file"
+            :items="[item]"
+            base="/outils"
+            bare
+            class="tool-thumb"
+          />
+          <fieldset
+            v-if="toPlainText(item.materiel)"
+            class="tool-block tool-block-materiel"
+          >
+            <legend>Matériel</legend>
+            <RichText :text="item.materiel" />
+          </fieldset>
+        </aside>
+        </div>
+      </div>
+      <template v-else
+        ><header :class="['toolbar', tool && 'tool-header']">
+        <div class="tool-title">
+          <h1>{{ item.nom }}</h1>
+          <small v-if="tool" class="muted"
+            >Modifiée le {{ item.date_modif || '—' }}</small
+          >
+          <p v-else>{{ item.date_modif }}</p>
+        </div>
+        <span class="tool-badges">
+          <span class="badge">{{ catalog.label(item[typeKey]) }}</span>
+          <span v-if="tool && catalog.label(item.difficulte_id)" class="badge">{{
+            catalog.label(item.difficulte_id)
+          }}</span>
+        </span>
+      </header><MediaPreview v-if="item.has_file" :id="item.id" />
+        <section v-for="[key, label] in fields" :key="key" class="card">
+          <h2>{{ label }}</h2>
+          <RichText v-if="item[key]" :text="item[key]" /><p
+            v-else
+            class="prose"
+          >
+            Non renseigné
+          </p>
+        </section>
+        <p class="pictos">
+          <PictoIcon
+            v-for="tag in item.thematiques"
+            :id="tag"
+            :key="tag"
+            :size="40"
+          />
+        </p>
+        <p>{{ item.thematiques.map(catalog.label).join(' · ') }}</p></template
+      ></template
     ></template
   >
 </template>

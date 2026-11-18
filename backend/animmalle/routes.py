@@ -474,8 +474,7 @@ def export_media(key):
                      download_name=kit.safe_name(item.nom, 'media') + '.zip')
 
 
-@api.get('/outils')
-def outils_list():
+def filtered_outils():
     type_alias, difficulty_alias, media_alias = (aliased(Thesaurus) for _ in range(3))
     query = (select(OutilFacilitateur)
              .outerjoin(type_alias, type_alias.id == OutilFacilitateur.fk_type_outil_id)
@@ -494,7 +493,27 @@ def outils_list():
             like(OutilFacilitateur.variante, pattern), like(OutilFacilitateur.materiel, pattern),
             like(OutilFacilitateur.url, extension), like(type_alias.label, pattern),
             like(difficulty_alias.label, pattern), like(media_alias.label, pattern)))
-    return paginate([svc.outil_dict(item) for item in g.db.scalars(query)])
+    return [svc.outil_dict(item) for item in g.db.scalars(query)]
+
+
+@api.get('/outils')
+def outils_list():
+    return paginate(filtered_outils())
+
+
+@api.get('/outils/<int:key>/neighbors')
+def outil_neighbors(key):
+    """Outils voisins de `key` dans la liste filtrée (mêmes paramètres que /outils)."""
+    rows = [(item['id'], item['nom']) for item in filtered_outils()]
+    position = next((index for index, row in enumerate(rows) if row[0] == key), None)
+    if position is None:
+        return {'found': False, 'previous': None, 'next': None, 'position': None, 'total': len(rows)}
+
+    def brief(row):
+        return {'id': row[0], 'nom': row[1]} if row else None
+    return {'found': True, 'position': position + 1, 'total': len(rows),
+            'previous': brief(rows[position - 1] if position > 0 else None),
+            'next': brief(rows[position + 1] if position + 1 < len(rows) else None)}
 
 
 @api.get('/outils/<int:key>')
@@ -537,6 +556,23 @@ def remove_outil(key):
 def upload_outil(key):
     require_admin()
     return svc.outil_dict(upload_file(svc.get(OutilFacilitateur, key)))
+
+
+@api.get('/outils/<int:key>/preview')
+def preview_outil(key):
+    source, mime = files.preview_file(svc.get(OutilFacilitateur, key), native=request.args.get('natif') == '1')
+    response = send_file(source, mimetype=mime, download_name='apercu.pdf' if mime == 'application/pdf' else None)
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+@api.get('/outils/<int:key>/thumbnail')
+def thumbnail_outil(key):
+    response = send_file(files.thumbnail_file(svc.get(OutilFacilitateur, key)), mimetype='image/jpeg')
+    response.headers['Cache-Control'] = 'private, max-age=86400'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @api.get('/outils/<int:key>/file')
