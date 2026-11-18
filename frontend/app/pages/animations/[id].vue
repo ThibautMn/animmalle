@@ -133,11 +133,12 @@ async function action(suffix, method, body) {
     busy.value = false
   }
 }
+const { confirmDelete } = useConfirmDelete()
 async function remove() {
   if (
-    !window.confirm(
+    !(await confirmDelete(
       'Supprimer définitivement cette animation et ses commentaires ?',
-    )
+    ))
   )
     return
   busy.value = true

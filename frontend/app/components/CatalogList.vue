@@ -140,8 +140,13 @@ async function search(reset = false) {
     if (current === requestId) busy.value = false;
   }
 }
+const { confirmDelete } = useConfirmDelete();
 async function remove(item) {
-  if (!window.confirm("Supprimer cette notice et détacher ses associations ?"))
+  if (
+    !(await confirmDelete(
+      `Supprimer ${props.kind === "outil" ? "cet outil" : "ce média"} et détacher ses associations ?`,
+    ))
+  )
     return;
   try {
     await api(`${endpoint}/${item.id}`, { method: "DELETE" });
@@ -526,14 +531,8 @@ onMounted(async () => {
                 >Modifiée le {{ item.date_modif || "—" }}</small
               >
                 <div class="actions resource-actions">
-                  <MediaPreview v-if="item.has_file" :id="item.id" base="/outils" icon />
                   <DownloadButton
-                    v-if="item.has_file"
-                    :path="`${endpoint}/${item.id}/file`"
-                    label="Télécharger la pièce jointe"
-                    icon="download"
-                  />
-                  <DownloadButton
+                    data-tooltip="Exporte l'outil et ses fichiers dans une archive ZIP"
                     :path="`${endpoint}/${item.id}/download`"
                     :filename="`${item.nom}.zip`"
                     label="Exporter en ZIP"
@@ -543,14 +542,14 @@ onMounted(async () => {
                     v-if="session.is_admin"
                     class="button icon-button"
                     :to="`/materials/${item.id}?kind=${kind}&edit=1`"
-                    title="Modifier la ressource"
+                    data-tooltip="Ouvre la fiche en mode modification"
                     aria-label="Modifier la ressource"
                     ><ActionIcon name="edit"
                   /></NuxtLink>
                   <PButton
                     v-if="session.is_admin"
                     class="danger icon-button"
-                    title="Supprimer la ressource"
+                    data-tooltip="Supprime définitivement l'outil après confirmation"
                     aria-label="Supprimer la ressource"
                     @click="remove(item)"
                     ><ActionIcon name="delete"

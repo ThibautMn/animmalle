@@ -215,6 +215,7 @@ onMounted(async () => {
     </section>
     <NuxtPage v-else :key="route.path" />
   </main>
+  <ConfirmDeleteDialog />
   <footer>
     <span>Anim’Malle · Les ressources pédagogiques des Cévennes</span
     ><span>Bonne animation !</span>

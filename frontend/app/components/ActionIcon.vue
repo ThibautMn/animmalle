@@ -17,6 +17,7 @@ const paths = {
   prev: 'm15 6-6 6 6 6',
   next: 'm9 6 6 6-6 6',
   down: 'm6 9 6 6 6-6',
+  back: 'M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3',
   delete: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
 }
 </script>

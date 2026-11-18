@@ -7,6 +7,7 @@ const props = defineProps({
   filename: String,
   label: { type: String, default: 'Télécharger' }
 })
+const attrs = useAttrs()
 const api = useApi()
 const busy = ref(false)
 const error = ref('')
@@ -42,7 +43,7 @@ async function download() {
       type="button"
       :label="icon ? undefined : label"
       :aria-label="label"
-      :title="label"
+      :title="attrs['data-tooltip'] ? undefined : label"
       :class="{ 'icon-button': icon && !showLabel }"
       :disabled="busy"
       @click="download"

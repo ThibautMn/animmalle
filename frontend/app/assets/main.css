@@ -2042,6 +2042,41 @@ button.bare-icon svg {
 .actions-end {
   justify-content: flex-end;
 }
+/* Au-dessus des pastilles de l'encart, pour que les info-bulles ne soient pas masquées. */
+.actions-end {
+  position: relative;
+  z-index: 30;
+}
+.nav-arrow[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  text-align: left;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.nav-prev[data-tooltip]::after {
+  left: calc(100% + 8px);
+}
+.nav-next[data-tooltip]::after {
+  right: calc(100% + 8px);
+}
+.nav-arrow[data-tooltip]:hover::after,
+.nav-arrow[data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
 
 /* Édition d'un outil facilitateur : mêmes encarts que la fiche. */
 .tool-edit {
@@ -2201,6 +2236,10 @@ button.bare-icon svg {
   .tool-sheet:has(.tool-side) {
     max-width: 96%;
   }
+  /* Barre d'actions de la fiche : même largeur que l'encart général pour que son bord droit coïncide. */
+  .actions-end.actions-narrow {
+    max-width: 96%;
+  }
 }
 
 /* Aperçu d'un PDF choisi mais pas encore enregistré : première page, sans interaction. */
@@ -2248,4 +2287,140 @@ button.bare-icon svg {
   .file-details {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Info-bulles sur fond blanc des icônes d'action de la liste des outils. */
+.resource-actions [data-tooltip] {
+  position: relative;
+}
+.resource-actions [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+  font-size: 0.9rem;
+  font-weight: normal;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 20;
+}
+.resource-actions [data-tooltip]:hover::after,
+.resource-actions [data-tooltip]:has(:focus-visible)::after,
+.resource-actions [data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* Info-bulles de la fiche d'un outil : sous les boutons d'action, au-dessus en édition. */
+.actions-end [data-tooltip],
+.tool-edit [data-tooltip] {
+  position: relative;
+}
+.actions-end [data-tooltip]::after,
+.tool-edit [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+  font-size: 0.9rem;
+  font-weight: normal;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 20;
+}
+.actions-end [data-tooltip]::after {
+  top: calc(100% + 6px);
+}
+.tool-edit [data-tooltip]::after {
+  bottom: calc(100% + 6px);
+}
+.tool-edit .media-add-tile[data-tooltip]::after,
+.tool-edit .secondary[data-tooltip]::after {
+  left: 0;
+  right: auto;
+}
+.actions-end [data-tooltip]:hover::after,
+.actions-end [data-tooltip]:has(:focus-visible)::after,
+.actions-end [data-tooltip]:focus-visible::after,
+.tool-edit [data-tooltip]:hover::after,
+.tool-edit [data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* Fenêtre de confirmation de suppression (outil, animation, média). */
+.confirm-dialog {
+  width: min(92vw, 520px);
+  padding: 32px 36px 28px;
+  border: 2px solid #374151;
+  border-radius: 12px;
+  background: #fff;
+  color: #222;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 35%);
+}
+.confirm-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.confirm-dialog p {
+  margin: 0 0 28px;
+  font-size: 1.25rem;
+  line-height: 1.45;
+}
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+}
+.confirm-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.confirm-actions svg {
+  width: 22px;
+  height: 22px;
+}
+.confirm-cancel {
+  border: 1px solid #86c99b;
+  background: #d6f2de;
+  color: #14532d;
+}
+.confirm-cancel:hover,
+.confirm-cancel:focus-visible {
+  background: #bfe8cb;
+}
+.confirm-ok {
+  border: 1px solid #e59a9a;
+  background: #fbd9d9;
+  color: #7f1d1d;
+}
+.confirm-ok:hover,
+.confirm-ok:focus-visible {
+  background: #f6c2c2;
 }

@@ -115,8 +115,9 @@ async function save() {
     busy.value = false
   }
 }
+const { confirmDelete } = useConfirmDelete()
 async function remove() {
-  if (!window.confirm('Supprimer cette notice et détacher ses associations ?'))
+  if (!(await confirmDelete(`Supprimer ${tool ? 'cet outil' : 'ce média'} et détacher ses associations ?`)))
     return
   busy.value = true
   error.value = ''
@@ -151,7 +152,7 @@ onMounted(load)
       class="nav-arrow nav-prev"
       :to="`/materials/${neighbors.previous.id}?kind=outil`"
       :aria-label="`Outil précédent : ${neighbors.previous.nom}`"
-      :title="`Précédent : ${neighbors.previous.nom}`"
+      :data-tooltip="`Passe à l'outil précédent : ${neighbors.previous.nom}`"
       >‹</NuxtLink
     >
     <NuxtLink
@@ -159,7 +160,7 @@ onMounted(load)
       class="nav-arrow nav-next"
       :to="`/materials/${neighbors.next.id}?kind=outil`"
       :aria-label="`Outil suivant : ${neighbors.next.nom}`"
-      :title="`Suivant : ${neighbors.next.nom}`"
+      :data-tooltip="`Passe à l'outil suivant : ${neighbors.next.nom}`"
       >›</NuxtLink
     >
   </nav>
@@ -218,6 +219,7 @@ onMounted(load)
                 <button
                   type="button"
                   class="media-add-tile"
+                  data-tooltip="Choisit un fichier ou un média de la bibliothèque à joindre à l'outil"
                   @click="fileDialog.open()"
                 >
                   <ActionIcon name="add" />
@@ -235,11 +237,16 @@ onMounted(load)
           La notice est enregistrée avant le remplacement du fichier ; vous
           pourrez réessayer si le transfert échoue.
         </p>
-        <PButton type="submit" label="Enregistrer" /><PButton
+        <PButton
+          type="submit"
+          label="Enregistrer"
+          data-tooltip="Enregistre les modifications de la fiche"
+        /><PButton
           v-if="!creating"
           type="button"
           class="secondary"
           label="Annuler"
+          data-tooltip="Abandonne les modifications et revient à la fiche"
           @click="cancel"
         />
       </fieldset>
@@ -289,22 +296,29 @@ onMounted(load)
       </fieldset>
     </form>
     <template v-else
-      ><div class="actions actions-end">
+      ><div
+        :class="[
+          'actions actions-end',
+          tool && (item.has_file || toPlainText(item.materiel)) && 'actions-narrow'
+        ]"
+      >
         <PButton
           v-if="session.is_admin"
           label="Modifier"
+          data-tooltip="Passe la fiche en mode modification"
           @click="editing = true"
         /><DownloadButton
           :path="`${path}/download`"
           :filename="`${item.nom}.zip`"
           label="Télécharger le kit"
+          data-tooltip="Télécharge l'outil et ses fichiers dans une archive ZIP"
           icon="pi-box"
           show-label
         /><PButton
           v-if="session.is_admin"
           class="danger icon-button"
           aria-label="Supprimer"
-          title="Supprimer"
+          data-tooltip="Supprime définitivement l'outil après confirmation"
           :disabled="busy"
           @click="remove"
           ><ActionIcon name="delete"

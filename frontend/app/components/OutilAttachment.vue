@@ -78,7 +78,7 @@ onBeforeUnmount(release)
         type="button"
         class="icon-button secondary danger-icon"
         :aria-label="`Annuler le remplacement par ${file.name}`"
-        title="Annuler"
+        data-tooltip="Annule le remplacement et conserve le fichier actuel"
         @click="emit('clear')"
         ><ActionIcon name="close"
       /></PButton>

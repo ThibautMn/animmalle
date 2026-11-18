@@ -52,8 +52,9 @@ async function save() {
     saving.value = false
   }
 }
+const { confirmDelete } = useConfirmDelete()
 async function remove() {
-  if (!window.confirm('Supprimer cette notice et détacher ses associations ?'))
+  if (!(await confirmDelete('Supprimer ce média et détacher ses associations ?')))
     return
   try {
     await api(`/media/${current.value}`, { method: 'DELETE' })
