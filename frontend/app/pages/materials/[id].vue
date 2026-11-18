@@ -38,6 +38,11 @@ const draft = ref(null)
 const neighbors = ref(null)
 const outilSearch = useState('outil_search', () => null)
 const file = ref(null)
+const fileDialog = ref(null)
+function pickFile({ file: picked, typeId }) {
+  file.value = picked
+  draft.value.fk_type_mat_outil_id = typeId
+}
 const editing = ref(creating || (session.is_admin && route.query.edit === '1'))
 const busy = ref(true)
 const error = ref('')
@@ -77,6 +82,9 @@ async function save() {
   busy.value = true
   error.value = ''
   try {
+    // Sans pièce jointe, le type de pièce jointe n'a pas de sens (et peut être une valeur historique invalide).
+    if (tool && !file.value && !item.value.has_file)
+      draft.value.fk_type_mat_outil_id = null
     let result
     if (creating) {
       const body = new FormData()
@@ -158,7 +166,85 @@ onMounted(load)
   <p v-if="error" role="alert" class="error">{{ error }}</p>
   <p v-if="busy" role="status">Chargement…</p>
   <template v-if="draft"
-    ><form v-if="editing" @submit.prevent="save">
+    ><form v-if="editing && tool" @submit.prevent="save">
+      <fieldset :disabled="busy" class="tool-edit">
+        <div class="tool-sheet tools-tint">
+          <header class="toolbar tool-header">
+            <div class="tool-title tool-title-edit">
+              <div class="tool-name-row">
+                <input
+                  v-model="draft.nom"
+                  class="tool-name-input"
+                  required
+                  maxlength="100"
+                  placeholder="Nom de l’outil"
+                  aria-label="Nom de l’outil (obligatoire)"
+                /><span class="required-mark" aria-hidden="true">*</span>
+              </div>
+              <div class="tool-refs">
+                <RefSelect
+                  v-model="draft.fk_type_outil_id"
+                  :items="catalog.family('ref.type_outil')"
+                  label="Type *"
+                  required
+                /><RefSelect
+                  v-model="draft.difficulte_id"
+                  :items="catalog.family('ref.difficulte')"
+                  label="Difficulté"
+                />
+              </div>
+            </div>
+          </header>
+          <div class="tool-body">
+            <div class="tool-main">
+              <fieldset
+                v-for="[key, label] in fields.filter(([key]) => key !== 'materiel')"
+                :key="key"
+                class="tool-block"
+              >
+                <legend>{{ label }}</legend>
+                <RichEditor v-model="draft[key]" :label="label" />
+              </fieldset>
+            </div>
+            <aside class="tool-side">
+              <OutilAttachment
+                v-if="item.has_file || file"
+                :item="item"
+                :file="file"
+                @edit="fileDialog.open()"
+                @clear="file = null"
+              />
+              <figure v-else class="media-add">
+                <button
+                  type="button"
+                  class="media-add-tile"
+                  @click="fileDialog.open()"
+                >
+                  <ActionIcon name="add" />
+                  <span>Ajouter un média</span>
+                </button>
+              </figure>
+              <fieldset class="tool-block tool-block-materiel">
+                <legend>Matériel</legend>
+                <RichEditor v-model="draft.materiel" label="Matériel" simple />
+              </fieldset>
+            </aside>
+          </div>
+        </div>
+        <p v-if="!creating && file">
+          La notice est enregistrée avant le remplacement du fichier ; vous
+          pourrez réessayer si le transfert échoue.
+        </p>
+        <PButton type="submit" label="Enregistrer" /><PButton
+          v-if="!creating"
+          type="button"
+          class="secondary"
+          label="Annuler"
+          @click="cancel"
+        />
+      </fieldset>
+    </form>
+    <form v-else-if="editing" @submit.prevent="save">
       <h1>
         {{ creating ? 'Importer une ressource' : 'Modifier la ressource' }}
       </h1>
@@ -321,4 +407,11 @@ onMounted(load)
       ></template
     ></template
   >
+  <MediaAddDialog
+    v-if="tool && draft"
+    ref="fileDialog"
+    tool
+    :type-id="draft.fk_type_mat_outil_id"
+    @pick-file="pickFile"
+  />
 </template>

@@ -1,5 +1,11 @@
 <script setup>
-const emit = defineEmits(['add'])
+// Mode « outil » : une seule pièce jointe locale, sans nom ni thématiques ; le fichier
+// et son type sont renvoyés à la fiche, qui les enregistre avec l'outil.
+const props = defineProps({
+  tool: Boolean,
+  typeId: { type: Number, default: null }
+})
+const emit = defineEmits(['add', 'pick-file'])
 const api = useApi()
 const catalog = useCatalog()
 const dialog = ref(null)
@@ -28,6 +34,7 @@ const tabs = [
 function open() {
   error.value = ''
   tab.value = 'upload'
+  if (props.tool) typeId.value = props.typeId
   dialog.value.showModal()
 }
 function close() {
@@ -47,12 +54,50 @@ function reset() {
   error.value = ''
 }
 defineExpose({ open })
+const IMAGES = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+const AUDIOS = ['mp3', 'wma', 'wav', 'ogg', 'm4a', 'aac', 'flac']
+const VIDEOS = ['mp4', 'm4v', 'mov', 'avi', 'wmv', 'mpg', 'mpeg', 'mkv', 'webm', 'flv', '3gp']
+const normalize = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+// Type de pièce jointe proposé d'après le format : photo, bande-son, vidéo, sinon support.
+function guessType(filename) {
+  const extension = filename.split('.').pop().toLowerCase()
+  const wanted = IMAGES.includes(extension)
+    ? 'photo'
+    : AUDIOS.includes(extension)
+      ? 'bande-son'
+      : VIDEOS.includes(extension)
+        ? 'video'
+        : 'support'
+  return catalog.family('ref.type_mat').find((type) => normalize(type.label) === wanted)?.id ?? null
+}
+// Aperçu local du fichier choisi, avant tout envoi.
+const previewUrl = ref('')
+const previewKind = computed(() => {
+  if (!file.value) return ''
+  const extension = file.value.name.split('.').pop().toLowerCase()
+  if (IMAGES.includes(extension)) return 'image'
+  if (AUDIOS.includes(extension)) return 'audio'
+  if (VIDEOS.includes(extension)) return 'video'
+  if (extension === 'pdf') return 'pdf'
+  return 'file'
+})
+watch(file, (value) => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = value ? URL.createObjectURL(value) : ''
+})
+onBeforeUnmount(() => previewUrl.value && URL.revokeObjectURL(previewUrl.value))
 function onFile(event) {
   file.value = event.target.files[0] || null
+  if (props.tool && file.value) typeId.value = guessType(file.value.name) ?? typeId.value
   if (file.value && !name.value) name.value = file.value.name.replace(/\.[^.]+$/, '').slice(0, 100)
 }
 async function upload() {
   if (!file.value || !typeId.value) return
+  if (props.tool) {
+    emit('pick-file', { file: file.value, typeId: Number(typeId.value) })
+    close()
+    return
+  }
   busy.value = true
   error.value = ''
   try {
@@ -112,7 +157,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 <template>
   <dialog
     ref="dialog"
-    :class="['media-add-dialog', { 'media-library': tab !== 'upload' }]"
+    :class="['media-add-dialog', { 'media-library': !tool && tab !== 'upload' }]"
     aria-label="Ajouter un média"
     @close="reset"
     @click="$event.target === dialog && close()"
@@ -121,7 +166,7 @@ onBeforeUnmount(() => clearTimeout(timer))
       <h2>Ajouter un média</h2>
       <PButton type="button" label="Fermer" @click="close" />
     </div>
-    <div class="media-add-tabs" role="tablist">
+    <div v-if="!tool" class="media-add-tabs" role="tablist">
       <button
         v-for="[key, label] in tabs"
         :id="`media-tab-${key}`"
@@ -150,9 +195,16 @@ onBeforeUnmount(() => clearTimeout(timer))
           <span class="file-picker-name">{{ file ? file.name : 'Aucun fichier sélectionné' }}</span>
         </span>
       </label>
-      <label>Nom du média<input v-model="name" required maxlength="100" /></label>
+      <div v-if="file" class="file-preview" aria-label="Aperçu du fichier">
+        <img v-if="previewKind === 'image'" :src="previewUrl" :alt="file.name" />
+        <video v-else-if="previewKind === 'video'" :src="previewUrl" controls preload="metadata" />
+        <audio v-else-if="previewKind === 'audio'" :src="previewUrl" controls />
+        <iframe v-else-if="previewKind === 'pdf'" :src="previewUrl" :title="file.name" />
+        <p v-else class="file-preview-name">{{ file.name }}</p>
+      </div>
+      <label v-if="!tool">Nom du média<input v-model="name" required maxlength="100" /></label>
       <label>
-        Type de média
+        {{ tool ? 'Type de pièce jointe' : 'Type de média' }}
         <select v-model="typeId" required>
           <option :value="null" disabled>Choisir…</option>
           <option v-for="type in catalog.family('ref.type_mat')" :key="type.id" :value="type.id">
@@ -161,11 +213,12 @@ onBeforeUnmount(() => clearTimeout(timer))
         </select>
       </label>
       <TagPicker
+        v-if="!tool"
         v-model="themes"
         :items="catalog.family('ref.thematiques')"
         legend="Thématiques"
       />
-      <PButton type="submit" label="Télécharger et ajouter" :disabled="busy" />
+      <PButton type="submit" :label="tool ? 'Ajouter' : 'Télécharger et ajouter'" :disabled="busy" />
     </form>
     <div v-else-if="tab === 'library'" role="tabpanel" aria-labelledby="media-tab-library">
       <p class="pnc-intro">Ces médias sont ceux déjà enregistrés dans les autres animations</p>

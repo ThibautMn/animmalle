@@ -9,7 +9,8 @@ import { toRichHtml } from '../../lib/richtext.mjs'
 
 // Éditeur WYSIWYG ; sa hauteur suit son contenu (3 lignes au minimum).
 const model = defineModel({ type: String, default: '' })
-const props = defineProps({ label: String })
+// simple : barre réduite (gras, italique, souligné, liste à puces, smiley).
+const props = defineProps({ label: String, simple: Boolean })
 
 // Icône PrimeIcons insérée dans le texte (<i class="pi pi-xxx">).
 const CLASSE_ICONE = /^pi pi-[a-z0-9-]+$/
@@ -60,7 +61,7 @@ watch(model, (value) => {
 })
 onBeforeUnmount(() => editor.value?.destroy())
 
-const tools = [
+const allTools = [
   ['B', 'Gras', 'toggleBold', 'bold'],
   ['I', 'Italique', 'toggleItalic', 'italic'],
   ['U', 'Souligné', 'toggleUnderline', 'underline'],
@@ -68,6 +69,10 @@ const tools = [
   ['•', 'Liste à puces', 'toggleBulletList', 'bulletList'],
   ['1.', 'Liste numérotée', 'toggleOrderedList', 'orderedList']
 ]
+const SIMPLE_TOOLS = ['bold', 'italic', 'underline', 'bulletList']
+const tools = computed(() =>
+  props.simple ? allTools.filter(([, , , name]) => SIMPLE_TOOLS.includes(name)) : allTools
+)
 const aligns = [
   ['left', 'Aligner à gauche', 'pi-align-left'],
   ['center', 'Aligner au centre', 'pi-align-center'],
@@ -155,6 +160,7 @@ function link() {
         :class="{ on: editor.isActive(name) }"
         @click="run(command)"
       >{{ text }}</button>
+      <template v-if="!simple">
       <button
         v-for="[value, title, icon] in aligns"
         :key="value"
@@ -185,12 +191,14 @@ function link() {
           <button type="button" @click="setColor(null)">Aucune</button>
         </div>
       </span>
+      </template>
       <span class="rich-pop">
         <button type="button" title="Insérer un smiley" aria-label="Insérer un smiley" @click="toggle('smiley')">🙂</button>
         <div v-if="panel === 'smiley'" class="rich-panel">
           <button v-for="smiley in smileys" :key="smiley" type="button" @click="insertSmiley(smiley)">{{ smiley }}</button>
         </div>
       </span>
+      <template v-if="!simple">
       <span class="rich-pop">
         <button type="button" title="Insérer une icône" aria-label="Insérer une icône" @click="toggle('icon')">
           <i class="pi pi-star" aria-hidden="true" />
@@ -211,6 +219,7 @@ function link() {
         <i class="pi pi-eraser" aria-hidden="true" />
       </button>
       <button type="button" title="Lien" aria-label="Lien" :class="{ on: editor.isActive('link') }" @click="link">🔗</button>
+      </template>
     </div>
     <div v-if="editor.isActive('table')" class="rich-tools rich-table-tools">
       <button v-for="[text, title, command] in tableTools" :key="command" type="button" :title="title" @click="run(command)">
