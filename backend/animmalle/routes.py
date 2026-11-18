@@ -485,6 +485,9 @@ def outils_list():
     types = id_args('type')
     if types:
         query = query.where(OutilFacilitateur.fk_type_outil_id.in_(types))
+    difficulties = id_args('difficulte')
+    if difficulties:
+        query = query.where(OutilFacilitateur.difficulte_id.in_(difficulties))
     for pattern, extension in search_terms():
         query = query.where(or_(
             like(OutilFacilitateur.nom, pattern), like(OutilFacilitateur.description, pattern),

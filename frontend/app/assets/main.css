@@ -1695,3 +1695,180 @@ button.bare-icon svg {
   height: auto;
   color: var(--p-primary-color, #2a7a5b);
 }
+
+.line-0 {
+  color: var(--p-primary-color, #2a7a5b);
+}
+
+.line-1 {
+  color: #d97706;
+}
+
+.legend {
+  margin-right: 1rem;
+}
+
+/* Outils facilitateurs : grille de cartes compactes */
+.tool-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 16px 18px;
+  min-width: 0;
+  box-shadow: 0 2px 8px rgb(74 63 122 / 14%);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.tool-card:hover {
+  border-color: var(--c-primary-light);
+  box-shadow: var(--shadow-hover);
+}
+.tool-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 0 10px;
+  margin-bottom: 4px;
+  background: none;
+  border-bottom: 1px solid var(--c-line);
+  position: static;
+  z-index: auto;
+}
+.tool-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  overflow-wrap: anywhere;
+}
+.tool-head h2 a {
+  color: var(--c-text);
+  text-decoration: none;
+}
+.tool-head h2 a:hover {
+  color: var(--c-primary-dark);
+}
+.tool-head .badge {
+  flex: none;
+  white-space: nowrap;
+}
+.tool-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.tool-desc {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+.tool-line {
+  margin: 0;
+  font-size: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Actions des outils : boutons discrets, teintés au survol */
+.tool-foot .resource-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tool-foot .resource-actions .icon-button {
+  min-width: 36px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--c-muted);
+  border-radius: 50%;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.tool-foot .resource-actions .icon-button:hover:not(:disabled) {
+  background: var(--c-primary-soft);
+  color: var(--c-primary-dark);
+}
+.tool-foot .resource-actions .icon-button.danger:hover:not(:disabled) {
+  background: #fbe9e7;
+  color: var(--c-danger);
+}
+.tool-foot .resource-actions .icon-button:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 1px;
+}
+.tool-foot .resource-actions .icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tool-foot .resource-actions {
+  flex: none;
+  margin: -6px -8px 0 auto;
+}
+.tool-head h2 {
+  flex: 1;
+  min-width: 0;
+}
+.tool-date {
+  margin-top: 4px;
+}
+
+.tool-meta:empty {
+  display: none;
+}
+
+.tool-badges {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: 6px;
+}
+.tool-badges .badge {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 12px;
+  line-height: 1;
+}
+
+.tool-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 0;
+  border-top: 0;
+  font-size: inherit;
+}
+.tool-foot .resource-actions {
+  flex: none;
+  margin: -4px -8px -6px auto;
+}
+.tool-foot .resource-actions .pi {
+  font-size: 1.15rem;
+}

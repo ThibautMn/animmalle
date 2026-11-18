@@ -300,6 +300,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('post', '/api/outils', {**data, 'fk_type_outil_id': 6}).status_code, 422)
         self.assertEqual(self.mutate('post', '/api/media', {'nom': 'x', 'fk_type_mat_id': 7}).status_code, 422)
         self.assertEqual(self.client.get('/api/outils?q=outil').json['total'], 1)
+        self.assertEqual(self.client.get('/api/outils?difficulte=8').json['total'], 1)
+        self.assertEqual(self.client.get('/api/outils?difficulte=1').json['total'], 0)
         self.assertEqual(self.client.get('/api/media?q=outil').json['total'], 0)
         self.assertEqual(self.client.get(f'/api/outils/{key}').json['nom'], 'Un outil')
         self.assertEqual(self.client.get(f'/api/media/{key}').status_code, 404)

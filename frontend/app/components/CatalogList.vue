@@ -23,6 +23,7 @@ const heading = animations
 const items = ref([]);
 const tags = ref([]);
 const types = ref([]);
+const difficulties = ref([]);
 const author = ref(route.query.auteur || "");
 const authors = ref([]);
 const author_open = ref(false);
@@ -100,6 +101,7 @@ async function search(reset = false) {
         query.duree_max = duration_max.value;
     } else {
       query.type = types.value;
+      if (props.kind === 'outil') query.difficulte = difficulties.value;
       const terms = [search_text.value, ...extra_terms.value]
         .map((term) => term.trim())
         .filter(Boolean);
@@ -146,7 +148,7 @@ async function remove(item) {
 }
 let timer;
 watch(
-  [author, search_text, extra_terms, statuses, tags, types, duration_min, duration_max],
+  [author, search_text, extra_terms, statuses, tags, types, difficulties, duration_min, duration_max],
   () => {
     if (skip_duration_watch) {
       skip_duration_watch = false;
@@ -200,7 +202,11 @@ onMounted(async () => {
       class="button"
       :to="animations ? '/animations/nouveau' : `/materials/nouveau?kind=${kind}`"
       >{{
-        animations ? "Créer une animation" : "Importer une ressource"
+        animations
+          ? "Créer une animation"
+          : kind === "outil"
+            ? "Créer un outil"
+            : "Importer une ressource"
       }}</NuxtLink
     >
   </div>
@@ -296,7 +302,7 @@ onMounted(async () => {
         :items="
           catalog.family(kind === 'outil' ? 'ref.type_outil' : 'ref.type_mat')
         "
-        legend="Types de ressources"
+        :legend="kind === 'outil' ? 'Type d\'outil' : 'Types de ressources'"
       />
       <fieldset v-if="animations" class="status-box">
         <legend>Statut</legend>
@@ -314,6 +320,12 @@ onMounted(async () => {
         >
       </fieldset>
       <TagPicker
+        v-if="kind === 'outil'"
+        v-model="difficulties"
+        :items="catalog.family('ref.difficulte')"
+        legend="Difficulté"
+      />
+      <TagPicker
         v-for="group in animations
           ? [
               'ref.thematiques',
@@ -322,7 +334,9 @@ onMounted(async () => {
               'ref.public',
               'ref.duree',
             ]
-          : ['ref.thematiques']"
+          : kind === 'outil'
+            ? []
+            : ['ref.thematiques']"
         :key="group"
         v-model="tags"
         :items="catalog.family(group)"
@@ -380,25 +394,23 @@ onMounted(async () => {
               ))
           "
         />
-        <div v-else :class="['resource-list', animations && 'cards-list']">
+        <div v-else-if="animations" class="resource-list cards-list">
           <article v-for="item in items" :key="item.id" class="card">
-            <span v-if="animations" class="badge">{{
+            <span class="badge">{{
               { 1: "Validée", 2: "À valider", 3: "Brouillon" }[item.statut]
             }}</span>
             <div class="card-title-row">
               <h2>
                 <NuxtLink :to="`${endpoint}/${item.id}`"
-                  ><template v-if="animations"
-                    ><template
-                      v-for="(part, index) in highlight(item.titre)"
-                      :key="index"
-                      ><mark v-if="part.hit">{{ part.text }}</mark
-                      ><template v-else>{{ part.text }}</template></template
-                    ></template
-                  ><template v-else>{{ item.titre || item.nom }}</template></NuxtLink
+                  ><template
+                    v-for="(part, index) in highlight(item.titre)"
+                    :key="index"
+                    ><mark v-if="part.hit">{{ part.text }}</mark
+                    ><template v-else>{{ part.text }}</template></template
+                  ></NuxtLink
                 >
               </h2>
-              <span v-if="animations" class="duration-badges">
+              <span class="duration-badges">
                 <span
                   v-if="catalog.label(item.fk_duree_id)"
                   class="badge duration-badge"
@@ -414,85 +426,9 @@ onMounted(async () => {
               </span>
             </div>
             <p class="pictos">
-              <PictoIcon
-                v-for="tag in animations ? item.tags : item.thematiques"
-                :id="tag"
-                :key="tag"
-              />
+              <PictoIcon v-for="tag in item.tags" :id="tag" :key="tag" />
             </p>
-            <template v-if="!animations">
-              <div class="actions resource-actions">
-                <MediaPreview v-if="item.has_file" :id="item.id" icon />
-                <DownloadButton
-                  v-if="item.has_file"
-                  :path="`${endpoint}/${item.id}/file`"
-                  label="Télécharger la pièce jointe"
-                  icon="download"
-                />
-                <DownloadButton
-                  :path="`${endpoint}/${item.id}/download`"
-                  :filename="`${item.nom}.zip`"
-                  label="Exporter en ZIP"
-                  icon="zip"
-                />
-                <NuxtLink
-                  v-if="session.is_admin"
-                  class="button icon-button"
-                  :to="`/materials/${item.id}?kind=${kind}&edit=1`"
-                  title="Modifier la ressource"
-                  aria-label="Modifier la ressource"
-                  ><ActionIcon name="edit"
-                /></NuxtLink>
-                <PButton
-                  v-if="session.is_admin"
-                  class="danger icon-button"
-                  title="Supprimer la ressource"
-                  aria-label="Supprimer la ressource"
-                  @click="remove(item)"
-                  ><ActionIcon name="delete"
-                /></PButton>
-              </div>
-              <dl class="resource-details">
-                <template
-                  v-for="[key, label] in [
-                    ['description', 'Description / Consigne'],
-                    ...(kind === 'outil'
-                      ? [['variante', 'Variante'], ['materiel', 'Matériel']]
-                      : []),
-                  ]"
-                  :key="key"
-                >
-                  <dt>{{ label }}</dt>
-                  <dd class="prose">{{ toPlainText(item[key]) || "Non renseigné" }}</dd>
-                </template>
-                <dt v-if="kind !== 'outil'">Thématiques</dt>
-                <dd v-if="kind !== 'outil'">
-                  {{
-                    item.thematiques.map(catalog.label).join(" · ") ||
-                    "Non renseignées"
-                  }}
-                </dd>
-                <dt v-if="kind === 'outil'">Difficulté</dt>
-                <dd v-if="kind === 'outil'">
-                  {{ catalog.label(item.difficulte_id) || "Non renseignée" }}
-                </dd>
-                <dt>{{ kind === 'outil' ? 'Type de pièce jointe' : 'Type' }}</dt>
-                <dd>
-                  {{
-                    catalog.label(
-                      kind === 'outil'
-                        ? item.fk_type_mat_outil_id || item.fk_type_outil_id
-                        : item.fk_type_mat_id
-                    )
-                  }}
-                </dd>
-                <dt>Modifiée le</dt>
-                <dd>{{ item.date_modif || "Non renseigné" }}</dd>
-                <dt>Pièce jointe</dt>
-                <dd>{{ item.has_file ? "Disponible" : "Aucune" }}</dd>
-              </dl>
-            </template>
-            <p v-else class="prose">
+            <p class="prose">
               <template v-if="item.description"
                 ><template
                   v-for="(part, index) in highlight(item.description)"
@@ -503,7 +439,7 @@ onMounted(async () => {
               ><template v-else>Non renseignée</template>
             </p>
             <p
-              v-if="animations && highlight(item.objectifs).some((part) => part.hit)"
+              v-if="highlight(item.objectifs).some((part) => part.hit)"
               class="prose"
             >
               <strong>Objectifs : </strong
@@ -514,18 +450,83 @@ onMounted(async () => {
                 ><template v-else>{{ part.text }}</template></template
               >
             </p>
-            <p class="muted">
-              {{
-                item.auteurs ||
-                catalog.label(item.fk_type_mat_id || item.fk_type_outil_id)
-              }}
-            </p>
+            <p class="muted">{{ item.auteurs }}</p>
             <small v-if="item.pertinence?.requested"
               >{{ item.pertinence?.matched }}/{{
                 item.pertinence?.requested
               }}
               mots-clés</small
             >
+          </article>
+        </div>
+        <div v-else class="tool-grid">
+          <article v-for="item in items" :key="item.id" class="card tool-card">
+            <header class="tool-head">
+              <h2>
+                <NuxtLink :to="`${endpoint}/${item.id}`">{{
+                  item.titre || item.nom
+                }}</NuxtLink>
+              </h2>
+              <span class="tool-badges">
+                <span
+                  v-if="catalog.label(item.fk_type_outil_id)"
+                  class="badge duration-badge"
+                  title="Catégorie de l'outil"
+                  >{{ catalog.label(item.fk_type_outil_id) }}</span
+                >
+                <span
+                  v-if="catalog.label(item.difficulte_id)"
+                  class="badge duration-badge"
+                  title="Difficulté"
+                  >{{ catalog.label(item.difficulte_id) }}</span
+                >
+              </span>
+            </header>
+            <p class="tool-desc prose">
+              {{ toPlainText(item.description) || "Pas de description" }}
+            </p>
+            <p v-if="toPlainText(item.materiel)" class="tool-line">
+              <strong>Matériel :</strong> {{ toPlainText(item.materiel) }}
+            </p>
+            <p v-if="toPlainText(item.variante)" class="tool-line">
+              <strong>Variante :</strong> {{ toPlainText(item.variante) }}
+            </p>
+            <footer class="tool-foot">
+              <small class="muted"
+                >Modifiée le {{ item.date_modif || "—" }}</small
+              >
+                <div class="actions resource-actions">
+                  <MediaPreview v-if="item.has_file" :id="item.id" icon />
+                  <DownloadButton
+                    v-if="item.has_file"
+                    :path="`${endpoint}/${item.id}/file`"
+                    label="Télécharger la pièce jointe"
+                    icon="download"
+                  />
+                  <DownloadButton
+                    :path="`${endpoint}/${item.id}/download`"
+                    :filename="`${item.nom}.zip`"
+                    label="Exporter en ZIP"
+                    icon="pi-box"
+                  />
+                  <NuxtLink
+                    v-if="session.is_admin"
+                    class="button icon-button"
+                    :to="`/materials/${item.id}?kind=${kind}&edit=1`"
+                    title="Modifier la ressource"
+                    aria-label="Modifier la ressource"
+                    ><ActionIcon name="edit"
+                  /></NuxtLink>
+                  <PButton
+                    v-if="session.is_admin"
+                    class="danger icon-button"
+                    title="Supprimer la ressource"
+                    aria-label="Supprimer la ressource"
+                    @click="remove(item)"
+                    ><ActionIcon name="delete"
+                  /></PButton>
+                </div>
+            </footer>
           </article>
         </div>
         <p v-if="!busy && !items.length">Aucune ressource pour ces critères.</p>
