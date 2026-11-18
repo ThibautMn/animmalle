@@ -1872,3 +1872,25 @@ button.bare-icon svg {
 .tool-foot .resource-actions .pi {
   font-size: 1.15rem;
 }
+
+/* Outils facilitateurs : fond légèrement lavande, comme la pédathèque */
+.catalog-layout.tools-tint .filters {
+  border: 1.5px solid #d6cfee;
+  background: #f5f3fb;
+  box-shadow: 0 2px 8px rgb(74 63 122 / 12%);
+}
+/* Groupes de filtres (Type d'outil, Difficulté) sans encadré */
+.catalog-layout.tools-tint .filters fieldset {
+  border: 0;
+  padding: 0;
+  margin: 12px 0;
+}
+.catalog-layout.tools-tint .filters legend {
+  padding: 0;
+}
+.catalog-layout.tools-tint .filters legend {
+  margin-bottom: 10px;
+}
+.catalog-layout.tools-tint .search-field > label {
+  font-size: inherit;
+}

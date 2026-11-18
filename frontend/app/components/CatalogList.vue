@@ -112,11 +112,11 @@ async function search(reset = false) {
       if (animations) {
         const { page: _page, page_size: _size, ...filters } = query;
         animation_search.value = filters;
-        marked_terms.value = query.q || [];
       } else if (thumbnails) {
         const { page: _page, page_size: _size, ...filters } = query;
         media_filters.value = filters;
       }
+      marked_terms.value = query.q || [];
       items.value = result.items;
       total.value = result.total;
       // Bornes par défaut : la plus courte et la plus longue animation (sans effet sur la liste).
@@ -210,7 +210,13 @@ onMounted(async () => {
       }}</NuxtLink
     >
   </div>
-  <div :class="['catalog-layout', animations && 'with-sidebar']">
+  <div
+    :class="[
+      'catalog-layout',
+      animations && 'with-sidebar',
+      kind === 'outil' && 'tools-tint',
+    ]"
+  >
     <form class="card filters" @submit.prevent="search(true)">
       <div class="search-field">
         <label
@@ -463,9 +469,12 @@ onMounted(async () => {
           <article v-for="item in items" :key="item.id" class="card tool-card">
             <header class="tool-head">
               <h2>
-                <NuxtLink :to="`${endpoint}/${item.id}`">{{
-                  item.titre || item.nom
-                }}</NuxtLink>
+                <NuxtLink :to="`${endpoint}/${item.id}`"><template
+                v-for="(part, index) in highlight(item.titre || item.nom)"
+                :key="index"
+                ><mark v-if="part.hit">{{ part.text }}</mark
+                ><template v-else>{{ part.text }}</template></template
+              ></NuxtLink>
               </h2>
               <span class="tool-badges">
                 <span
@@ -483,13 +492,29 @@ onMounted(async () => {
               </span>
             </header>
             <p class="tool-desc prose">
-              {{ toPlainText(item.description) || "Pas de description" }}
+              <template v-if="toPlainText(item.description)"><template
+                v-for="(part, index) in highlight(item.description)"
+                :key="index"
+                ><mark v-if="part.hit">{{ part.text }}</mark
+                ><template v-else>{{ part.text }}</template></template
+              ></template
+              ><template v-else>Pas de description</template>
             </p>
             <p v-if="toPlainText(item.materiel)" class="tool-line">
-              <strong>Matériel :</strong> {{ toPlainText(item.materiel) }}
+              <strong>Matériel :</strong> <template
+                v-for="(part, index) in highlight(item.materiel)"
+                :key="index"
+                ><mark v-if="part.hit">{{ part.text }}</mark
+                ><template v-else>{{ part.text }}</template></template
+              >
             </p>
             <p v-if="toPlainText(item.variante)" class="tool-line">
-              <strong>Variante :</strong> {{ toPlainText(item.variante) }}
+              <strong>Variante :</strong> <template
+                v-for="(part, index) in highlight(item.variante)"
+                :key="index"
+                ><mark v-if="part.hit">{{ part.text }}</mark
+                ><template v-else>{{ part.text }}</template></template
+              >
             </p>
             <footer class="tool-foot">
               <small class="muted"
