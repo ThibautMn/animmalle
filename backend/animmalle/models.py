@@ -1,6 +1,6 @@
 """Schéma métier historique adapté à PostgreSQL, sans connexion implicite."""
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, MetaData, String, Text, UniqueConstraint, text
+from sqlalchemy import Date, Index, DateTime, ForeignKey, Integer, MetaData, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, mapped_column, relationship
 
 
@@ -27,6 +27,11 @@ class Thesaurus(Base):
 
 class Animation(Base):
     __tablename__ = 'animation'
+    __table_args__ = (
+        Index('ix_animation_titre_trgm', 'titre', postgresql_using='gin', postgresql_ops={'titre': 'gin_trgm_ops'}),
+        Index('ix_animation_description_trgm', 'description', postgresql_using='gin', postgresql_ops={'description': 'gin_trgm_ops'}),
+        Index('ix_animation_objectifs_trgm', 'objectifs', postgresql_using='gin', postgresql_ops={'objectifs': 'gin_trgm_ops'}),
+    )
 
     id = mapped_column(String(40), primary_key=True)
     titre = mapped_column(String(100), nullable=False)
@@ -68,6 +73,10 @@ class Sequence(Base):
 class Media(Base):
     """Média de la médiathèque (image, vidéo, document…), issu des lignes `ref.type_mat` de `mat_peda`."""
     __tablename__ = 'media'
+    __table_args__ = (
+        Index('ix_media_nom_trgm', 'nom', postgresql_using='gin', postgresql_ops={'nom': 'gin_trgm_ops'}),
+        Index('ix_media_description_trgm', 'description', postgresql_using='gin', postgresql_ops={'description': 'gin_trgm_ops'}),
+    )
 
     id = mapped_column(Integer, primary_key=True)
     fk_type_mat_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
@@ -83,6 +92,12 @@ class Media(Base):
 class OutilFacilitateur(Base):
     """Outil facilitateur, issu des lignes `ref.type_outil` de `mat_peda`."""
     __tablename__ = 'outil_facilitateur'
+    __table_args__ = (
+        Index('ix_outil_facilitateur_nom_trgm', 'nom', postgresql_using='gin', postgresql_ops={'nom': 'gin_trgm_ops'}),
+        Index('ix_outil_facilitateur_description_trgm', 'description', postgresql_using='gin', postgresql_ops={'description': 'gin_trgm_ops'}),
+        Index('ix_outil_facilitateur_variante_trgm', 'variante', postgresql_using='gin', postgresql_ops={'variante': 'gin_trgm_ops'}),
+        Index('ix_outil_facilitateur_materiel_trgm', 'materiel', postgresql_using='gin', postgresql_ops={'materiel': 'gin_trgm_ops'}),
+    )
 
     id = mapped_column(Integer, primary_key=True)
     fk_type_outil_id = mapped_column(Integer, ForeignKey('thesaurus.id'), index=True, nullable=False)
