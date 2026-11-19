@@ -204,13 +204,14 @@ L’installateur comporte maintenant les phases suivantes, sans phase par défau
 
 | Phase | Opération |
 | --- | --- |
-| `dependencies` | Python/venv et dépendances backend (apt/sudo) |
-| `frontend` | Node compatible requis, `npm ci`, tests unitaires et build Nuxt |
+| `dependencies` | Python/venv, dépendances backend et PostgreSQL local si `postgresql.host` est local (apt/sudo) |
+| `node` | Installe nvm (`NVM_VERSION`, défaut v0.40.3) dans `~/.nvm` puis Node 24 LTS (`NODE_MAJOR`) s’ils sont absents ou incompatibles ; sans sudo |
+| `frontend` | Appelle la logique de la phase `node` si besoin, puis `npm ci`, tests unitaires et build Nuxt |
 | `schema` | Provisionnement non destructeur et Alembic |
 | `restore` | Import contrôlé seulement sur base vide |
 | `prepare` | Rendu Nginx/systemd dans `installation/generated`, sans sudo |
 | `deploy` | Applique les fichiers préparés puis redémarre les services |
-| `all` | Enchaîne dependencies, frontend, schema, restore, deploy |
+| `all` | Enchaîne dependencies, node, frontend, schema, restore, deploy |
 
 Les phases frontend/prepare/deploy/all **n’ont pas été exécutées via le script**
 à cette étape. npm install, tests et build ont été exécutés directement ; la
@@ -226,8 +227,10 @@ applicatif courant devient le compte de service ; il doit lire le YAML protégé
 écrire dans les dossiers backend configurés et traverser le chemin du dépôt.
 Les chemins de déploiement doivent être sans espace ni caractères spéciaux.
 
-Nginx, systemd, PostgreSQL et Node sont des prérequis système ; l’installateur ne
-choisit pas de dépôt tiers Node et ne crée aucun certificat. Seule la phase
+Nginx, systemd et PostgreSQL sont des prérequis système. Node est installé via nvm
+sous le compte applicatif si absent ou incompatible (le script nvm officiel est téléchargé
+sur GitHub, version épinglée). Le chemin absolu de Node sous `~/.nvm` est incorporé dans
+l’unité systemd. L’installateur ne crée aucun certificat. Seule la phase
 `dependencies` installe Python via apt. Les deux noms DNS publics distincts doivent
 pointer vers l’infrastructure de déploiement. Le générateur prend en charge des
 origines sans port explicite, sous le même schéma HTTP ou HTTPS.
