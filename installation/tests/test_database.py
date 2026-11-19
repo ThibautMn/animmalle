@@ -28,7 +28,8 @@ class ProvisionTests(unittest.TestCase):
         self.assertIn("secret''", kwargs['input'])
         self.assertIn('WHERE NOT EXISTS (SELECT 1 FROM pg_roles', kwargs['input'])
         self.assertIn('WHERE NOT EXISTS (SELECT 1 FROM pg_database', kwargs['input'])
-        self.assertNotIn('ALTER ROLE', kwargs['input'])
+        self.assertIn('ALTER ROLE %I LOGIN PASSWORD', kwargs['input'])
+        self.assertNotIn('DROP', kwargs['input'])
         self.assertNotIn('CREATEDB', kwargs['input'])
         self.assertTrue(kwargs['capture_output'])
 

@@ -11,7 +11,9 @@ sys.path.insert(0, str(ROOT / 'backend'))
 
 
 def provision_local_database(url):
-    """Créer seulement les objets absents via le compte administrateur local."""
+    """Créer les objets absents via le compte administrateur local.
+
+    Le YAML fait foi pour le mot de passe : un rôle existant y est resynchronisé."""
     from psycopg import sql
 
     role = sql.Literal(url.username).as_string()
@@ -23,6 +25,8 @@ def provision_local_database(url):
 SELECT pg_advisory_lock(173528, 3);
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', {role}, {password})
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {role})
+\u005cgexec
+SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', {role}, {password})
 \u005cgexec
 SELECT format('CREATE DATABASE %I OWNER %I', {database}, {role})
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = {database})
@@ -36,11 +40,12 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = {database})
     )
     if result.returncode:
         raise ValueError('Échec de préparation du rôle ou de la base ; vérifier le compte postgres, le socket local et les droits sudo. Détails masqués pour protéger les secrets.')
-    print('Rôle et base PostgreSQL disponibles ; objets existants conservés.')
+    print('Rôle (mot de passe aligné sur le YAML) et base PostgreSQL disponibles ; aucune donnée modifiée.')
 
 
 def run(phase):
     from sqlalchemy import create_engine, inspect, text
+    from sqlalchemy.exc import OperationalError
     from animmalle.config import CONFIG_PATH, load_database_url
 
     if not CONFIG_PATH.is_file():
@@ -97,9 +102,13 @@ def run(phase):
         finally:
             admin.dispose()
 
-    engine = create_engine(url)
+    engine = create_engine(url, hide_parameters=True)
     try:
-        with engine.connect() as connection:
+        try:
+            connection = engine.connect()
+        except OperationalError:
+            raise ValueError('Connexion à la base refusée avec les identifiants du YAML. Vérifier postgresql.host, port, username et password, et pg_hba.conf si le serveur n’est pas local.') from None
+        with connection:
             tables = inspect(connection).get_table_names(schema='public')
             if tables and 'alembic_version' not in tables:
                 raise ValueError('Base contenant un schéma non géré par Alembic : intervention nécessaire.')
@@ -124,4 +133,7 @@ if __name__ == '__main__':
         # Les messages externes (pilote, OS, SQL) peuvent contenir des secrets.
         message = str(error) if type(error) is ValueError else 'Opération impossible : vérifier prérequis, connexion et droits PostgreSQL.'
         print(message, file=sys.stderr)
+        if type(error) is not ValueError:
+            # Le type d'exception ne contient ni paramètre ni secret.
+            print(f'Type d’erreur : {type(error).__module__}.{type(error).__name__}', file=sys.stderr)
         sys.exit(1)
