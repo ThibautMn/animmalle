@@ -195,7 +195,7 @@ onMounted(async () => {
         class="oidc-button"
         type="button"
         :label="`Se connecter avec ${oidc.provider}`"
-        @click="connectOidc"
+        @click="connectOidc()"
       />
       <p v-if="oidc.enabled && !oidc.only" class="muted">ou</p>
       <form v-if="!oidc.only" @submit.prevent="connect">
