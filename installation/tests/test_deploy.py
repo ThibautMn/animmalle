@@ -66,3 +66,12 @@ class DeployTests(unittest.TestCase):
     def test_local_upstream_has_no_access_filter(self):
         nginx = deploy.render(self.config(), node='/usr/bin/node', user='app')['animmalle.conf']
         self.assertNotIn('deny all', nginx)
+
+    def test_same_host_single_server_block(self):
+        config = self.config()
+        config['public']['api_url'] = config['public']['frontend_url']
+        nginx = deploy.render(config, node='/usr/bin/node', user='app')['animmalle.conf']
+        self.assertEqual(nginx.count('server {'), 1)
+        self.assertLess(nginx.index('location /api/'), nginx.index('location / {'))
+        self.assertIn('proxy_pass http://127.0.0.1:8000;', nginx)
+        self.assertIn('proxy_pass http://127.0.0.1:3000;', nginx)

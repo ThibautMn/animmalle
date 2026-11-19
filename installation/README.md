@@ -231,8 +231,10 @@ Nginx, systemd et PostgreSQL sont des prérequis système. Node est installé vi
 sous le compte applicatif si absent ou incompatible (le script nvm officiel est téléchargé
 sur GitHub, version épinglée). Le chemin absolu de Node sous `~/.nvm` est incorporé dans
 l’unité systemd. L’installateur ne crée aucun certificat. Seule la phase
-`dependencies` installe Python via apt. Les deux noms DNS publics distincts doivent
-pointer vers l’infrastructure de déploiement. Le générateur prend en charge des
+`dependencies` installe Python via apt. Les noms DNS publics doivent
+pointer vers l’infrastructure de déploiement. Le frontend et l’API peuvent avoir
+deux noms distincts, ou le même nom : `frontend_url` et `api_url` identiques
+produisent un seul bloc Nginx, `/api/` vers Gunicorn et le reste vers Nuxt. Le générateur prend en charge des
 origines sans port explicite, sous le même schéma HTTP ou HTTPS.
 
 Deux topologies :

@@ -28,8 +28,8 @@ def render(config, root=ROOT, node=None, user=None):
     for url in (front, api):
         if url.scheme not in ('http', 'https') or not url.hostname or not re.fullmatch(r'[a-zA-Z0-9.-]+', url.netloc) or url.path not in ('', '/') or url.query or url.fragment:
             raise ValueError('Origines publiques sans port explicite requises pour Nginx.')
-    if front.hostname == api.hostname:
-        raise ValueError('Nginx nécessite deux noms DNS distincts.')
+    # Même nom DNS pour le frontend et l'API : un seul bloc serveur, /api/ vers Gunicorn, le reste vers Nuxt.
+    same_host = front.hostname == api.hostname
     if front.scheme != api.scheme:
         raise ValueError('Les deux origines doivent utiliser le même schéma HTTP(S).')
     cfg = config['nginx']
@@ -59,7 +59,12 @@ def render(config, root=ROOT, node=None, user=None):
     if int(bind.split(':')[1]) == port:
         raise ValueError('Gunicorn et Nuxt doivent utiliser des ports distincts.')
     blocks = []
-    for url, target in ((front, f'127.0.0.1:{port}'), (api, bind)):
+    nuxt_target = f'127.0.0.1:{port}'
+    if same_host:
+        servers = [(front, [('/api/', bind), ('/', nuxt_target)])]
+    else:
+        servers = [(front, [('/', nuxt_target)]), (api, [('/api/', bind), ('/', None)])]
+    for url, locations in servers:
         tls = ''
         if url.scheme == 'https' and not upstream_tls:
             for key in ('certificate', 'certificate_key'):
@@ -69,14 +74,12 @@ def render(config, root=ROOT, node=None, user=None):
         listen_line = listen + (' ssl' if tls else '')
         # L'origine publique est validée ; on écrase les en-têtes fournis par le client.
         scheme = url.scheme if upstream_tls else '$scheme'
-        api_only = url == api
-        location = '/api/' if api_only else '/'
-        other = '\n    location / { return 404; }' if api_only else ''
-        blocks.append(f'''server {{
-    listen {listen_line};
-    server_name {url.hostname};{tls}{access}
-    client_max_body_size {config['backend']['max_upload_mb']}m;
-    location {location} {{
+        parts = []
+        for location, target in locations:
+            if target is None:  # nom API distinct : seul /api/ est servi
+                parts.append(f'    location {location} {{ return 404; }}')
+                continue
+            parts.append(f'''    location {location} {{
         proxy_pass http://{target};
         proxy_http_version 1.1;
         proxy_set_header Host {url.hostname};
@@ -86,8 +89,13 @@ def render(config, root=ROOT, node=None, user=None):
         proxy_set_header X-Forwarded-Port {443 if url.scheme == 'https' else 80};
         proxy_set_header Connection "";
         proxy_read_timeout 90s;
-    }}{other}
-}}''')
+    }}''')
+        header = f'''server {{
+    listen {listen_line};
+    server_name {url.hostname};{tls}{access}
+    client_max_body_size {config['backend']['max_upload_mb']}m;
+'''
+        blocks.append(header + '\n'.join(parts) + '\n}')
     def unit(description, working, command, environment=''):
         return f'''[Unit]
 Description={description}
