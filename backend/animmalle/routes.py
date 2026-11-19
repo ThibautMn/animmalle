@@ -5,7 +5,7 @@ import json
 from flask import Blueprint, abort, g, request, session, current_app, send_file
 from marshmallow import ValidationError
 from sqlalchemy import select, delete, text, or_, func, String
-from sqlalchemy.orm import aliased, load_only
+from sqlalchemy.orm import aliased, load_only, selectinload
 from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, lookup_user, require_admin, require_thesaurus_editor
@@ -18,6 +18,7 @@ from . import services as svc
 from . import files
 from . import kit
 from . import taxhub
+from . import search as finder
 
 api = Blueprint('api', __name__)
 MIN_SEARCH_CHARS = 3
@@ -142,14 +143,43 @@ def logout():
     return '', 204
 
 
-def animation_query():
-    """Requête filtrée de la liste, partagée avec la navigation précédente/suivante."""
+def animation_content_matches(pattern):
+    """Le motif figure dans les informations générales, une séquence, un outil ou un média de l'animation."""
+    in_sequence = (select(RelAnimSequence.id)
+                   .join(Sequence, Sequence.id == RelAnimSequence.fk_sequence_id)
+                   .where(RelAnimSequence.fk_anim_id == Animation.id,
+                          or_(like(Sequence.titre, pattern), like(Sequence.objectifs, pattern),
+                              like(Sequence.description, pattern), like(Sequence.materiel_div, pattern))))
+    in_outil = (select(RelOutilSequence.id)
+                .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == RelOutilSequence.fk_sequence_id)
+                .join(OutilFacilitateur, OutilFacilitateur.id == RelOutilSequence.fk_outil_id)
+                .where(RelAnimSequence.fk_anim_id == Animation.id,
+                       or_(like(OutilFacilitateur.nom, pattern), like(OutilFacilitateur.description, pattern),
+                           like(OutilFacilitateur.variante, pattern), like(OutilFacilitateur.materiel, pattern))))
+    in_media = (select(RelMediaSequence.id)
+                .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == RelMediaSequence.fk_sequence_id)
+                .join(Media, Media.id == RelMediaSequence.fk_media_id)
+                .where(RelAnimSequence.fk_anim_id == Animation.id,
+                       or_(like(Media.nom, pattern), like(Media.description, pattern))))
+    return or_(like(Animation.titre, pattern), like(Animation.description, pattern),
+               like(Animation.objectifs, pattern), like(Animation.pre_anim, pattern),
+               like(Animation.post_anim, pattern), like(Animation.lieu, pattern),
+               like(Animation.public_specifique, pattern), like(Animation.auteurs, pattern),
+               in_sequence.exists(), in_outil.exists(), in_media.exists())
+
+
+def animation_query(deep=False, filtered=True):
+    """Requête filtrée de la liste, partagée avec la navigation précédente/suivante.
+
+    `deep` étend la recherche texte à tout le contenu (séquences, outils et médias rattachés) ;
+    `filtered=False` ne conserve que la recherche texte et la visibilité (compteurs de la recherche générale).
+    """
     query = select(Animation).options(load_only(Animation.id, Animation.titre, Animation.statut,
                                                  Animation.description, Animation.auteurs,
                                                  Animation.objectifs)).where(svc.visible_animations()).order_by(Animation.titre, Animation.id)
-    if 'auteur' in request.args:
+    if filtered and 'auteur' in request.args:
         query = query.where(Animation.auteurs == request.args['auteur'])
-    statuts = request.args.getlist('statut')
+    statuts = request.args.getlist('statut') if filtered else []
     if statuts:
         try:
             values = {int(value) for value in statuts}
@@ -158,18 +188,16 @@ def animation_query():
         if not values <= {1, 2, 3}:
             raise ValidationError({'statut': ['Valeur hors limites.']})
         query = query.where(Animation.statut.in_(values))
-    # Chaque paramètre q répété est un critère supplémentaire (ET) sur le titre, la description ou les objectifs.
-    for text_query in (value.strip() for value in request.args.getlist('q')):
-        if not text_query:
-            continue
-        if len(text_query) > 100:
-            raise ValidationError({'q': ['100 caractères maximum.']})
-        pattern = '%' + text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
-        query = query.where(or_(Animation.titre.ilike(pattern, escape='\\'),
-                                Animation.description.ilike(pattern, escape='\\'),
-                                Animation.objectifs.ilike(pattern, escape='\\')))
+    # Chaque mot de chaque paramètre q est un critère supplémentaire (ET).
+    for word in finder.split_terms(request.args.getlist('q')):
+        pattern = finder.like_pattern(word)
+        if deep:
+            query = query.where(animation_content_matches(pattern))
+        else:
+            query = query.where(or_(like(Animation.titre, pattern), like(Animation.description, pattern),
+                                    like(Animation.objectifs, pattern)))
     # Durée cumulée des séquences comprise entre duree_min et duree_max (bornes incluses, en minutes).
-    if 'duree_min' in request.args or 'duree_max' in request.args:
+    if filtered and ('duree_min' in request.args or 'duree_max' in request.args):
         total = (select(func.coalesce(func.sum(Sequence.duree_minutes), 0))
                  .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == Sequence.id)
                  .where(RelAnimSequence.fk_anim_id == Animation.id).scalar_subquery())
@@ -177,7 +205,7 @@ def animation_query():
             query = query.where(total >= integer_arg('duree_min', 0, minimum=0, maximum=100000))
         if 'duree_max' in request.args:
             query = query.where(total <= integer_arg('duree_max', 0, minimum=0, maximum=100000))
-    tags = id_args('tag')
+    tags = id_args('tag') if filtered else []
     if tags:
         counts = (select(RelAnimTag.fk_anim_id, func.count().label('matched'))
                   .where(RelAnimTag.fk_thes_id.in_(tags)).group_by(RelAnimTag.fk_anim_id).subquery())
@@ -375,14 +403,10 @@ def remove_comment(key, comment_id):
 
 
 def search_terms():
-    """Chaque paramètre q répété est un critère (ET) : renvoie (motif LIKE, motif d'extension) échappés."""
-    for text_query in (value.strip() for value in request.args.getlist('q')):
-        if not text_query:
-            continue
-        if len(text_query) > 100:
-            raise ValidationError({'q': ['100 caractères maximum.']})
-        escaped = text_query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
-        yield f'%{escaped}%', f'%.{escaped}'
+    """Chaque mot de chaque paramètre q est un critère (ET) : renvoie (motif LIKE, motif d'extension) échappés."""
+    for word in finder.split_terms(request.args.getlist('q')):
+        pattern = finder.like_pattern(word)
+        yield pattern, f'%.{pattern[1:-1]}'
 
 
 def like(column, pattern):
@@ -410,10 +434,10 @@ def upload_file(item):
     return item
 
 
-def filtered_media():
+def filtered_media(filtered=True):
     type_alias = aliased(Thesaurus)
     query = select(Media).outerjoin(type_alias, type_alias.id == Media.fk_type_mat_id).order_by(Media.nom, Media.id)
-    types = id_args('type')
+    types = id_args('type') if filtered else []
     if types:
         query = query.where(Media.fk_type_mat_id.in_(types))
     for pattern, extension in search_terms():
@@ -423,7 +447,7 @@ def filtered_media():
                  .where(RelMediaThematique.fk_media_id == Media.id, like(theme_alias.label, pattern)))
         query = query.where(or_(like(Media.nom, pattern), like(Media.description, pattern),
                                 like(Media.url, extension), like(type_alias.label, pattern), theme.exists()))
-    tags = id_args('tag')
+    tags = set(id_args('tag')) if filtered else set()
     result = []
     for item in g.db.scalars(query):
         matched = len(tags & {tag.id for tag in item.thematiques})
@@ -526,17 +550,17 @@ def export_media(key):
                      download_name=kit.safe_name(item.nom, 'media') + '.zip')
 
 
-def filtered_outils():
+def filtered_outils(filtered=True):
     type_alias, difficulty_alias, media_alias = (aliased(Thesaurus) for _ in range(3))
     query = (select(OutilFacilitateur)
              .outerjoin(type_alias, type_alias.id == OutilFacilitateur.fk_type_outil_id)
              .outerjoin(difficulty_alias, difficulty_alias.id == OutilFacilitateur.difficulte_id)
              .outerjoin(media_alias, media_alias.id == OutilFacilitateur.fk_type_mat_outil_id)
              .order_by(OutilFacilitateur.nom, OutilFacilitateur.id))
-    types = id_args('type')
+    types = id_args('type') if filtered else []
     if types:
         query = query.where(OutilFacilitateur.fk_type_outil_id.in_(types))
-    difficulties = id_args('difficulte')
+    difficulties = id_args('difficulte') if filtered else []
     if difficulties:
         query = query.where(OutilFacilitateur.difficulte_id.in_(difficulties))
     for pattern, extension in search_terms():
@@ -551,6 +575,89 @@ def filtered_outils():
 @api.get('/outils')
 def outils_list():
     return paginate(filtered_outils())
+
+
+SEARCH_KINDS = ('animations', 'outils', 'media')
+
+
+def animation_fields(item):
+    """Contenus consultables d'une animation, avec leur provenance, pour les extraits de recherche."""
+    fields = [('Description', item.description), ('Objectifs', item.objectifs),
+              ('Avant l’animation', item.pre_anim), ('Après l’animation', item.post_anim),
+              ('Lieu', item.lieu), ('Public spécifique', item.public_specifique), ('Auteurs', item.auteurs)]
+    for seq in item.sequences:
+        label = f'Séquence « {seq.titre} »'
+        fields += [(label, seq.titre), (f'{label} · Déroulement', seq.description),
+                   (f'{label} · Objectifs', seq.objectifs), (f'{label} · Matériel complémentaire', seq.materiel_div)]
+        for tool in seq.outils:
+            label = f'Outil facilitateur « {tool.nom} »'
+            fields += [(label, tool.nom), (f'{label} · Description', tool.description),
+                       (f'{label} · Variante', tool.variante), (f'{label} · Matériel', tool.materiel)]
+        for medium in seq.materiel:
+            label = f'Média « {medium.nom} »'
+            fields += [(label, medium.nom), (f'{label} · Description', medium.description)]
+    return fields
+
+
+def search_animations(terms):
+    query, _ = animation_query(deep=True)
+    page = integer_arg('page', 1)
+    size = integer_arg('page_size', 20, maximum=100)
+    total = g.db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
+    keys = [row[0].id for row in g.db.execute(query.offset((page - 1) * size).limit(size))]
+    loaded = {}
+    if keys:
+        full = (select(Animation).where(Animation.id.in_(keys))
+                .options(selectinload(Animation.sequences).selectinload(Sequence.materiel),
+                         selectinload(Animation.sequences).selectinload(Sequence.outils)))
+        loaded = {item.id: item for item in g.db.scalars(full)}
+    tags_by_anim = {key: [] for key in keys}
+    if keys:
+        for anim_id, tag_id in g.db.execute(select(RelAnimTag.fk_anim_id, RelAnimTag.fk_thes_id)
+                                            .where(RelAnimTag.fk_anim_id.in_(keys)).order_by(RelAnimTag.id)):
+            tags_by_anim[anim_id].append(tag_id)
+    items = []
+    for key in keys:
+        item = loaded[key]
+        items.append({'id': item.id, 'titre': item.titre, 'statut': item.statut, 'auteurs': item.auteurs,
+                      'tags': tags_by_anim[key], 'fk_duree_id': item.fk_duree_id,
+                      'extraits': finder.build_snippets(animation_fields(item), terms)})
+    return {'items': items, 'total': total, 'page': page, 'page_size': size}
+
+
+def search_listed(items, fields, terms):
+    """Pagine une liste déjà filtrée et y joint les extraits : `fields(item)` donne les (source, contenu)."""
+    result = paginate(items)
+    for item in result['items']:
+        item['extraits'] = finder.build_snippets(fields(item), terms)
+    return result
+
+
+@api.get('/search')
+def general_search():
+    """Recherche générale (ET entre les mots) dans la pédathèque, les outils facilitateurs et la médiathèque.
+
+    `kind` choisit l'onglet détaillé et ses filtres (mêmes paramètres que /animations, /outils et /media) ;
+    `counts` donne le nombre de résultats de chaque onglet pour la seule recherche texte.
+    """
+    terms = finder.split_terms(request.args.getlist('q'))
+    kind = request.args.get('kind', 'animations')
+    if kind not in SEARCH_KINDS:
+        raise ValidationError({'kind': ['Valeur hors limites.']})
+    if not terms:
+        return {'terms': [], 'kind': kind, 'items': [], 'total': 0, 'page': 1, 'page_size': 20,
+                'counts': dict.fromkeys(SEARCH_KINDS, 0)}
+    unfiltered, _ = animation_query(deep=True, filtered=False)
+    counts = {'animations': g.db.scalar(select(func.count()).select_from(unfiltered.order_by(None).subquery())),
+              'outils': len(filtered_outils(filtered=False)), 'media': len(filtered_media(filtered=False))}
+    if kind == 'animations':
+        result = search_animations(terms)
+    elif kind == 'outils':
+        result = search_listed(filtered_outils(), lambda item: [
+            ('Description', item['description']), ('Variante', item['variante']), ('Matériel', item['materiel'])], terms)
+    else:
+        result = search_listed(filtered_media(), lambda item: [('Description', item['description'])], terms)
+    return {**result, 'terms': terms, 'kind': kind, 'counts': counts}
 
 
 @api.get('/outils/<int:key>/neighbors')

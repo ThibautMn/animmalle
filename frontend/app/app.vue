@@ -130,6 +130,19 @@ async function logout() {
     error.value = e.message
   }
 }
+// Recherche générale : la saisie reste affichée sur la page des résultats.
+const searchText = ref('')
+watch(
+  () => [route.path, route.query.q],
+  ([path, q]) => {
+    if (path === '/search') searchText.value = typeof q === 'string' ? q : ''
+  },
+  { immediate: true },
+)
+async function submitSearch() {
+  const q = searchText.value.trim()
+  if (q) await navigateTo({ path: '/search', query: { q } })
+}
 onMounted(() => {
   const el = document.querySelector('body header')
   if (!el || typeof ResizeObserver === 'undefined') return
@@ -175,6 +188,23 @@ onMounted(async () => {
         >Thésaurus</NuxtLink
       >
     </nav>
+    <form
+      v-if="session.user"
+      class="site-search"
+      role="search"
+      @submit.prevent="submitSearch"
+    >
+      <input
+        v-model="searchText"
+        type="search"
+        maxlength="200"
+        placeholder="Rechercher partout…"
+        aria-label="Recherche générale : pédathèque, outils facilitateurs et médiathèque"
+      />
+      <button type="submit" aria-label="Lancer la recherche">
+        <i class="pi pi-search" aria-hidden="true" />
+      </button>
+    </form>
     <div v-if="session.user" class="userbox">
       <span class="avatar" aria-hidden="true">{{ initials }}</span>
       <span class="name">{{ firstName }}</span>

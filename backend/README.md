@@ -157,6 +157,7 @@ l’ancien dans le client. `POST /api/auth/logout` ferme la session.
 | `DELETE /thesaurus/{id}/pictogram` | Administrateur : retire le PNG (supprimer le terme le retire aussi) |
 | `GET, PUT /pages/{name}` | Markdown, HTML nettoyé, documents ; édition administrateur |
 | `GET /authors?q=…`, `GET /users?q=…` | Suggestions d’auteurs et utilisateurs (2 caractères pour users) |
+| `GET /search?q=…&kind=animations\|outils\|media` | Recherche générale : extraits, compteurs par onglet, filtres de l’onglet demandé |
 | `GET /stats` | Séries cumulées historiques selon la dernière date de modification |
 
 Les listes animations/media/outils acceptent `page` (défaut 1), `page_size` (1–200,
@@ -165,6 +166,14 @@ une pertinence numérique `{matched, requested}` ; au moins un tag doit correspo
 Animations : `auteur`, `statut` (1 validée, 2 complète à valider, 3 brouillon).
 Materials : `kind=media|outil`, `type` répété. Thésaurus : filtre `reference`,
 valeur vide pour les catégories.
+
+Recherche texte (`q`, listes et `/search`) : chaque mot, séparé par un ou plusieurs
+espaces, est un critère obligatoire (ET), sans ordre ni adjacence imposés ; plusieurs
+paramètres `q` s’additionnent (10 mots au plus, 100 caractères par mot). `/search`
+cherche dans les informations générales des animations, leurs séquences, les outils
+et les médias rattachés ; `items[].extraits` donne la provenance et quelques mots
+autour du premier terme trouvé. `counts` ne tient compte que de la recherche texte
+(sans filtres) ; `total` applique les filtres de l’onglet (`kind`).
 
 Les noms de champs correspondent aux colonnes SQLAlchemy avec les suffixes `_id`
 pour les FK. Consulter `schemas.py` pour le contrat complet. Exemple de création :

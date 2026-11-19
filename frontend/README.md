@@ -13,6 +13,11 @@ Vue 2 historiques, sans modifier `ancien_animalle/`.
   raccourci « Mes animations », consultation et impression.
   Chaque animation occupe un encart pleine largeur par ligne, avec son titre
   et sa description complète, dont les retours à la ligne sont conservés.
+- Recherche générale dans la barre de menu (à gauche du profil) : page `/search`
+  avec les onglets Animations (par défaut), Outils facilitateurs et Média, extraits
+  surlignés autour des mots trouvés et cases à cocher propres à chaque onglet. Les mots
+  séparés par des espaces sont tous requis (ET) ; cette règle vaut aussi pour les
+  recherches de la pédathèque, des outils et de la médiathèque.
 - Création et remplacement complet des animations, brouillon / à valider,
   séquences ordonnées, références et associations de médias. Les identifiants
   existants sont conservés et les champs calculés sont exclus des PUT.

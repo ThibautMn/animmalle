@@ -701,6 +701,61 @@ class ApiTests(unittest.TestCase):
         for text in ('OUTIL FACILITATEUR', 'Un outil &lt;b&gt;', 'VARIANTE', 'une variante', 'MATÉRIEL', 'du matériel'):
             self.assertIn(text, content)
 
+    def test_general_search_and_words(self):
+        outil = self.mutate('post', '/api/outils', {'nom': 'Cartes du castor', 'fk_type_outil_id': 7, 'difficulte_id': 8,
+                                                  'description': '<p>Un jeu de cartes</p>', 'variante': '', 'materiel': ''}).json
+        media = self.mutate('post', '/api/media', {'nom': 'Photo de loutre', 'fk_type_mat_id': 6, 'thematiques': [5],
+                                                  'description': '<p>Le castor et la loutre au bord de l’eau</p>'}).json
+        data = self.animation_data()
+        data.update(titre='Les rivières', description='<p>Découverte du milieu</p>')
+        data['sequences'][0].update(titre='Intro', description='<p>Les enfants construisent un barrage pour le castor</p>',
+                                    outils=[outil['id']], materiel=[media['id']])
+        response = self.mutate('post', '/api/animations', data)
+        self.assertEqual(response.status_code, 201, response.json)
+        item = response.json
+        other = self.mutate('post', '/api/animations', {**self.animation_data(), 'titre': 'Autre'}).json
+        # Les mots sont combinés par ET, sans ordre ni adjacence, dans toutes les listes.
+        self.assertEqual(self.client.get('/api/animations', query_string={'q': ' rivières   milieu '}).json['total'], 1)
+        self.assertEqual(self.client.get('/api/animations', query_string={'q': 'rivières zzz'}).json['total'], 0)
+        self.assertEqual(self.client.get('/api/media?q=loutre+castor').json['total'], 1)
+        self.assertEqual(self.client.get('/api/media?q=loutre+zzz').json['total'], 0)
+        self.assertEqual(self.client.get('/api/outils?q=jeu++castor').json['total'], 1)
+        self.assertEqual(self.client.get('/api/outils?q=jeu&q=castor').json['total'], 1)
+        # La recherche générale couvre séquences, outils et médias rattachés.
+        response = self.client.get('/api/search?q=jeu+castor+barrage')
+        self.assertEqual((response.json['kind'], response.json['terms']), ('animations', ['jeu', 'castor', 'barrage']))
+        self.assertEqual([entry['id'] for entry in response.json['items']], [item['id']])
+        self.assertEqual(response.json['counts'], {'animations': 1, 'outils': 0, 'media': 0})
+        response = self.client.get('/api/search?q=castor+loutre')
+        self.assertEqual(response.json['counts'], {'animations': 1, 'outils': 0, 'media': 1})
+        self.assertEqual([entry['id'] for entry in response.json['items']], [item['id']])
+        sources = {extract['source'] for extract in response.json['items'][0]['extraits']}
+        self.assertIn('Média « Photo de loutre » · Description', sources)
+        self.assertTrue(all('castor' in extract['text'].casefold() or 'loutre' in extract['text'].casefold()
+                            for extract in response.json['items'][0]['extraits']))
+        response = self.client.get('/api/search?q=castor&kind=outils')
+        self.assertEqual([entry['id'] for entry in response.json['items']], [outil['id']])
+        self.assertEqual(response.json['counts'], {'animations': 1, 'outils': 1, 'media': 1})
+        response = self.client.get('/api/search?q=castor&kind=media')
+        self.assertEqual([entry['id'] for entry in response.json['items']], [media['id']])
+        self.assertIn('castor', response.json['items'][0]['extraits'][0]['text'])
+        self.assertNotIn('<p>', response.json['items'][0]['extraits'][0]['text'])
+        # Les filtres propres à un onglet n'altèrent pas les compteurs des autres.
+        response = self.client.get('/api/search?q=castor&kind=outils&type=6')
+        self.assertEqual((response.json['total'], response.json['counts']['outils']), (0, 1))
+        self.assertEqual(self.client.get('/api/search?q=castor&kind=animations&statut=1').json['total'], 0)
+        self.assertEqual(self.client.get('/api/search?q=castor&kind=animations&tag=5').json['total'], 1)
+        self.assertEqual(self.client.get('/api/search?q=castor&kind=animations&tag=2').json['total'], 0)
+        # Sans mot, ou avec des paramètres invalides.
+        self.assertEqual(self.client.get('/api/search?q=+').json['counts'], {'animations': 0, 'outils': 0, 'media': 0})
+        self.assertEqual(self.client.get('/api/search?q=a&kind=x').status_code, 422)
+        self.assertEqual(self.client.get('/api/search?q=' + '+'.join(str(n) for n in range(11))).status_code, 422)
+        self.assertEqual(self.client.get('/api/search?q=' + 'a' * 101).status_code, 422)
+        # Les animations privées d'un autre auteur restent invisibles.
+        self.login('bob')
+        self.assertEqual(self.client.get('/api/search?q=barrage').json['total'], 0)
+        self.assertEqual(other['titre'], 'Autre')
+
     def test_animation_neighbors(self):
         first = self.create_animation()
         data = self.animation_data()

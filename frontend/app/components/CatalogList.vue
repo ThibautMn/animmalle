@@ -2,6 +2,7 @@
 import { useSessionStore } from "~/stores/session";
 import { formatMinutes } from "../../lib/forms.mjs";
 import { toPlainText } from "../../lib/richtext.mjs";
+import { highlightParts, splitTerms } from "../../lib/search.mjs";
 const props = defineProps({
   kind: { type: String, default: "animation" },
   // Mode sélection (fenêtre modale d'une animation) : pas de lien vers les fiches ni d'actions d'administration.
@@ -62,16 +63,7 @@ const extra_terms = ref([]);
 const marked_terms = ref([]);
 // Découpe un texte en segments, ceux qui contiennent un terme recherché ayant hit = true.
 function highlight(raw) {
-  const text = toPlainText(raw);
-  const terms = [...marked_terms.value].sort((a, b) => b.length - a.length);
-  if (!text || !terms.length) return [{ text, hit: false }];
-  const pattern = terms
-    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  return text
-    .split(new RegExp(`(${pattern})`, "i"))
-    .map((part, index) => ({ text: part, hit: index % 2 === 1 }))
-    .filter((part) => part.text);
+  return highlightParts(toPlainText(raw), marked_terms.value);
 }
 const duration_min = ref(null);
 const duration_max = ref(null);
@@ -129,7 +121,7 @@ async function search(reset = false) {
         const { page: _page, page_size: _size, ...filters } = query;
         outil_search.value = filters;
       }
-      marked_terms.value = query.q || [];
+      marked_terms.value = splitTerms(query.q || []);
       items.value = result.items;
       total.value = result.total;
       // Bornes par défaut : la plus courte et la plus longue animation (sans effet sur la liste).
