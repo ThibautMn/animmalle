@@ -250,6 +250,41 @@ class ApiTests(unittest.TestCase):
         with self.db() as db:
             self.assertEqual(db.scalar(select(func.count()).select_from(Sequence)), 0)
 
+    def test_sequences_list_filters_visibility_and_copy(self):
+        item = self.create_animation()
+        with self.db() as db:
+            db.add(Thesaurus(id=300, label='Développement', reference='ref.type_seq', code=''))
+            db.commit()
+        data = self.animation_data()
+        data['sequences'][0].update(titre='Jeu du castor', fk_type_seq_id=300)
+        other = self.mutate('post', '/api/animations', data).json
+        result = self.client.get('/api/sequences').json
+        self.assertEqual(result['total'], 2)
+        self.assertEqual(result['items'][0]['titre'], 'Introduction')
+        self.assertEqual(result['items'][0]['animation']['id'], item['id'])
+        self.assertEqual(self.client.get('/api/sequences?q=jeu&q=castor').json['total'], 1)
+        self.assertEqual(self.client.get('/api/sequences?q=jeu&q=absent').json['total'], 0)
+        self.assertEqual(self.client.get('/api/sequences?type=300').json['total'], 1)
+        self.assertEqual(self.client.get('/api/sequences?type=300&approche=99').json['total'], 0)
+        self.assertEqual(self.client.get('/api/sequences?type=x').status_code, 422)
+        # Copie : une séquence sans identifiant crée une séquence distincte, l'originale reste intacte.
+        copy_data = self.animation_data()
+        copy_data['sequences'] = [{key: value for key, value in result['items'][1].items() if key not in ('id', 'animation')}]
+        copy_data['sequences'][0]['titre'] = 'Copie modifiée'
+        created = self.mutate('post', '/api/animations', copy_data)
+        self.assertEqual(created.status_code, 201, created.json)
+        self.assertNotIn(created.json['sequences'][0]['id'], [s['id'] for s in result['items']])
+        self.assertEqual(self.client.get(f"/api/animations/{other['id']}").json['sequences'][0]['titre'], 'Jeu du castor')
+        self.assertEqual(self.client.get('/api/sequences').json['total'], 3)
+        # Une copie non modifiée n'apparaît pas une seconde fois dans la liste.
+        same = self.animation_data()
+        same['sequences'] = [{key: value for key, value in result['items'][1].items() if key not in ('id', 'animation')}]
+        self.assertEqual(self.mutate('post', '/api/animations', same).status_code, 201)
+        self.assertEqual(self.client.get('/api/sequences').json['total'], 3)
+        # Les séquences d'animations privées restent invisibles aux autres utilisateurs.
+        self.login('bob')
+        self.assertEqual(self.client.get('/api/sequences').json['total'], 0)
+
     def test_foreign_sequence_and_validation_refused(self):
         first, second = self.create_animation(), self.create_animation()
         data = self.animation_data()

@@ -6,6 +6,7 @@ import {
   mediaPayload,
   outilPayload,
   newSequence,
+  copySequence,
   moveSequence
 } from '../lib/forms.mjs'
 
@@ -88,4 +89,25 @@ test('Le nom de téléchargement conserve l’extension et les accents', () => {
     downloadFilename('attachment; filename="../test.pdf"'),
     '.._test.pdf'
   )
+})
+
+test('copySequence produit une copie indépendante sans identifiant', () => {
+  const source = {
+    id: 12,
+    animation: { id: 'a', titre: 'Autre' },
+    titre: 'Original',
+    fk_type_seq_id: 1,
+    duree_minutes: 5,
+    materiel: [3],
+    outils: [4]
+  }
+  const copy = copySequence(source)
+  assert.equal(copy.id, undefined)
+  assert.equal(copy.animation, undefined)
+  assert.equal(copy.titre, 'Original')
+  assert.equal(copy.description, '')
+  copy.materiel.push(9)
+  copy.titre = 'Modifié'
+  assert.deepEqual(source.materiel, [3])
+  assert.equal(source.titre, 'Original')
 })

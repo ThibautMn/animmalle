@@ -72,7 +72,8 @@ async function loadThumbnails() {
   }))
 }
 onMounted(loadThumbnails)
-watch(() => items.value.map(item => item.id).join(','), loadThumbnails)
+// L'extension fait partie de la clé : une fiche complétée après coup (séquence copiée) déclenche la vignette.
+watch(() => items.value.map(item => `${item.id}.${item.extension || ''}.${item.fk_type_mat_id || ''}`).join(','), loadThumbnails)
 onBeforeUnmount(() => {
   disposed = true
   Object.values(sources.value).forEach(source => URL.revokeObjectURL(source))

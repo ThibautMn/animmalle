@@ -5,6 +5,7 @@ import {
   sequenceFields,
   sequenceRefs,
   newSequence,
+  copySequence,
   formatMinutes,
   animationPayload,
   moveSequence,
@@ -33,6 +34,7 @@ const mediaItems = ref({})
 // Fiches complètes des outils facilitateurs, par identifiant.
 const outilItems = ref({})
 const outilDialog = ref(null)
+const sequenceDialog = ref(null)
 // Séquence (index) qui recevra l'outil choisi dans la fenêtre modale.
 const outilTarget = ref(null)
 const error = ref('')
@@ -179,6 +181,33 @@ function addOutil(outil) {
   outilItems.value[outil.id] = outil
   seq.outils.push(outil.id)
   outilDialog.value.close()
+}
+// Ajoute une copie de la séquence choisie : l'originale n'est jamais modifiée.
+async function addExistingSequence(source) {
+  const copy = copySequence(source)
+  draft.value.sequences.push(copy)
+  sequenceDialog.value.close()
+  // Fiches des outils et médias de la copie, absentes si l'animation n'en utilisait pas encore.
+  await Promise.all([
+    ...copy.outils
+      .filter((id) => !outilItems.value[id])
+      .map(async (id) => {
+        try {
+          outilItems.value[id] = await api(`/outils/${id}`)
+        } catch {
+          outilItems.value[id] = { id, nom: 'Outil indisponible' }
+        }
+      }),
+    ...copy.materiel
+      .filter((id) => !mediaItems.value[id])
+      .map(async (id) => {
+        try {
+          mediaItems.value[id] = await api(`/media/${id}`)
+        } catch {
+          mediaItems.value[id] = { id, nom: 'Média indisponible' }
+        }
+      }),
+  ])
 }
 function removeOutil(seq, index) {
   seq.outils.splice(index, 1)
@@ -548,13 +577,22 @@ onMounted(load)
               </article>
             </li>
           </ol>
-          <div class="tip-above tip-start add-sequence"><PButton
-            type="button"
-            class="secondary"
-            label="Ajouter une séquence"
-            data-tooltip="Ajoute une séquence vide à la fin de l'animation"
-            @click="draft.sequences.push(newSequence())"
-          /></div>
+          <div class="add-sequence">
+            <span class="tip-above tip-start"><PButton
+              type="button"
+              class="secondary"
+              label="Ajouter une séquence"
+              data-tooltip="Ajoute une séquence vide à la fin de l'animation"
+              @click="draft.sequences.push(newSequence())"
+            /></span>
+            <span class="tip-above tip-start"><PButton
+              type="button"
+              class="secondary"
+              label="Ajouter une séquence existante"
+              data-tooltip="Ajoute une copie d'une séquence existante à la fin de l'animation"
+              @click="sequenceDialog.open()"
+            /></span>
+          </div>
         </div>
       </form>
       <div v-else class="fiche-layout">
@@ -675,6 +713,11 @@ onMounted(load)
           </details>
         </div>
       </div>
+    <SequencePickerDialog
+      v-if="editing"
+      ref="sequenceDialog"
+      @add="addExistingSequence"
+    />
     <OutilPickerDialog
       v-if="editing"
       ref="outilDialog"

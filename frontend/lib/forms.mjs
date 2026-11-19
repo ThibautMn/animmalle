@@ -41,6 +41,15 @@ export function newSequence() {
     outils: []
   }
 }
+// Copie indépendante d'une séquence existante : sans identifiant, elle sera créée à l'enregistrement.
+export function copySequence(source) {
+  const copy = newSequence()
+  for (const key of Object.keys(copy)) {
+    const value = source[key]
+    copy[key] = Array.isArray(value) ? [...value] : (value ?? copy[key])
+  }
+  return copy
+}
 export function animationPayload(item) {
   const keys = [
     'titre',

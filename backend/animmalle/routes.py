@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, lookup_user, require_admin, require_thesaurus_editor
 from .models import (Animation, Media, OutilFacilitateur, Thesaurus, Commentaire,
                      RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, RelOutilSequence, Sequence, EvenementUsage)
-from .schemas import (LoginSchema, AnimationSchema, MediaSchema, OutilSchema, ThesaurusSchema,
+from .schemas import (LoginSchema, AnimationSchema, SequenceSchema, MediaSchema, OutilSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import oidc
 from . import services as svc
@@ -224,6 +224,58 @@ def animations():
               'pertinence': {'matched': row[1] if tags else 0, 'requested': len(tags)}}
              for row in rows]
     return {'items': items, 'total': total, 'page': page, 'page_size': size, 'duree_min': shortest, 'duree_max': longest}
+
+
+@api.get('/sequences')
+def sequences_list():
+    """Séquences des animations visibles, pour en ajouter une copie à une autre animation.
+
+    Filtres : `type` (partie), `approche`, `modalite` (identifiants, OU au sein d'un filtre)
+    et `q` répété (ET) sur le titre, les textes et les libellés de référence.
+    """
+    type_alias, approach_alias, modality_alias = (aliased(Thesaurus) for _ in range(3))
+    query = (select(Sequence, Animation.id, Animation.titre)
+             .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == Sequence.id)
+             .join(Animation, Animation.id == RelAnimSequence.fk_anim_id)
+             .join(type_alias, type_alias.id == Sequence.fk_type_seq_id)
+             .join(approach_alias, approach_alias.id == Sequence.fk_approche_id)
+             .join(modality_alias, modality_alias.id == Sequence.fk_modalite_id)
+             .where(svc.visible_animations())
+             .order_by(Sequence.titre, Sequence.id))
+    for name, column in (('type', Sequence.fk_type_seq_id), ('approche', Sequence.fk_approche_id),
+                         ('modalite', Sequence.fk_modalite_id)):
+        values = id_args(name)
+        if values:
+            query = query.where(column.in_(values))
+    for pattern, _ in search_terms():
+        query = query.where(or_(
+            like(Sequence.titre, pattern), like(Sequence.objectifs, pattern),
+            like(Sequence.description, pattern), like(Sequence.materiel_div, pattern),
+            like(Animation.titre, pattern), like(type_alias.label, pattern),
+            like(approach_alias.label, pattern), like(modality_alias.label, pattern)))
+    # Les séquences au contenu identique (copies non modifiées) ne sont listées qu'une fois : la plus ancienne.
+    content = (Sequence.titre, Sequence.objectifs, Sequence.description, Sequence.materiel_div, Sequence.duree_minutes,
+               Sequence.fk_type_seq_id, Sequence.fk_approche_id, Sequence.fk_modalite_id)
+    ranked = (query.order_by(None)
+              .add_columns(func.row_number().over(partition_by=content, order_by=Sequence.id).label('rank'))
+              .subquery())
+    unique = (select(ranked.c.id).where(ranked.c.rank == 1).subquery())
+    query = (select(Sequence, Animation.id, Animation.titre)
+             .join(unique, unique.c.id == Sequence.id)
+             .join(RelAnimSequence, RelAnimSequence.fk_sequence_id == Sequence.id)
+             .join(Animation, Animation.id == RelAnimSequence.fk_anim_id)
+             .order_by(Sequence.titre, Sequence.id))
+    total = g.db.scalar(select(func.count()).select_from(unique))
+    page = integer_arg('page', 1)
+    size = integer_arg('page_size', 20, maximum=200)
+    items = []
+    for seq, anim_id, anim_title in g.db.execute(query.offset((page - 1) * size).limit(size)):
+        value = SequenceSchema(exclude=['materiel', 'outils']).dump(seq)
+        value['materiel'] = [mat.id for mat in seq.materiel]
+        value['outils'] = [outil.id for outil in seq.outils]
+        value['animation'] = {'id': anim_id, 'titre': anim_title}
+        items.append(value)
+    return {'items': items, 'total': total, 'page': page, 'page_size': size}
 
 
 @api.get('/animations/<key>/neighbors')
