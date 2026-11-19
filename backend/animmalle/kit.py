@@ -17,6 +17,7 @@ from . import files
 
 PRIMARY = '#ed8b00'
 MUTED = '#7a7167'
+OUTIL = '#6a55b8'
 LINE = '#efe6da'
 STATUTS = {1: 'Validée', 2: 'À valider', 3: 'Brouillon'}
 
@@ -24,7 +25,7 @@ STATUTS = {1: 'Validée', 2: 'À valider', 3: 'Brouillon'}
 ACCENTS = {
     'description': PRIMARY, 'objectifs': '#1f8a70', 'pre_anim': '#3a6fc4',
     'post_anim': '#8a4fc0', 'public_specifique': MUTED, 'materiel': '#b07a1a',
-    'variante': '#3a6fc4',
+    'variante': '#d9822b', 'outil': OUTIL,
 }
 SEQUENCE_COLORS = {'intro': '#1f8a70', 'developpement': '#8a4fc0', 'conclu': '#c4366b'}
 
@@ -185,15 +186,24 @@ def rich(text, style='Corps'):
 BLOCK_IDS = count(1)
 
 
-def block(label, text, accent):
-    """Bloc coloré à bordure et fond teinté, comme les <fieldset> de la fiche."""
+# Largeurs des tableaux de blocs : pleine page, colonne gauche ou droite de l'encart d'un outil.
+BLOCK_WIDTHS = {'': '17.4cm', 'F': '16.3cm', 'L': '10.4cm', 'R': '5.4cm'}
+
+
+def block(label, text, accent, width='', white=False):
+    """Bloc coloré, comme les <fieldset> de la fiche.
+
+    Sans `width` ni `white` : bordure gauche épaisse et fond teinté (animation). Pour un outil facilitateur
+    (`width` = 'F', 'L' ou 'R') : bordure fine tout autour, fond teinté ou blanc (`white`), comme `.tool-block`.
+    """
     body = rich(text)
     if not body:
         return ''
     key = accent[1:]
-    return (f'<table:table table:name="Bloc{next(BLOCK_IDS)}" table:style-name="TB{key}">'
-            '<table:table-column table:style-name="Pleine"/>'
-            f'<table:table-row><table:table-cell table:style-name="CB{key}" office:value-type="string">'
+    cell = (f'CW{key}' if width else f'CF{key}') if white else (f'CT{key}' if width else f'CB{key}')
+    return (f'<table:table table:name="Bloc{next(BLOCK_IDS)}" table:style-name="TB{width}{key}">'
+            f'<table:table-column table:style-name="Pleine{width}"/>'
+            f'<table:table-row><table:table-cell table:style-name="{cell}" office:value-type="string">'
             f'<text:p text:style-name="Legende{key}">{escape(label.upper())}</text:p>{body}'
             '</table:table-cell></table:table-row></table:table><text:p text:style-name="Espace"/>')
 
@@ -202,12 +212,23 @@ def block_styles(accents):
     styles = []
     for accent in sorted(set(accents)):
         key = accent[1:]
+        for width, size in BLOCK_WIDTHS.items():
+            align = 'left' if width else 'margins'
+            styles.append(
+                f'<style:style style:name="TB{width}{key}" style:family="table"><style:table-properties '
+                f'style:width="{size}" table:align="{align}" fo:margin-top="0cm" fo:margin-bottom="0.1cm"/></style:style>')
+        border = f'0.75pt solid {mix(accent, 0.45)}'
         styles.append(
-            f'<style:style style:name="TB{key}" style:family="table"><style:table-properties style:width="17.4cm" '
-            'table:align="margins" fo:margin-top="0cm" fo:margin-bottom="0.1cm"/></style:style>'
             f'<style:style style:name="CB{key}" style:family="table-cell"><style:table-cell-properties '
             f'fo:padding="0.2cm" fo:padding-left="0.35cm" fo:background-color="{mix(accent, 0.07)}" '
             f'fo:border="0.5pt solid {mix(accent, 0.45)}" fo:border-left="3pt solid {accent}"/></style:style>'
+            f'<style:style style:name="CF{key}" style:family="table-cell"><style:table-cell-properties '
+            f'fo:padding="0.2cm" fo:padding-left="0.35cm" fo:background-color="#ffffff" '
+            f'fo:border="0.5pt solid {mix(accent, 0.45)}" fo:border-left="3pt solid {accent}"/></style:style>'
+            f'<style:style style:name="CT{key}" style:family="table-cell"><style:table-cell-properties '
+            f'fo:padding="0.2cm" fo:padding-left="0.3cm" fo:background-color="{mix(accent, 0.07)}" fo:border="{border}"/></style:style>'
+            f'<style:style style:name="CW{key}" style:family="table-cell"><style:table-cell-properties '
+            f'fo:padding="0.2cm" fo:padding-left="0.3cm" fo:background-color="#ffffff" fo:border="{border}"/></style:style>'
             f'<style:style style:name="Legende{key}" style:family="paragraph" style:parent-style-name="Corps">'
             '<style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.15cm" fo:keep-with-next="always"/>'
             f'<style:text-properties fo:font-size="9.5pt" fo:font-weight="bold" fo:letter-spacing="0.05cm" '
@@ -217,6 +238,21 @@ def block_styles(accents):
 
 STATIC_STYLES = f'''
 <style:style style:name="Pleine" style:family="table-column"><style:table-column-properties style:column-width="17.4cm"/></style:style>
+<style:style style:name="PleineF" style:family="table-column"><style:table-column-properties style:column-width="16.3cm"/></style:style>
+<style:style style:name="PleineL" style:family="table-column"><style:table-column-properties style:column-width="10.4cm"/></style:style>
+<style:style style:name="PleineR" style:family="table-column"><style:table-column-properties style:column-width="5.4cm"/></style:style>
+<style:style style:name="ColOutilG" style:family="table-column"><style:table-column-properties style:column-width="10.9cm"/></style:style>
+<style:style style:name="ColOutilD" style:family="table-column"><style:table-column-properties style:column-width="5.4cm"/></style:style>
+<style:style style:name="ColOutil" style:family="table-column"><style:table-column-properties style:column-width="16.3cm"/></style:style>
+<style:style style:name="TOutilCorps" style:family="table"><style:table-properties style:width="16.3cm" table:align="left"/></style:style>
+<style:style style:name="COutilG" style:family="table-cell"><style:table-cell-properties fo:padding="0cm" fo:padding-right="0.5cm" fo:border="none"/></style:style>
+<style:style style:name="COutilD" style:family="table-cell"><style:table-cell-properties fo:padding="0cm" fo:border="none"/></style:style>
+<style:style style:name="TOutil" style:family="table"><style:table-properties style:width="17.4cm" table:align="margins" fo:margin-top="0cm" fo:margin-bottom="0.1cm"/></style:style>
+<style:style style:name="COutil" style:family="table-cell"><style:table-cell-properties fo:padding="0.25cm" fo:padding-left="0.4cm" fo:background-color="#f5f3fb" fo:border="0.75pt solid #d6cfee" fo:border-left="6pt solid {OUTIL}"/></style:style>
+<style:style style:name="OutilEtiquette" style:family="paragraph"><style:paragraph-properties fo:margin="0cm" fo:keep-with-next="always"/><style:text-properties fo:font-size="8pt" fo:font-weight="bold" fo:letter-spacing="0.04cm" fo:color="{OUTIL}"/></style:style>
+<style:style style:name="OutilTitre" style:family="paragraph"><style:paragraph-properties fo:margin-top="0.05cm" fo:margin-bottom="0.1cm" fo:keep-with-next="always"/><style:text-properties fo:font-size="13pt" fo:font-weight="bold" fo:color="#26221e"/></style:style>
+<style:style style:name="OutilPuces" style:family="paragraph"><style:paragraph-properties fo:margin-bottom="0.2cm" fo:keep-with-next="always"/></style:style>
+<style:style style:name="ChipOutil" style:family="text"><style:text-properties fo:font-size="9pt" fo:color="#4a3f7a" fo:background-color="#e6e1f6"/></style:style>
 <style:style style:name="Corps" style:family="paragraph"><style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0.12cm" fo:line-height="125%"/><style:text-properties fo:font-size="10.5pt" fo:color="#26221e"/></style:style>
 <style:style style:name="Espace" style:family="paragraph"><style:paragraph-properties fo:margin="0cm"/><style:text-properties fo:font-size="5pt"/></style:style>
 <style:style style:name="EspaceGrand" style:family="paragraph"><style:paragraph-properties fo:margin="0cm"/><style:text-properties fo:font-size="14pt"/></style:style>
@@ -378,6 +414,48 @@ def media_list(entries, pictures):
             '<text:p text:style-name="Espace"/>')
 
 
+def outil_sheet(outil, pictures):
+    """Encart d'un outil facilitateur, comme `OutilSheet` à l'écran : fond lavande, bordure violette,
+    pastilles type/difficulté ; à gauche description (fond blanc) et variante (orange), à droite
+    la vignette du fichier et le matériel."""
+    badges = '<text:s/>'.join(f'<text:span text:style-name="ChipOutil"> {escape(v)} </text:span>'
+                              for v in outil['badges'] if v)
+    inner = ['<text:p text:style-name="OutilEtiquette">OUTIL FACILITATEUR</text:p>',
+             f'<text:p text:style-name="OutilTitre">{escape(outil["titre"])}</text:p>']
+    if outil.get('meta'):
+        inner.append(f'<text:p text:style-name="Meta">{escape(outil["meta"])}</text:p>')
+    if badges:
+        inner.append(f'<text:p text:style-name="OutilPuces">{badges}</text:p>')
+    texts = {key: text for key, _, text in outil['blocks']}
+    labels = {key: label for key, label, _ in outil['blocks']}
+    side = ''
+    if outil.get('thumb'):
+        try:
+            side += f'<text:p text:style-name="VignetteImage">{pictures.thumbnail(outil["thumb"], 5.4)}</text:p>'
+            side += f'<text:p text:style-name="VignetteLegende">{escape(outil.get("fichier", ""))}</text:p>'
+            side += '<text:p text:style-name="Espace"/>'
+        except Exception:
+            side = ''
+    side += block(labels['materiel'], texts.get('materiel'), OUTIL, 'R')
+    columns = 'L' if side else 'F'
+    left = (block(labels['description'], texts.get('description') or 'Non renseigné', OUTIL, columns, white=True)
+            + block(labels['variante'], texts.get('variante'), ACCENTS['variante'], columns))
+    if side:
+        inner.append(
+            '<table:table table:name="OutilCorps' + str(next(BLOCK_IDS)) + '" table:style-name="TOutilCorps">'
+            '<table:table-column table:style-name="ColOutilG"/><table:table-column table:style-name="ColOutilD"/>'
+            '<table:table-row>'
+            f'<table:table-cell table:style-name="COutilG" office:value-type="string">{left}</table:table-cell>'
+            f'<table:table-cell table:style-name="COutilD" office:value-type="string">{side}</table:table-cell>'
+            '</table:table-row></table:table>')
+    else:
+        inner.append(left)
+    return (f'<table:table table:name="Outil{next(BLOCK_IDS)}" table:style-name="TOutil">'
+            '<table:table-column table:style-name="Pleine"/>'
+            '<table:table-row><table:table-cell table:style-name="COutil" office:value-type="string">'
+            f'{"".join(inner)}</table:table-cell></table:table-row></table:table><text:p text:style-name="Espace"/>')
+
+
 def build_odt(fiche, pictures):
     """`fiche` : dict décrit par `animation_fiche` / `media_fiche` / `outil_fiche`."""
     body = [f'<text:p text:style-name="Titre">{escape(fiche["titre"])}</text:p>']
@@ -389,6 +467,7 @@ def build_odt(fiche, pictures):
     if groups_xml:
         body.append('<text:p text:style-name="EspaceGrand"/>')
     accents = set(ACCENTS.values())
+    accents.add(OUTIL)
     for key, label, text in fiche.get('blocks', []):
         body.append(block(label, text, ACCENTS.get(key, PRIMARY)))
     sequences = fiche.get('sequences', [])
@@ -401,7 +480,10 @@ def build_odt(fiche, pictures):
         body.append(f'<text:p text:style-name="SeqTitre{color[1:]}">{number} {escape(seq["titre"])}</text:p>')
         body.append(f'<text:p text:style-name="Puces">{chips(seq["chips"], seq["duree"])}</text:p>')
         for key, label, text in seq['blocks']:
-            body.append(block(label, text, ACCENTS.get(key, PRIMARY)))
+            # « Déroulement » sur fond blanc, les autres blocs gardent leur fond teinté.
+            body.append(block(label, text, ACCENTS.get(key, PRIMARY), white=(key == 'description')))
+        for outil in seq.get('outils', []):
+            body.append(outil_sheet(outil, pictures))
         body.append(media_list(seq['medias'], pictures))
     body.append(media_list(fiche.get('medias', []), pictures))
     colors = {seq['color'] for seq in sequences}
@@ -493,6 +575,7 @@ def animation_fiche(item):
                        ('objectifs', 'Objectifs', seq.objectifs),
                        ('materiel', 'Matériel complémentaire', seq.materiel_div)],
             'materiel': list(seq.materiel),
+            'outils': [outil_card(outil) for outil in seq.outils],
             'medias': [],
         })
     return {
@@ -525,6 +608,24 @@ def media_fiche(item):
         'blocks': [('description', 'Description / Consigne', item.description)],
         'sequences': [],
         'materiel': [item],
+    }
+
+
+OUTIL_BLOCKS = (('description', 'Description / Consigne', 'description'), ('variante', 'Variante', 'variante'),
+                ('materiel', 'Matériel', 'materiel'))
+
+
+def outil_card(item):
+    """Encart d'un outil facilitateur placé dans une séquence ; `outil` sert à retrouver son fichier."""
+    return {
+        'outil': item,
+        'titre': item.nom,
+        'meta': f'modifié le {item.date_modif}' if item.date_modif else '',
+        'badges': [item.fk_type_outil.label if item.fk_type_outil else '',
+                   item.difficulte.label if item.difficulte else ''],
+        'blocks': [(key, label, getattr(item, name)) for key, label, name in OUTIL_BLOCKS],
+        'thumb': None,
+        'fichier': '',
     }
 
 
@@ -662,6 +763,19 @@ def export_kit(fiche, with_pdf=True):
                         label = filename
                         thumb = thumbnail_bytes(media, source)
                 labels.append((label, thumb))
+        for seq in fiche['sequences']:
+            for card in seq.get('outils', []):
+                outil = card['outil']
+                if not outil.url:
+                    continue
+                try:
+                    source = files.media_path(outil)
+                except NotFound:
+                    continue
+                filename = unique_name(safe_name(outil.nom, f'outil-{outil.id}') + source.suffix.lower(), taken)
+                media_entries.append((source, filename))
+                card['fichier'] = filename
+                card['thumb'] = thumbnail_bytes(outil, source)
         odt = build_odt(fiche, pictures)
         archive.writestr(unique_name(base + '.odt', taken), odt)
         if with_pdf:

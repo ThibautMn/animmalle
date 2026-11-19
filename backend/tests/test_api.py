@@ -684,6 +684,23 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual(document.infolist()[0].filename, 'mimetype')
                 self.assertEqual(document.infolist()[0].compress_type, 0)
 
+    def test_export_includes_outils_in_sequences(self):
+        outil = self.mutate('post', '/api/outils', {'nom': 'Un outil <b>', 'fk_type_outil_id': 7, 'difficulte_id': 8,
+                                                  'description': '<p>desc</p>', 'variante': '<p>une variante</p>',
+                                                  'materiel': '<p>du matériel</p>'}).json
+        data = self.animation_data()
+        data['sequences'][0]['outils'] = [outil['id']]
+        item = self.mutate('post', '/api/animations', data).json
+        response = self.client.get(f"/api/animations/{item['id']}/download")
+        from xml.etree import ElementTree
+        with ZipFile(io.BytesIO(response.data)) as archive:
+            odt = next(name for name in archive.namelist() if name.endswith('.odt'))
+            with ZipFile(io.BytesIO(archive.read(odt))) as document:
+                content = document.read('content.xml').decode()
+        ElementTree.fromstring(content)
+        for text in ('OUTIL FACILITATEUR', 'Un outil &lt;b&gt;', 'VARIANTE', 'une variante', 'MATÉRIEL', 'du matériel'):
+            self.assertIn(text, content)
+
     def test_animation_neighbors(self):
         first = self.create_animation()
         data = self.animation_data()
