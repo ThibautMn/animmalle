@@ -26,6 +26,7 @@ frontend/.nuxt/
 frontend/.output/
 frontend/test-results/
 installation/generated/
+installation/logs/
 
 # Ressources historiques migrées, conservées localement
 backend/pictograms/

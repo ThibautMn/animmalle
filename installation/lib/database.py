@@ -105,8 +105,11 @@ def run(phase):
             engine.dispose()
         return
 
-    local = url.host in {'localhost', '127.0.0.1', '::1'} and url.port == 5432
-    if local:
+    # Même règle que la phase dependencies (check.is_local) : hôte local, quel que soit le port.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from check import is_local
+
+    if is_local(url):
         print('Démarrage du service PostgreSQL local.', flush=True)
         result = subprocess.run(['sudo', 'systemctl', 'start', 'postgresql'], check=False)
         if result.returncode:

@@ -204,14 +204,52 @@ L’installateur comporte maintenant les phases suivantes, sans phase par défau
 
 | Phase | Opération |
 | --- | --- |
-| `dependencies` | Python/venv, dépendances backend et PostgreSQL local si `postgresql.host` est local (apt/sudo) |
+| `check` | Contrôle en lecture seule, sans sudo : système, paquets, YAML complet (base, backend, rendu Nginx/systemd), serveur et cluster PostgreSQL local, Node, ports internes |
+| `dependencies` | Paquets système manquants (Python, Nginx, ffmpeg, poppler-utils, curl, iproute2), venv, dépendances backend, PostgreSQL local si `postgresql.host` est local (apt/sudo) |
 | `node` | Installe nvm (`NVM_VERSION`, défaut v0.40.3) dans `~/.nvm` puis Node 24 LTS (`NODE_MAJOR`) s’ils sont absents ou incompatibles ; sans sudo |
 | `frontend` | Appelle la logique de la phase `node` si besoin, puis `npm ci`, tests unitaires et build Nuxt |
-| `schema` | Provisionnement non destructeur et Alembic |
+| `schema` | Provisionnement non destructeur et Alembic (sudo seulement si PostgreSQL est local) |
 | `restore` | Import contrôlé seulement sur base vide |
 | `prepare` | Rendu Nginx/systemd dans `installation/generated`, sans sudo |
-| `deploy` | Applique les fichiers préparés puis redémarre les services |
-| `all` | Enchaîne dependencies, node, frontend, schema, restore, deploy |
+| `deploy` | Applique les fichiers préparés, redémarre les services puis vérifie services, API et Nuxt directement et via Nginx |
+| `all` | Enchaîne dependencies, check, node, frontend, schema, restore, deploy |
+
+### Robustesse de l’installateur
+
+Révision faite d’après les incidents des premières installations (Node absent,
+PostgreSQL absent, mot de passe du rôle désaligné, base SQL_ASCII, Nginx absent ou
+hors du PATH, proxy distant, nom DNS unique, messages d’erreur opaques) :
+
+- **Contrôler avant d’agir** : `install.sh check` rapporte tous les problèmes d’un
+  coup (erreurs de YAML ou ports pris : code 1 ; prérequis installables : avertissement).
+  `all` vérifie le YAML et ses permissions avant tout, puis lance `check` juste après
+  `dependencies`, avant Node, le build, la base et le déploiement.
+- **Une seule lecture du YAML** : `lib/check.py` (validation backend + rendu Nginx/systemd)
+  est utilisé par toutes les phases. Un PostgreSQL est « local » si `postgresql.host` vaut
+  `localhost`, `127.0.0.1` ou `::1`, **quel que soit le port** (même règle pour
+  `dependencies` et `schema`).
+- **Prérequis détectés par paquet** (`dpkg-query`), pas par le PATH ; `/usr/sbin` est
+  ajouté au PATH. Seuls les paquets manquants sont installés. Un serveur PostgreSQL déjà
+  présent (Debian ou PGDG, toute version) est conservé : le métapaquet `postgresql`
+  n’est installé que s’il n’y en a aucun, et un cluster en ligne doit écouter sur
+  `postgresql.port` (`pg_lsclusters`).
+- **Node** : le Node retenu (PATH s’il est compatible, sinon la version par défaut de nvm)
+  est transmis explicitement au rendu systemd (`ANIMMALLE_NODE`) ; un Node système
+  incompatible n’est plus incorporé dans l’unité.
+- **Erreurs explicites** : chaque échec indique la phase, la commande et la ligne ;
+  `deploy.py` nomme l’étape système en échec et affiche la sortie de `nginx -t`.
+  Les messages des pilotes externes restent masqués (secrets).
+- **Journal** : chaque lancement écrit `installation/logs/install-DATE-PHASE.log`
+  (permissions 600, exclu de Git) ; `all` et ses sous-phases partagent un seul journal.
+- **sudo** : demandé une fois ; `all` le renouvelle en arrière-plan pendant les phases
+  longues (npm, build).
+- **Vérification réelle après deploy** : services actifs, `/api/health` sur Gunicorn,
+  Nuxt sur son port, puis les deux noms publics via Nginx (`curl --resolve` vers
+  127.0.0.1). Avec `upstream_allow`, la boucle locale est autorisée pour ce contrôle.
+  `reload-or-restart` démarre Nginx s’il était arrêté. Un site Debian `default`
+  actif sur `0.0.0.0` est signalé.
+- **Relances** : toutes les phases sont relançables ; en cas d’échec de `all`, relancer
+  la phase indiquée puis les suivantes, ou `all`.
 
 Les phases frontend/prepare/deploy/all **n’ont pas été exécutées via le script**
 à cette étape. npm install, tests et build ont été exécutés directement ; la
@@ -231,7 +269,7 @@ Nginx, systemd et PostgreSQL sont des prérequis système. Node est installé vi
 sous le compte applicatif si absent ou incompatible (le script nvm officiel est téléchargé
 sur GitHub, version épinglée). Le chemin absolu de Node sous `~/.nvm` est incorporé dans
 l’unité systemd. L’installateur ne crée aucun certificat. Seule la phase
-`dependencies` installe Python via apt. Les noms DNS publics doivent
+`dependencies` installe les paquets système via apt (deploy complète seulement Nginx et curl s’ils manquent). Les noms DNS publics doivent
 pointer vers l’infrastructure de déploiement. Le frontend et l’API peuvent avoir
 deux noms distincts, ou le même nom : `frontend_url` et `api_url` identiques
 produisent un seul bloc Nginx, `/api/` vers Gunicorn et le reste vers Nuxt. Le générateur prend en charge des
@@ -274,5 +312,14 @@ Après validation, deploy installe/active `animmalle-backend.service` et
 pas automatiquement les services si un démarrage échoue après cette validation :
 consulter `journalctl -u animmalle-backend -u animmalle-frontend` et les sauvegardes.
 La configuration réelle reste à compléter et le déploiement complet n’a pas été
-validé sur la machine. Les 12 tests installation passent, dont trois sur le rendu
-Nginx/systemd (routage, secrets exclus, contraintes TLS et entrées invalides).
+validé sur la machine.
+
+Validation de la révision de l’installateur : 25 tests installation passent
+(`.venv/bin/python -m unittest discover -s installation/tests -v`), dont 8 parcours
+de `install.sh` avec sudo/Python simulés (YAML contrôlé avant sudo, YAML absent ou
+non protégé, PostgreSQL distant sans sudo, journal créé) et le rendu Nginx/systemd.
+`install.sh check` et `install.sh prepare` ont été lancés sur la machine de
+développement (lecture seule) : ils signalent correctement les origines publiques avec
+port du YAML de développement, Nginx absent et les ports 8000/3000 occupés par les
+serveurs de développement, et détectent le cluster PostgreSQL 17 PGDG existant.
+Les phases dependencies, schema, deploy et all n’ont pas été relancées.

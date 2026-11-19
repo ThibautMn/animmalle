@@ -61,6 +61,8 @@ class DeployTests(unittest.TestCase):
         self.assertIn('allow 192.0.2.10/32;', nginx)
         self.assertIn('allow 198.51.100.0/24;', nginx)
         self.assertIn('deny all;', nginx)
+        # Boucle locale autorisée pour la vérification post-déploiement.
+        self.assertIn('allow 127.0.0.1;', nginx)
         self.assertIn('proxy_set_header X-Forwarded-Proto https;', nginx)
 
     def test_local_upstream_has_no_access_filter(self):
@@ -75,3 +77,23 @@ class DeployTests(unittest.TestCase):
         self.assertLess(nginx.index('location /api/'), nginx.index('location / {'))
         self.assertIn('proxy_pass http://127.0.0.1:8000;', nginx)
         self.assertIn('proxy_pass http://127.0.0.1:3000;', nginx)
+
+
+class DeployValidationTests(unittest.TestCase):
+    config = DeployTests.config
+    def test_nginx_port_distinct_from_services(self):
+        config = self.config()
+        config['nginx']['listen'] = '127.0.0.1:3000'
+        with self.assertRaises(ValueError):
+            deploy.render(config, node='/usr/bin/node', user='app')
+
+    def test_upstream_tls_must_be_boolean(self):
+        config = self.config()
+        config['nginx']['upstream_tls'] = 'yes'
+        with self.assertRaises(ValueError):
+            deploy.render(config, node='/usr/bin/node', user='app')
+
+    def test_node_path_comes_from_environment(self):
+        unit = deploy.render(self.config(), root=Path('/srv/a'), node='/home/app/.nvm/versions/node/v24.15.0/bin/node',
+                             user='app')['animmalle-frontend.service']
+        self.assertIn('ExecStart=/home/app/.nvm/versions/node/v24.15.0/bin/node /srv/a/frontend', unit)
