@@ -1,5 +1,6 @@
 """Prépare les unités et le proxy ; applique uniquement sur demande explicite."""
 import getpass
+import ipaddress
 import os
 from pathlib import Path
 import re
@@ -36,8 +37,18 @@ def render(config, root=ROOT, node=None, user=None):
     listen = cfg.get('listen', '127.0.0.1:8080')
     if not re.fullmatch(r'(?:127\.0\.0\.1|0\.0\.0\.0):[0-9]{1,5}', listen) or not 1 <= int(listen.rsplit(':', 1)[1]) <= 65535:
         raise ValueError('nginx.listen invalide.')
+    allow = cfg.get('upstream_allow', [])
     if upstream_tls and not listen.startswith('127.0.0.1:'):
-        raise ValueError('Le relais TLS amont doit joindre Nginx sur la boucle locale.')
+        # Proxy TLS amont sur une autre machine : adresses autorisées obligatoires, tout le reste est refusé.
+        if not isinstance(allow, list) or not allow:
+            raise ValueError('Un relais TLS amont distant exige nginx.upstream_allow (adresses ou réseaux autorisés).')
+        try:
+            allow = [str(ipaddress.ip_network(str(a), strict=False)) for a in allow]
+        except ValueError:
+            raise ValueError('nginx.upstream_allow invalide.') from None
+    else:
+        allow = []
+    access = ''.join(f'\n    allow {a};' for a in allow) + ('\n    deny all;' if allow else '')
     nuxt = config['nuxt']
     port = nuxt['port']
     if type(port) is not int or not 1024 <= port <= 65535:
@@ -63,7 +74,7 @@ def render(config, root=ROOT, node=None, user=None):
         other = '\n    location / { return 404; }' if api_only else ''
         blocks.append(f'''server {{
     listen {listen_line};
-    server_name {url.hostname};{tls}
+    server_name {url.hostname};{tls}{access}
     client_max_body_size {config['backend']['max_upload_mb']}m;
     location {location} {{
         proxy_pass http://{target};

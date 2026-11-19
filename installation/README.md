@@ -240,8 +240,12 @@ Deux topologies :
 - Relais TLS amont local : `nginx.upstream_tls: true`, Nginx écoute exclusivement
   sur `127.0.0.1:8080` et le relais de la même machine route les deux noms publics
   vers Nginx en conservant Host. Nginx impose le schéma des origines du YAML.
-  Une terminaison amont sur une autre machine demande une adaptation explicite
-  des interfaces et du filtrage réseau ; elle n’est pas générée automatiquement.
+- Relais TLS amont distant (autre machine) : `upstream_tls: true`, `listen: 0.0.0.0:80`
+  et `nginx.upstream_allow` obligatoire (liste d’adresses ou réseaux CIDR du proxy).
+  Nginx génère `allow …; deny all;` pour chaque nom public : toute autre source est
+  refusée. Le proxy doit préserver Host. Le trafic entre le proxy et Nginx reste en
+  HTTP clair : le limiter à un réseau de confiance et filtrer aussi le port 80 par
+  pare-feu. Supprimer le site Debian `default` (`/etc/nginx/sites-enabled/default`).
 - TLS terminé par Nginx : `upstream_tls: false`, `listen: 0.0.0.0:443`, chemins
   `certificate` et `certificate_key` existants et lisibles par Nginx. Les deux
   domaines doivent être couverts par le certificat. Pour un environnement HTTP

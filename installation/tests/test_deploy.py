@@ -46,3 +46,23 @@ class DeployTests(unittest.TestCase):
         output = deploy.render(config, node='/usr/bin/node', user='app')
         self.assertIn('listen 0.0.0.0:443 ssl;', output['animmalle.conf'])
         self.assertIn('X-Forwarded-Proto $scheme;', output['animmalle.conf'])
+
+    def test_remote_upstream_requires_allowed_addresses(self):
+        config = self.config()
+        config['nginx']['listen'] = '0.0.0.0:80'
+        with self.assertRaises(ValueError):
+            deploy.render(config, node='/usr/bin/node', user='app')
+        config['nginx']['upstream_allow'] = ['not-an-ip']
+        with self.assertRaises(ValueError):
+            deploy.render(config, node='/usr/bin/node', user='app')
+        config['nginx']['upstream_allow'] = ['192.0.2.10', '198.51.100.0/24']
+        nginx = deploy.render(config, node='/usr/bin/node', user='app')['animmalle.conf']
+        self.assertIn('listen 0.0.0.0:80;', nginx)
+        self.assertIn('allow 192.0.2.10/32;', nginx)
+        self.assertIn('allow 198.51.100.0/24;', nginx)
+        self.assertIn('deny all;', nginx)
+        self.assertIn('proxy_set_header X-Forwarded-Proto https;', nginx)
+
+    def test_local_upstream_has_no_access_filter(self):
+        nginx = deploy.render(self.config(), node='/usr/bin/node', user='app')['animmalle.conf']
+        self.assertNotIn('deny all', nginx)

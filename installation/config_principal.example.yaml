@@ -169,6 +169,9 @@ nginx:
   listen: 127.0.0.1:8080
   # true : un proxy local en amont termine TLS et préserve Host ; false : Nginx assure lui-même le HTTPS des origines HTTPS.
   upstream_tls: true
+  # Proxy TLS amont sur une autre machine : listen: 0.0.0.0:80 et liste des adresses ou réseaux autorisés
+  # (tout le reste est refusé). Inutile avec listen: 127.0.0.1:….
+  # upstream_allow: [192.0.2.10]
   # Pour terminer TLS dans Nginx : upstream_tls: false, listen: 0.0.0.0:443,
   # puis renseigner des certificats existants (non créés par l’installation).
   # Chemin du certificat TLS PEM avec sa chaîne, déjà présent ; utilisé lorsque Nginx termine TLS.

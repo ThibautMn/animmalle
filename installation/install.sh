@@ -91,7 +91,7 @@ case "$1" in
     command -v node >/dev/null || load_nvm || true
     if [[ "$1" == deploy ]]; then
       authenticate_sudo
-      command -v nginx >/dev/null || { sudo apt-get update && sudo apt-get install -y nginx; }
+      command -v nginx >/dev/null || [[ -x /usr/sbin/nginx ]] || { sudo apt-get update && sudo apt-get install -y nginx; }
       "$VENV/bin/python" "$SCRIPT_DIR/lib/deploy.py" apply
     else
       "$VENV/bin/python" "$SCRIPT_DIR/lib/deploy.py" prepare
