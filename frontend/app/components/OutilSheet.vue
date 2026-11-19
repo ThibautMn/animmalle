@@ -15,6 +15,7 @@ const fields = outilFields.filter(([key]) => key !== 'materiel')
   <div class="tool-sheet tools-tint">
     <header class="toolbar tool-header">
       <div class="tool-title">
+        <small v-if="embedded" class="tool-kicker">Outil facilitateur</small>
         <component :is="embedded ? 'h3' : 'h1'">{{ item.nom }}</component>
         <small class="muted">Modifiée le {{ item.date_modif || '—' }}</small>
       </div>

@@ -8,7 +8,7 @@ from marshmallow import ValidationError
 from sqlalchemy import select, delete, or_
 
 from .models import (Animation, Sequence, Media, OutilFacilitateur, Thesaurus, Commentaire,
-                     RelAnimOutil, RelAnimSequence, RelAnimTag, RelMediaSequence, RelMediaThematique)
+                     RelAnimSequence, RelAnimTag, RelMediaSequence, RelMediaThematique, RelOutilSequence)
 
 
 def get(model, key):
@@ -53,6 +53,7 @@ def replace_links(model, owner_column, owner_id, target_column, ids):
 def orphan_sequence(key):
     if not g.db.scalar(select(RelAnimSequence.id).where(RelAnimSequence.fk_sequence_id == key)):
         g.db.execute(delete(RelMediaSequence).where(RelMediaSequence.fk_sequence_id == key))
+        g.db.execute(delete(RelOutilSequence).where(RelOutilSequence.fk_sequence_id == key))
         g.db.execute(delete(Sequence).where(Sequence.id == key))
 
 
@@ -67,10 +68,6 @@ def save_animation(data, item=None):
         reference(key)
     sequences = data.pop('sequences')
     tags = data.pop('tags')
-    tools = list(dict.fromkeys(data.pop('outils')))
-    for key in tools:
-        if not g.db.get(OutilFacilitateur, key):
-            raise ValidationError({'outils': [f'Outil {key} introuvable.']})
     # Valider toutes les appartenances avant la première écriture.
     old_ids = set() if creating else set(g.db.scalars(select(RelAnimSequence.fk_sequence_id).where(RelAnimSequence.fk_anim_id == item.id)))
     submitted_ids = [seq['id'] for seq in sequences if 'id' in seq]
@@ -83,6 +80,9 @@ def save_animation(data, item=None):
         for key in seq['materiel']:
             if not g.db.get(Media, key):
                 raise ValidationError({'materiel': [f'Matériel {key} introuvable.']})
+        for key in seq['outils']:
+            if not g.db.get(OutilFacilitateur, key):
+                raise ValidationError({'outils': [f'Outil {key} introuvable.']})
         if 'id' in seq:
             owners = list(g.db.scalars(select(RelAnimSequence.fk_anim_id).where(RelAnimSequence.fk_sequence_id == seq['id'])))
             if any(owner != item.id for owner in owners):
@@ -95,11 +95,11 @@ def save_animation(data, item=None):
     item.date_modif = date.today()
     g.db.flush()
     replace_links(RelAnimTag, 'fk_anim_id', item.id, 'fk_thes_id', tags + ([item.fk_duree_id] if item.fk_duree_id else []))
-    replace_links(RelAnimOutil, 'fk_anim_id', item.id, 'fk_outil_id', tools)
     # L'ordre est porté par les identifiants des relations, comme dans l'historique.
     g.db.execute(delete(RelAnimSequence).where(RelAnimSequence.fk_anim_id == item.id))
     for seq in sequences:
         materials = seq.pop('materiel')
+        tools = seq.pop('outils')
         key = seq.pop('id', None)
         obj = get(Sequence, key) if key else Sequence()
         for name, value in seq.items():
@@ -108,17 +108,18 @@ def save_animation(data, item=None):
         g.db.flush()
         g.db.add(RelAnimSequence(fk_anim_id=item.id, fk_sequence_id=obj.id))
         replace_links(RelMediaSequence, 'fk_sequence_id', obj.id, 'fk_media_id', materials)
+        replace_links(RelOutilSequence, 'fk_sequence_id', obj.id, 'fk_outil_id', tools)
     g.db.flush()
     for key in old_ids - set(submitted_ids):
         orphan_sequence(key)
-    g.db.expire(item, ['sequences', 'tags', 'outils'])
+    g.db.expire(item, ['sequences', 'tags'])
     return item
 
 
 def delete_animation(item):
     edit_animation(item)
     ids = list(g.db.scalars(select(RelAnimSequence.fk_sequence_id).where(RelAnimSequence.fk_anim_id == item.id)))
-    for model in (RelAnimTag, RelAnimSequence, RelAnimOutil):
+    for model in (RelAnimTag, RelAnimSequence):
         g.db.execute(delete(model).where(model.fk_anim_id == item.id))
     for key in ids:
         orphan_sequence(key)
@@ -160,15 +161,13 @@ def save_outil(data, item=None):
 
 def animation_dict(item):
     from .schemas import AnimationSchema, SequenceSchema
-    result = AnimationSchema(exclude=['sequences', 'tags', 'outils']).dump(item)
+    result = AnimationSchema(exclude=['sequences', 'tags']).dump(item)
     result['tags'] = [tag.id for tag in item.tags]
-    result['outils'] = [outil.id for outil in item.outils]
-    # Fiches complètes pour l'affichage, sans compter une consultation de chaque outil.
-    result['outils_fiches'] = [outil_dict(outil) for outil in item.outils]
     result['sequences'] = []
     for seq in item.sequences:
-        value = SequenceSchema(exclude=['materiel']).dump(seq)
+        value = SequenceSchema(exclude=['materiel', 'outils']).dump(seq)
         value['materiel'] = [mat.id for mat in seq.materiel]
+        value['outils'] = [outil.id for outil in seq.outils]
         result['sequences'].append(value)
     return result
 

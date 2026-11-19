@@ -37,7 +37,8 @@ export function newSequence() {
     fk_approche_id: null,
     fk_modalite_id: null,
     duree_minutes: null,
-    materiel: []
+    materiel: [],
+    outils: []
   }
 }
 export function animationPayload(item) {
@@ -51,8 +52,7 @@ export function animationPayload(item) {
     'public_specifique',
     'lieu',
     'fk_duree_id',
-    'tags',
-    'outils'
+    'tags'
   ]
   return {
     ...Object.fromEntries(keys.map((key) => [key, item[key]])),

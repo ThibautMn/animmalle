@@ -1,4 +1,4 @@
-"""Outils facilitateurs ajoutés aux animations.
+"""Outils facilitateurs ajoutés aux animations (remplacée par la révision 0012).
 
 Revision ID: 0011_rel_anim_outil
 Revises: 0010_evenement_usage

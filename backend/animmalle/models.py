@@ -43,7 +43,6 @@ class Animation(Base):
     fk_duree = relationship('Thesaurus', foreign_keys=[fk_duree_id])
     sequences = relationship('Sequence', secondary='rel_anim_sequence', viewonly=True, order_by='RelAnimSequence.id')
     tags = relationship('Thesaurus', secondary='rel_anim_tag', viewonly=True)
-    outils = relationship('OutilFacilitateur', secondary='rel_anim_outil', viewonly=True, order_by='RelAnimOutil.id')
     commentaires = relationship('Commentaire', back_populates='fk_id_anim', passive_deletes='all')
 
 
@@ -63,6 +62,7 @@ class Sequence(Base):
     fk_approche = relationship('Thesaurus', foreign_keys=[fk_approche_id])
     fk_type_seq = relationship('Thesaurus', foreign_keys=[fk_type_seq_id])
     materiel = relationship('Media', secondary='rel_media_sequence', viewonly=True)
+    outils = relationship('OutilFacilitateur', secondary='rel_outil_sequence', viewonly=True, order_by='RelOutilSequence.id')
 
 
 class Media(Base):
@@ -156,7 +156,7 @@ class RelMediaThematique(Base):
 
 
 # Tables propres à la nouvelle application : absentes du dump historique, donc ignorées par la restauration.
-APPLICATION_TABLES = frozenset({'taxon_media', 'evenement_usage', 'rel_anim_outil'})
+APPLICATION_TABLES = frozenset({'taxon_media', 'evenement_usage', 'rel_outil_sequence'})
 
 
 class TaxonMedia(Base):
@@ -183,13 +183,13 @@ class EvenementUsage(Base):
     ressource_id = mapped_column(String(40), nullable=True)
 
 
-class RelAnimOutil(Base):
-    """Outil facilitateur ajouté à une animation ; l'ordre est porté par l'identifiant de la relation."""
-    __tablename__ = 'rel_anim_outil'
-    __table_args__ = (UniqueConstraint('fk_anim_id', 'fk_outil_id', name='uq_rel_anim_outil_pair'),)
+class RelOutilSequence(Base):
+    """Outil facilitateur ajouté à une séquence ; l'ordre est porté par l'identifiant de la relation."""
+    __tablename__ = 'rel_outil_sequence'
+    __table_args__ = (UniqueConstraint('fk_outil_id', 'fk_sequence_id', name='uq_rel_outil_sequence_pair'),)
 
     id = mapped_column(Integer, primary_key=True)
-    fk_anim_id = mapped_column(String(40), ForeignKey('animation.id'), index=True, nullable=False)
     fk_outil_id = mapped_column(Integer, ForeignKey('outil_facilitateur.id'), index=True, nullable=False)
-    fk_anim = relationship('Animation', foreign_keys=[fk_anim_id])
+    fk_sequence_id = mapped_column(Integer, ForeignKey('sequence.id'), index=True, nullable=False)
     fk_outil = relationship('OutilFacilitateur', foreign_keys=[fk_outil_id])
+    fk_sequence = relationship('Sequence', foreign_keys=[fk_sequence_id])

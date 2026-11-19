@@ -58,6 +58,7 @@ class SequenceSchema(Schema):
     duree_minutes = fields.Integer(strict=True, required=True, validate=validate.Range(min=1, max=1440))
     fk_type_seq_id = identifier(required=True)
     materiel = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
+    outils = fields.List(identifier(), load_default=list, validate=validate.Length(max=100))
 
 
 class AnimationSchema(Schema):
@@ -75,7 +76,6 @@ class AnimationSchema(Schema):
     date_modif = fields.Date(dump_only=True)
     sequences = fields.List(fields.Nested(SequenceSchema), load_default=list, validate=validate.Length(max=500))
     tags = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
-    outils = fields.List(identifier(), load_default=list, validate=validate.Length(max=500))
 
 
 class MediaSchema(Schema):
