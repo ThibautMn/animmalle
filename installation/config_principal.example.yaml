@@ -61,7 +61,7 @@ auth:
   # Noms des groupes donnant les droits administrateur ; doivent correspondre aux groupes des utilisateurs.
   admin_groups: [admin-pedaparc, Administrateurs]
   # Groupes autorisés à modifier le thésaurus ; si absent, admin_groups s’applique.
-  thesaurus_groups: [admin-pedaparc]
+  # thesaurus_groups: [admin-pedaparc]
   # Connexion à l’annuaire ; LDAPS et StartTLS vérifient le certificat serveur.
   ldap:
     # Nom DNS ou adresse IP de l’annuaire, correspondant au certificat présenté par le serveur.
