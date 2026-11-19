@@ -28,7 +28,7 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {role})
 \u005cgexec
 SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', {role}, {password})
 \u005cgexec
-SELECT format('CREATE DATABASE %I OWNER %I', {database}, {role})
+SELECT format('CREATE DATABASE %I OWNER %I ENCODING ''UTF8'' LC_COLLATE ''C.UTF-8'' LC_CTYPE ''C.UTF-8'' TEMPLATE template0', {database}, {role})
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = {database})
 \u005cgexec
 """
@@ -41,6 +41,32 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = {database})
     if result.returncode:
         raise ValueError('Échec de préparation du rôle ou de la base ; vérifier le compte postgres, le socket local et les droits sudo. Détails masqués pour protéger les secrets.')
     print('Rôle (mot de passe aligné sur le YAML) et base PostgreSQL disponibles ; aucune donnée modifiée.')
+
+
+def _local_psql(url, query, dbname='postgres'):
+    result = subprocess.run(
+        ['sudo', '-u', 'postgres', 'psql', '-X', '--no-password', '-At',
+         '--host=/var/run/postgresql', f'--port={url.port}', f'--dbname={dbname}',
+         f'--set=db={url.database}', '--set=ON_ERROR_STOP=1', '--quiet'],
+        input=query, capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise ValueError('Échec de la vérification de la base PostgreSQL locale. Détails masqués.')
+    return result.stdout.strip()
+
+
+def ensure_utf8_database(url):
+    """Une base SQL_ASCII fait renvoyer des octets par psycopg : la recréer si elle est vide."""
+    encoding = _local_psql(url, "SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = :'db';")
+    if not encoding or encoding == 'UTF8':
+        return
+    tables = _local_psql(
+        url, "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema');",
+        dbname=url.database)
+    if tables != '0':
+        raise ValueError(f'La base existe en encodage {encoding} et contient des tables : la convertir en UTF8 manuellement (pg_dump puis recréation).')
+    _local_psql(url, "SELECT format('DROP DATABASE %I', :'db') \\gexec")
+    print(f'Base vide en encodage {encoding} supprimée ; elle sera recréée en UTF8.')
 
 
 def run(phase):
@@ -85,6 +111,7 @@ def run(phase):
         result = subprocess.run(['sudo', 'systemctl', 'start', 'postgresql'], check=False)
         if result.returncode:
             raise ValueError('Impossible de démarrer PostgreSQL local ; vérifier le service et le cluster.')
+        ensure_utf8_database(url)
         provision_local_database(url)
 
     else:
@@ -136,4 +163,8 @@ if __name__ == '__main__':
         if type(error) is not ValueError:
             # Le type d'exception ne contient ni paramètre ni secret.
             print(f'Type d’erreur : {type(error).__module__}.{type(error).__name__}', file=sys.stderr)
+            # Seulement fichier, ligne et code source des appels : ni valeurs ni message.
+            import traceback
+            for frame in traceback.extract_tb(error.__traceback__):
+                print(f'  {frame.filename}:{frame.lineno} {frame.name} : {frame.line}', file=sys.stderr)
         sys.exit(1)
