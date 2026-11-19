@@ -8,7 +8,7 @@ from marshmallow import ValidationError
 from sqlalchemy import select, delete, or_
 
 from .models import (Animation, Sequence, Media, OutilFacilitateur, Thesaurus, Commentaire,
-                     RelAnimSequence, RelAnimTag, RelMediaSequence, RelMediaThematique)
+                     RelAnimOutil, RelAnimSequence, RelAnimTag, RelMediaSequence, RelMediaThematique)
 
 
 def get(model, key):
@@ -67,6 +67,10 @@ def save_animation(data, item=None):
         reference(key)
     sequences = data.pop('sequences')
     tags = data.pop('tags')
+    tools = list(dict.fromkeys(data.pop('outils')))
+    for key in tools:
+        if not g.db.get(OutilFacilitateur, key):
+            raise ValidationError({'outils': [f'Outil {key} introuvable.']})
     # Valider toutes les appartenances avant la première écriture.
     old_ids = set() if creating else set(g.db.scalars(select(RelAnimSequence.fk_sequence_id).where(RelAnimSequence.fk_anim_id == item.id)))
     submitted_ids = [seq['id'] for seq in sequences if 'id' in seq]
@@ -91,6 +95,7 @@ def save_animation(data, item=None):
     item.date_modif = date.today()
     g.db.flush()
     replace_links(RelAnimTag, 'fk_anim_id', item.id, 'fk_thes_id', tags + ([item.fk_duree_id] if item.fk_duree_id else []))
+    replace_links(RelAnimOutil, 'fk_anim_id', item.id, 'fk_outil_id', tools)
     # L'ordre est porté par les identifiants des relations, comme dans l'historique.
     g.db.execute(delete(RelAnimSequence).where(RelAnimSequence.fk_anim_id == item.id))
     for seq in sequences:
@@ -106,14 +111,14 @@ def save_animation(data, item=None):
     g.db.flush()
     for key in old_ids - set(submitted_ids):
         orphan_sequence(key)
-    g.db.expire(item, ['sequences', 'tags'])
+    g.db.expire(item, ['sequences', 'tags', 'outils'])
     return item
 
 
 def delete_animation(item):
     edit_animation(item)
     ids = list(g.db.scalars(select(RelAnimSequence.fk_sequence_id).where(RelAnimSequence.fk_anim_id == item.id)))
-    for model in (RelAnimTag, RelAnimSequence):
+    for model in (RelAnimTag, RelAnimSequence, RelAnimOutil):
         g.db.execute(delete(model).where(model.fk_anim_id == item.id))
     for key in ids:
         orphan_sequence(key)
@@ -155,8 +160,11 @@ def save_outil(data, item=None):
 
 def animation_dict(item):
     from .schemas import AnimationSchema, SequenceSchema
-    result = AnimationSchema(exclude=['sequences', 'tags']).dump(item)
+    result = AnimationSchema(exclude=['sequences', 'tags', 'outils']).dump(item)
     result['tags'] = [tag.id for tag in item.tags]
+    result['outils'] = [outil.id for outil in item.outils]
+    # Fiches complètes pour l'affichage, sans compter une consultation de chaque outil.
+    result['outils_fiches'] = [outil_dict(outil) for outil in item.outils]
     result['sequences'] = []
     for seq in item.sequences:
         value = SequenceSchema(exclude=['materiel']).dump(seq)

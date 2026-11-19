@@ -201,7 +201,7 @@ onMounted(load)
               <fieldset
                 v-for="[key, label] in fields.filter(([key]) => key !== 'materiel')"
                 :key="key"
-                class="tool-block"
+                :class="['tool-block', key === 'variante' && 'tool-block-variante']"
               >
                 <legend>{{ label }}</legend>
                 <RichEditor v-model="draft[key]" :label="label" />
@@ -329,66 +329,7 @@ onMounted(load)
           ><ActionIcon name="delete"
         /></PButton>
       </div>
-      <div v-if="tool" class="tool-sheet tools-tint">
-        <header :class="['toolbar', tool && 'tool-header']">
-        <div class="tool-title">
-          <h1>{{ item.nom }}</h1>
-          <small v-if="tool" class="muted"
-            >Modifiée le {{ item.date_modif || '—' }}</small
-          >
-          <p v-else>{{ item.date_modif }}</p>
-        </div>
-        <span class="tool-badges">
-          <span class="badge">{{ catalog.label(item[typeKey]) }}</span>
-          <span v-if="tool && catalog.label(item.difficulte_id)" class="badge">{{
-            catalog.label(item.difficulte_id)
-          }}</span>
-        </span>
-      </header>
-        <div
-          :class="[
-            'tool-body',
-            !item.has_file && !toPlainText(item.materiel) && 'tool-body-single'
-          ]"
-        >
-        <div class="tool-main">
-          <fieldset
-            v-for="[key, label] in fields.filter(
-              ([key]) => key !== 'materiel' && (key !== 'variante' || item[key])
-            )"
-            :key="key"
-            class="tool-block"
-          >
-            <legend>{{ label }}</legend>
-            <RichText v-if="item[key]" :text="item[key]" /><p
-              v-else
-              class="prose"
-            >
-              Non renseigné
-            </p>
-          </fieldset>
-        </div>
-        <aside
-          v-if="item.has_file || toPlainText(item.materiel)"
-          class="tool-side"
-        >
-          <SequenceMedia
-            v-if="item.has_file"
-            :items="[item]"
-            base="/outils"
-            bare
-            class="tool-thumb"
-          />
-          <fieldset
-            v-if="toPlainText(item.materiel)"
-            class="tool-block tool-block-materiel"
-          >
-            <legend>Matériel</legend>
-            <RichText :text="item.materiel" />
-          </fieldset>
-        </aside>
-        </div>
-      </div>
+      <OutilSheet v-if="tool" :item="item" />
       <template v-else
         ><header :class="['toolbar', tool && 'tool-header']">
         <div class="tool-title">

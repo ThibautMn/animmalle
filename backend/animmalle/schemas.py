@@ -75,6 +75,7 @@ class AnimationSchema(Schema):
     date_modif = fields.Date(dump_only=True)
     sequences = fields.List(fields.Nested(SequenceSchema), load_default=list, validate=validate.Length(max=500))
     tags = fields.List(identifier(), load_default=list, validate=validate.Length(max=1000))
+    outils = fields.List(identifier(), load_default=list, validate=validate.Length(max=500))
 
 
 class MediaSchema(Schema):

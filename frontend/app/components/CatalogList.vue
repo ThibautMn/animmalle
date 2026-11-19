@@ -2,8 +2,16 @@
 import { useSessionStore } from "~/stores/session";
 import { formatMinutes } from "../../lib/forms.mjs";
 import { toPlainText } from "../../lib/richtext.mjs";
-const props = defineProps({ kind: { type: String, default: "animation" } });
+const props = defineProps({
+  kind: { type: String, default: "animation" },
+  // Mode sélection (fenêtre modale d'une animation) : pas de lien vers les fiches ni d'actions d'administration.
+  picker: Boolean,
+  // Identifiants déjà retenus, dont le bouton d'ajout est désactivé.
+  selected: { type: Array, default: () => [] },
+});
+const emit = defineEmits(["pick"]);
 const session = useSessionStore();
+const NuxtLink = resolveComponent("NuxtLink");
 const api = useApi();
 const catalog = useCatalog();
 const route = useRoute();
@@ -117,7 +125,7 @@ async function search(reset = false) {
       } else if (thumbnails) {
         const { page: _page, page_size: _size, ...filters } = query;
         media_filters.value = filters;
-      } else if (props.kind === "outil") {
+      } else if (props.kind === "outil" && !props.picker) {
         const { page: _page, page_size: _size, ...filters } = query;
         outil_search.value = filters;
       }
@@ -193,7 +201,7 @@ async function go(target) {
   if (target < 1 || target > page_count.value || target === page.value) return;
   page.value = target;
   await search();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (!props.picker) window.scrollTo({ top: 0, behavior: "smooth" });
 }
 onMounted(async () => {
   await search();
@@ -206,7 +214,7 @@ onMounted(async () => {
 });
 </script>
 <template>
-  <div class="toolbar">
+  <div v-if="!picker" class="toolbar">
     <h1>{{ heading }}</h1>
     <NuxtLink
       class="button"
@@ -224,6 +232,7 @@ onMounted(async () => {
     :class="[
       'catalog-layout',
       animations && 'with-sidebar',
+      picker && 'catalog-picker',
       kind === 'outil' && 'tools-tint',
     ]"
   >
@@ -479,12 +488,16 @@ onMounted(async () => {
           <article v-for="item in items" :key="item.id" class="card tool-card">
             <header class="tool-head">
               <h2>
-                <NuxtLink :to="`/materials/${item.id}?kind=outil`"><template
-                v-for="(part, index) in highlight(item.titre || item.nom)"
-                :key="index"
-                ><mark v-if="part.hit">{{ part.text }}</mark
-                ><template v-else>{{ part.text }}</template></template
-              ></NuxtLink>
+                <component
+                  :is="picker ? 'span' : NuxtLink"
+                  v-bind="picker ? {} : { to: `/materials/${item.id}?kind=outil` }"
+                  ><template
+                    v-for="(part, index) in highlight(item.titre || item.nom)"
+                    :key="index"
+                    ><mark v-if="part.hit">{{ part.text }}</mark
+                    ><template v-else>{{ part.text }}</template></template
+                  ></component
+                >
               </h2>
               <span class="tool-badges">
                 <span
@@ -530,7 +543,19 @@ onMounted(async () => {
               <small class="muted"
                 >Modifiée le {{ item.date_modif || "—" }}</small
               >
-                <div class="actions resource-actions">
+                <div v-if="picker" class="actions resource-actions">
+                  <PButton
+                    type="button"
+                    :label="
+                      selected.includes(item.id)
+                        ? 'Déjà dans l\'animation'
+                        : 'Ajouter dans les séquences'
+                    "
+                    :disabled="selected.includes(item.id)"
+                    @click="emit('pick', item)"
+                  />
+                </div>
+                <div v-else class="actions resource-actions">
                   <DownloadButton
                     data-tooltip="Exporte l'outil et ses fichiers dans une archive ZIP"
                     :path="`${endpoint}/${item.id}/download`"

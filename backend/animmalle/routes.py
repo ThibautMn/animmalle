@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 
 from .auth import authenticate, can_edit_thesaurus, is_admin, login_user, lookup_user, require_admin, require_thesaurus_editor
 from .models import (Animation, Media, OutilFacilitateur, Thesaurus, Commentaire,
-                     RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, Sequence, EvenementUsage)
+                     RelMediaSequence, RelMediaThematique, RelAnimTag, RelAnimSequence, RelAnimOutil, Sequence, EvenementUsage)
 from .schemas import (LoginSchema, AnimationSchema, MediaSchema, OutilSchema, ThesaurusSchema,
                       CommentSchema, PageSchema, AuthorSchema)
 from . import oidc
@@ -546,7 +546,9 @@ def update_outil(key):
 @api.delete('/outils/<int:key>')
 def remove_outil(key):
     require_admin()
-    g.db.delete(svc.get(OutilFacilitateur, key))
+    item = svc.get(OutilFacilitateur, key)
+    g.db.execute(delete(RelAnimOutil).where(RelAnimOutil.fk_outil_id == key))
+    g.db.delete(item)
     g.db.commit()
     # Garder les fichiers : d'autres notices peuvent les référencer.
     return '', 204

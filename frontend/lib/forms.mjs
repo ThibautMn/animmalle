@@ -51,7 +51,8 @@ export function animationPayload(item) {
     'public_specifique',
     'lieu',
     'fk_duree_id',
-    'tags'
+    'tags',
+    'outils'
   ]
   return {
     ...Object.fromEntries(keys.map((key) => [key, item[key]])),

@@ -43,6 +43,7 @@ class Animation(Base):
     fk_duree = relationship('Thesaurus', foreign_keys=[fk_duree_id])
     sequences = relationship('Sequence', secondary='rel_anim_sequence', viewonly=True, order_by='RelAnimSequence.id')
     tags = relationship('Thesaurus', secondary='rel_anim_tag', viewonly=True)
+    outils = relationship('OutilFacilitateur', secondary='rel_anim_outil', viewonly=True, order_by='RelAnimOutil.id')
     commentaires = relationship('Commentaire', back_populates='fk_id_anim', passive_deletes='all')
 
 
@@ -155,7 +156,7 @@ class RelMediaThematique(Base):
 
 
 # Tables propres à la nouvelle application : absentes du dump historique, donc ignorées par la restauration.
-APPLICATION_TABLES = frozenset({'taxon_media', 'evenement_usage'})
+APPLICATION_TABLES = frozenset({'taxon_media', 'evenement_usage', 'rel_anim_outil'})
 
 
 class TaxonMedia(Base):
@@ -180,3 +181,15 @@ class EvenementUsage(Base):
     type = mapped_column(String(20), nullable=False)  # connexion | consultation | telechargement
     ressource = mapped_column(String(20), nullable=True)  # animation | outil
     ressource_id = mapped_column(String(40), nullable=True)
+
+
+class RelAnimOutil(Base):
+    """Outil facilitateur ajouté à une animation ; l'ordre est porté par l'identifiant de la relation."""
+    __tablename__ = 'rel_anim_outil'
+    __table_args__ = (UniqueConstraint('fk_anim_id', 'fk_outil_id', name='uq_rel_anim_outil_pair'),)
+
+    id = mapped_column(Integer, primary_key=True)
+    fk_anim_id = mapped_column(String(40), ForeignKey('animation.id'), index=True, nullable=False)
+    fk_outil_id = mapped_column(Integer, ForeignKey('outil_facilitateur.id'), index=True, nullable=False)
+    fk_anim = relationship('Animation', foreign_keys=[fk_anim_id])
+    fk_outil = relationship('OutilFacilitateur', foreign_keys=[fk_outil_id])

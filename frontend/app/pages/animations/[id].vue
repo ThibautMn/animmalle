@@ -22,6 +22,7 @@ const item = ref({
   fk_duree_id: null,
   tags: [],
   sequences: [],
+  outils: [],
   ...Object.fromEntries(animationFields.map(([key]) => [key, ''])),
 })
 const draft = ref(null)
@@ -30,6 +31,9 @@ const comment = ref('')
 const author = ref('')
 const suggestions = ref([])
 const mediaItems = ref({})
+// Fiches complètes des outils facilitateurs de l'animation, par identifiant.
+const outilItems = ref({})
+const outilDialog = ref(null)
 const error = ref('')
 const neighbors = ref(null)
 const animationSearch = useState('animation_search', () => null)
@@ -53,6 +57,9 @@ async function load() {
       item.value = await api(path)
       comments.value = (await api(`${path}/comments`)).items
       author.value = item.value.auteurs
+      outilItems.value = Object.fromEntries(
+        (item.value.outils_fiches || []).map((outil) => [outil.id, outil]),
+      )
       const mediaIds = [
         ...new Set(item.value.sequences.flatMap((seq) => seq.materiel)),
       ]
@@ -151,6 +158,15 @@ async function remove() {
   } finally {
     busy.value = false
   }
+}
+function addOutil(outil) {
+  if (draft.value.outils.includes(outil.id)) return
+  outilItems.value[outil.id] = outil
+  draft.value.outils.push(outil.id)
+  outilDialog.value.close()
+}
+function removeOutil(index) {
+  draft.value.outils.splice(index, 1)
 }
 function removeSequence(index) {
   if (window.confirm('Retirer cette séquence de l’animation ?'))
@@ -473,7 +489,54 @@ onMounted(load)
             label="Ajouter une séquence"
             data-tooltip="Ajoute une séquence vide à la fin de l'animation"
             @click="draft.sequences.push(newSequence())"
-          /></div>
+          />
+            <PButton
+              type="button"
+              class="secondary"
+              label="Ajouter un outil facilitateur"
+              data-tooltip="Choisit un outil facilitateur à ajouter à l'animation"
+              @click="outilDialog.open()"
+            /></div>
+          <template v-if="draft.outils.length">
+            <h2>Les outils facilitateurs</h2>
+            <div class="animation-outils">
+              <div
+                v-for="(id, index) in draft.outils"
+                :key="id"
+                class="animation-outil"
+              >
+                <div class="seq-tools tip-above">
+                  <PButton
+                    type="button"
+                    class="icon-button secondary"
+                    aria-label="Monter l'outil"
+                    data-tooltip="Monte l'outil d'un cran"
+                    :disabled="index === 0"
+                    @click="moveSequence(draft.outils, index, -1)"
+                    ><ActionIcon name="up"
+                  /></PButton>
+                  <PButton
+                    type="button"
+                    class="icon-button secondary"
+                    aria-label="Descendre l'outil"
+                    data-tooltip="Descend l'outil d'un cran"
+                    :disabled="index === draft.outils.length - 1"
+                    @click="moveSequence(draft.outils, index, 1)"
+                    ><ActionIcon name="down"
+                  /></PButton>
+                  <PButton
+                    type="button"
+                    class="icon-button secondary danger-icon"
+                    aria-label="Retirer l'outil"
+                    data-tooltip="Retire l'outil de l'animation"
+                    @click="removeOutil(index)"
+                    ><ActionIcon name="delete"
+                  /></PButton>
+                </div>
+                <OutilSheet v-if="outilItems[id]" :item="outilItems[id]" embedded />
+              </div>
+            </div>
+          </template>
         </div>
       </form>
       <div v-else class="fiche-layout">
@@ -553,6 +616,18 @@ onMounted(load)
               </article>
             </li>
           </ol>
+          <template v-if="item.outils.length">
+            <h2>Les outils facilitateurs</h2>
+            <div class="animation-outils">
+              <OutilSheet
+                v-for="id in item.outils"
+                v-show="outilItems[id]"
+                :key="id"
+                :item="outilItems[id] || {}"
+                embedded
+              />
+            </div>
+          </template>
           <details class="comments card">
             <summary>
               <h2>Commentaires ({{ comments.length }})</h2>
@@ -586,6 +661,12 @@ onMounted(load)
           </details>
         </div>
       </div>
+    <OutilPickerDialog
+      v-if="editing"
+      ref="outilDialog"
+      :selected="draft.outils"
+      @add="addOutil"
+    />
     <dialog v-if="session.is_admin" ref="reassignDialog" class="reassign">
       <form @submit.prevent="reassign">
         <h2>Réattribuer la fiche</h2>
@@ -850,6 +931,18 @@ onMounted(load)
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--c-muted);
+}
+.animation-outils {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.animation-outil {
+  display: grid;
+  gap: 6px;
+}
+.animation-outil .seq-tools {
+  justify-self: end;
 }
 .seq-edit-head {
   display: flex;

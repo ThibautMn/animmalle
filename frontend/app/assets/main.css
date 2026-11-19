@@ -136,7 +136,7 @@ main:has(.fiche-layout) {
   max-width: 1680px;
   padding-inline: clamp(12px, 2vw, 32px);
 }
-main:has(.tool-sheet) {
+main:has(.tool-sheet):not(:has(.fiche-layout)) {
   max-width: 1500px;
   padding-inline: clamp(12px, 2vw, 32px);
 }
@@ -1980,6 +1980,10 @@ button.bare-icon svg {
 .tool-block-materiel {
   background: color-mix(in srgb, var(--accent) 7%, white);
 }
+.tool-block-variante {
+  --accent: #d9822b;
+  background: color-mix(in srgb, var(--accent) 7%, white);
+}
 /* Pastilles collées au coin supérieur droit de l'encart général. */
 .tool-sheet {
   position: relative;
@@ -2443,4 +2447,8 @@ button.bare-icon svg {
 .confirm-ok:hover,
 .confirm-ok:focus-visible {
   background: #f6c2c2;
+}
+.tool-title h3 {
+  margin: 0;
+  font-size: 1.5rem;
 }
