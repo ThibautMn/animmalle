@@ -229,7 +229,11 @@ const link = (item) =>
                   >
                 </h2>
                 <span class="duration-badges">
-                  <span v-if="kind === 'animations'" class="badge">{{
+                  <span
+                    v-if="kind === 'animations'"
+                    class="badge"
+                    :class="`statut-${item.statut}`"
+                    >{{
                     Object.fromEntries(statuses)[item.statut]
                   }}</span>
                   <span

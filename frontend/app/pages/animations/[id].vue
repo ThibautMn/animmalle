@@ -1056,10 +1056,6 @@ onMounted(load)
     display: block;
   }
 }
-.statut-1 {
-  background: #e3f4e4;
-  color: #1e6b2a;
-}
 .fiche-head :deep(.icon-button) {
   min-width: 40px;
   min-height: 40px;

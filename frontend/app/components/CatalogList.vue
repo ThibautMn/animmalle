@@ -413,7 +413,7 @@ onMounted(async () => {
         />
         <div v-else-if="animations" class="resource-list cards-list">
           <article v-for="item in items" :key="item.id" class="card">
-            <span class="badge">{{
+            <span class="badge" :class="`statut-${item.statut}`">{{
               { 1: "Validée", 2: "À valider", 3: "Brouillon" }[item.statut]
             }}</span>
             <div class="card-title-row">
