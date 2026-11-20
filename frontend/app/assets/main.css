@@ -204,11 +204,7 @@ button + button {
   overflow: hidden;
   margin: -36px -24px 0;
   padding: 44px max(24px, 5%) 76px;
-  background: linear-gradient(
-    120deg,
-    var(--c-primary-soft),
-    var(--c-primary-mid)
-  );
+  background: linear-gradient(120deg, #d9d0f0 0%, #e8e2f6 50%, #f8f6fd 100%);
 }
 .hero::after {
   content: '';
@@ -218,7 +214,7 @@ button + button {
   width: 320px;
   height: 320px;
   background: url('/logo.png') center / contain no-repeat;
-  opacity: 0.55;
+  opacity: 0.9;
 }
 .hero > * {
   position: relative;
@@ -229,11 +225,12 @@ button + button {
 }
 .hero p {
   max-width: 46ch;
-  color: #6b5a48;
+  color: #4f4474;
   margin: 0;
 }
 .hero .eyebrow {
   margin-bottom: 10px;
+  color: #4b3d85;
 }
 .eyebrow {
   text-transform: uppercase;
