@@ -8,6 +8,7 @@ const home = ref(null)
 // Bannière tirée au hasard par le backend (côté client, pour éviter un écart d'hydratation)
 const config = useRuntimeConfig()
 const banniere = ref('')
+const bannierePosition = ref(50)
 const error = ref('')
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString('fr-FR') : ''
@@ -16,7 +17,13 @@ const excerpt = (text) => {
   return plain.length > 140 ? `${plain.slice(0, 140)}…` : plain
 }
 onMounted(async () => {
-  banniere.value = `${config.public.apiBase}/banners/random?t=${Date.now()}`
+  try {
+    const chosen = await api('/banners/random')
+    bannierePosition.value = chosen.position
+    banniere.value = `${config.public.apiBase}/banners/${encodeURIComponent(chosen.name)}/image`
+  } catch {
+    // sans bannière, le fond par défaut reste affiché
+  }
   try {
     home.value = await api('/home')
   } catch {
@@ -25,18 +32,11 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <section
-    class="hero"
-    :class="{ 'hero--image': banniere }"
-    :style="banniere ? { backgroundImage: `url(${banniere})` } : {}"
-  >
-    <p class="eyebrow">Parc national des Cévennes</p>
-    <h1>Bonjour {{ firstName }}, que préparez-vous aujourd’hui ?</h1>
-    <p>
-      Toute la malle de l’équipe est là : déroulés, photos, sons et idées à
-      piocher.
-    </p>
-  </section>
+  <HomeHero
+    :first-name="firstName"
+    :image="banniere"
+    :position="bannierePosition"
+  />
   <div class="home-actions">
     <NuxtLink class="button" to="/animations">Parcourir la pédathèque</NuxtLink>
     <NuxtLink class="button secondary" to="/animations/nouveau"

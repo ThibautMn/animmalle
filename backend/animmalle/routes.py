@@ -4,7 +4,7 @@ import json
 import random
 from pathlib import Path
 
-from flask import Blueprint, abort, g, request, session, current_app, send_file
+from flask import Blueprint, abort, g, jsonify, request, session, current_app, send_file
 from marshmallow import ValidationError
 from sqlalchemy import select, delete, text, or_, func, String
 from sqlalchemy.orm import aliased, load_only, selectinload
@@ -18,6 +18,7 @@ from .schemas import (LoginSchema, AnimationSchema, SequenceSchema, MediaSchema,
 from . import oidc
 from . import services as svc
 from . import files
+from . import banners
 from . import kit
 from . import taxhub
 from . import search as finder
@@ -76,21 +77,68 @@ def health():
     return {'status': 'ok'}
 
 
-BANNERS_DIR = Path(__file__).resolve().parents[1] / 'bannières'
+def banner_image(name):
+    path = banners.path_of(name)
+    if not path:
+        abort(404, description='Bannière introuvable.')
+    response = send_file(path, mimetype=banners.mime(name))
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @api.get('/banners/random')
 def random_banner():
-    """Bannière de la page d'accueil tirée au hasard dans backend/bannières."""
-    images = [p for p in BANNERS_DIR.glob('*') if p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')]
-    if not images:
+    """Bannière de la page d'accueil tirée au hasard, avec sa hauteur de cadrage."""
+    names = banners.names()
+    if not names:
         abort(404, description='Aucune bannière.')
-    path = random.choice(images)
-    response = send_file(path, mimetype='image/png' if path.suffix.lower() == '.png' else
-                         'image/webp' if path.suffix.lower() == '.webp' else 'image/jpeg')
+    name = random.choice(names)
+    response = jsonify({'name': name, 'position': banners.position(name)})
     response.headers['Cache-Control'] = 'no-store'
-    response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
+
+
+@api.get('/banners')
+def list_banners():
+    require_admin()
+    return {'items': banners.listing()}
+
+
+@api.post('/banners')
+def add_banner():
+    require_admin()
+    file = request.files.get('file')
+    name = banners.store(file) if file else None
+    if not name:
+        raise ValidationError({'file': ['Image JPEG, PNG ou WebP requise.']})
+    return {'name': name, 'position': 50}, 201
+
+
+@api.get('/banners/<name>/image')
+def banner_file(name):
+    return banner_image(name)
+
+
+@api.put('/banners/<name>')
+def update_banner(name):
+    require_admin()
+    value = (request.get_json(silent=True) or {}).get('position')
+    if not banners.path_of(name):
+        abort(404, description='Bannière introuvable.')
+    if type(value) is not int or not 0 <= value <= 100:
+        raise ValidationError({'position': ['Entier entre 0 et 100 requis.']})
+    banners.set_position(name, value)
+    return {'name': name, 'position': value}
+
+
+@api.delete('/banners/<name>')
+def delete_banner(name):
+    require_admin()
+    if not banners.path_of(name):
+        abort(404, description='Bannière introuvable.')
+    banners.remove(name)
+    return '', 204
 
 
 @api.get('/auth/session')

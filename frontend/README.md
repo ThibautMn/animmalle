@@ -196,3 +196,20 @@ le rendu navigateur reste à vérifier.
 Chaque son affiche sur une même ligne le lecteur audio, le titre à sa droite,
 puis une icône sans fond pour télécharger le fichier original.
 Validation : `npm run build` réussi avec Node 24.18.0 ; rendu navigateur à vérifier.
+
+## Administration
+
+Un bouton rond avec une roue crantée, tout à droite de l’en-tête (après « Se
+déconnecter »), s’élargit au survol pour afficher « Administration ». Il mène à
+`/administration`, page à onglets (`?onglet=thesaurus|utilisateurs|banniere`) :
+Thésaurus (ancienne page `/thesaurus`, qui redirige ici ; groupe thésaurus),
+Utilisateurs (à venir) et Bannière (administrateurs). L’onglet Bannière liste les
+images de l’accueil, règle la hauteur du cadrage avec un curseur (0 % haut,
+100 % bas) et permet d’ajouter ou supprimer une image.
+
+API : `GET/POST /api/banners`, `PUT/DELETE /api/banners/{nom}` (administrateurs),
+`GET /api/banners/{nom}/image`, `GET /api/banners/random` (JSON `name`,
+`position`). Les positions sont dans `backend/bannières/positions.json`.
+Vérifié : `npm test`, `npm run build` et le test backend
+`test_banners_admin_crud_and_random` ; les tests Playwright et l’affichage réel
+n’ont pas été exécutés.

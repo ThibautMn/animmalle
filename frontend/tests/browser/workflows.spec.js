@@ -242,7 +242,7 @@ test('Droits visibles, erreur de validation et disposition mobile', async ({
     fullPage: true
   })
   await expect(
-    page.getByRole('link', { name: 'Thésaurus', exact: true })
+    page.getByRole('link', { name: 'Administration', exact: true })
   ).toHaveCount(0)
   await page.getByRole('link', { name: 'Pédathèque', exact: true }).click()
   await expect(

@@ -184,9 +184,6 @@ onMounted(async () => {
       <NuxtLink to="/materials">Médiathèque</NuxtLink>
       <NuxtLink to="/outils">Outils facilitateurs</NuxtLink>
       <NuxtLink to="/stats">Statistiques</NuxtLink>
-      <NuxtLink v-if="session.can_edit_thesaurus" to="/thesaurus"
-        >Thésaurus</NuxtLink
-      >
     </nav>
     <form
       v-if="session.user"
@@ -209,6 +206,13 @@ onMounted(async () => {
       <span class="avatar" aria-hidden="true">{{ initials }}</span>
       <span class="name">{{ firstName }}</span>
       <PButton class="linkbtn" label="Se déconnecter" @click="logout" />
+      <NuxtLink
+        v-if="session.is_admin || session.can_edit_thesaurus"
+        class="admin-link"
+        to="/administration"
+        aria-label="Administration"
+        ><i class="pi pi-cog" aria-hidden="true" /><span>Administration</span></NuxtLink
+      >
     </div>
   </header>
   <main id="content">

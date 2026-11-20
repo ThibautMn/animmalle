@@ -112,6 +112,48 @@ header {
   font-weight: 600;
   font-size: 0.8rem;
 }
+.admin-link {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 11px;
+  border: 2px solid var(--c-primary);
+  border-radius: 22px;
+  background: transparent;
+  color: var(--c-primary-dark);
+  font-weight: 600;
+  text-decoration: none;
+  overflow: hidden;
+  transition: background 0.15s;
+}
+.admin-link i {
+  width: 22px;
+  text-align: center;
+  font-size: 1.35rem;
+}
+.admin-link span {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 0.25s ease, opacity 0.2s ease, margin 0.25s ease;
+}
+.admin-link:hover,
+.admin-link:focus-visible,
+.admin-link[aria-current='page'] {
+  background: transparent;
+  border-color: var(--c-primary-hover);
+}
+.admin-link:hover span,
+.admin-link:focus-visible span {
+  max-width: 9em;
+  margin-left: 10px;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-link span {
+    transition: none;
+  }
+}
 .linkbtn {
   background: none;
   border: 0;
@@ -2618,4 +2660,26 @@ button.bare-icon svg {
 .search-start {
   margin: 0;
   white-space: pre-line;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--c-line);
+}
+.admin-tabs a {
+  padding: 8px 18px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--c-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+.admin-tabs a:hover {
+  background: var(--c-primary-soft);
+}
+.admin-tabs a.active {
+  background: var(--c-primary-soft);
+  color: var(--c-primary-dark);
+  box-shadow: inset 0 -2px var(--c-primary);
 }

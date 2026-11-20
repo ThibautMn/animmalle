@@ -559,6 +559,37 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.mutate('delete', f'/api/media/{key}').status_code, 204)
         self.assertEqual(self.client.get(f"/api/animations/{anim['id']}").json['sequences'][0]['materiel'], [])
 
+    def test_banners_admin_crud_and_random(self):
+        from PIL import Image
+        from animmalle import banners
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        buffer = io.BytesIO()
+        Image.new('RGB', (40, 20), 'red').save(buffer, 'PNG')
+        self.login('admin')
+        with patch.object(banners, 'BANNERS_DIR', root):
+            self.assertEqual(self.client.get('/api/banners/random').status_code, 404)
+            self.assertEqual(self.client.get('/api/banners').json, {'items': []})
+            files_data = {'file': (io.BytesIO(buffer.getvalue()), 'Ma bannière.png')}
+            bad = self.mutate('post', '/api/banners', data={'file': (io.BytesIO(b'pas une image'), 'x.png')},
+                              content_type='multipart/form-data')
+            self.assertEqual(bad.status_code, 422)
+            created = self.mutate('post', '/api/banners', data=files_data, content_type='multipart/form-data')
+            self.assertEqual(created.status_code, 201, created.json)
+            name = created.json['name']
+            self.assertEqual(self.mutate('put', f'/api/banners/{name}', {'position': 80}).json['position'], 80)
+            self.assertEqual(self.mutate('put', f'/api/banners/{name}', {'position': 101}).status_code, 422)
+            self.assertEqual(self.mutate('put', '/api/banners/../x.png', {'position': 5}).status_code, 404)
+            self.assertEqual(self.client.get('/api/banners/random').json, {'name': name, 'position': 80})
+            self.assertEqual(self.client.get(f'/api/banners/{name}/image').mimetype, 'image/png')
+            self.assertEqual(self.client.get('/api/banners/%2e%2e%2fx/image').status_code, 404)
+            self.login('bob')
+            self.assertEqual(self.client.get('/api/banners').status_code, 403)
+            self.assertEqual(self.mutate('delete', f'/api/banners/{name}').status_code, 403)
+            self.login('admin')
+            self.assertEqual(self.mutate('delete', f'/api/banners/{name}').status_code, 204)
+            self.assertEqual(self.client.get('/api/banners').json, {'items': []})
+
     def test_thesaurus_reserved_to_thesaurus_groups(self):
         auth = self.client.application.extensions['settings']['auth']
         auth['admin_groups'] = ['admin', 'autre']
