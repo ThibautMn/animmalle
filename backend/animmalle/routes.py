@@ -580,9 +580,12 @@ def outils_list():
 SEARCH_KINDS = ('animations', 'outils', 'media')
 
 
-def animation_fields(item):
-    """Contenus consultables d'une animation, avec leur provenance, pour les extraits de recherche."""
-    fields = [('Description', item.description), ('Objectifs', item.objectifs),
+def animation_fields(item, start=''):
+    """Contenus consultables d'une animation, avec leur provenance, pour les extraits de recherche.
+
+    `start` : début de la description, déjà affiché et donc exclu des extraits.
+    """
+    fields = [('Description', finder.after_start(item.description, start)), ('Objectifs', item.objectifs),
               ('Avant l’animation', item.pre_anim), ('Après l’animation', item.post_anim),
               ('Lieu', item.lieu), ('Public spécifique', item.public_specifique), ('Auteurs', item.auteurs)]
     for seq in item.sequences:
@@ -619,16 +622,19 @@ def search_animations(terms):
     items = []
     for key in keys:
         item = loaded[key]
+        start = finder.first_lines(item.description)
         items.append({'id': item.id, 'titre': item.titre, 'statut': item.statut, 'auteurs': item.auteurs,
-                      'tags': tags_by_anim[key], 'fk_duree_id': item.fk_duree_id,
-                      'extraits': finder.build_snippets(animation_fields(item), terms)})
+                      'tags': tags_by_anim[key], 'fk_duree_id': item.fk_duree_id, 'debut': start,
+                      'extraits': finder.build_snippets(animation_fields(item, start), terms)})
     return {'items': items, 'total': total, 'page': page, 'page_size': size}
 
 
-def search_listed(items, fields, terms):
+def search_listed(items, fields, terms, start=False):
     """Pagine une liste déjà filtrée et y joint les extraits : `fields(item)` donne les (source, contenu)."""
     result = paginate(items)
     for item in result['items']:
+        if start:  # `debut` : premières lignes de la description, toujours affichées
+            item['debut'] = finder.first_lines(item['description'])
         item['extraits'] = finder.build_snippets(fields(item), terms)
     return result
 
@@ -654,7 +660,8 @@ def general_search():
         result = search_animations(terms)
     elif kind == 'outils':
         result = search_listed(filtered_outils(), lambda item: [
-            ('Description', item['description']), ('Variante', item['variante']), ('Matériel', item['materiel'])], terms)
+            ('Description', finder.after_start(item['description'], item['debut'])),
+            ('Variante', item['variante']), ('Matériel', item['materiel'])], terms, start=True)
     else:
         result = search_listed(filtered_media(), lambda item: [('Description', item['description'])], terms)
     return {**result, 'terms': terms, 'kind': kind, 'counts': counts}

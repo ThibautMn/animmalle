@@ -729,13 +729,23 @@ class ApiTests(unittest.TestCase):
         response = self.client.get('/api/search?q=castor+loutre')
         self.assertEqual(response.json['counts'], {'animations': 1, 'outils': 0, 'media': 1})
         self.assertEqual([entry['id'] for entry in response.json['items']], [item['id']])
+        self.assertEqual(response.json['items'][0]['debut'], 'Découverte du milieu')
         sources = {extract['source'] for extract in response.json['items'][0]['extraits']}
+        self.assertNotIn('Description', sources)
         self.assertIn('Média « Photo de loutre » · Description', sources)
         self.assertTrue(all('castor' in extract['text'].casefold() or 'loutre' in extract['text'].casefold()
                             for extract in response.json['items'][0]['extraits']))
         response = self.client.get('/api/search?q=castor&kind=outils')
         self.assertEqual([entry['id'] for entry in response.json['items']], [outil['id']])
         self.assertEqual(response.json['counts'], {'animations': 1, 'outils': 1, 'media': 1})
+        self.assertEqual(response.json['items'][0]['debut'], 'Un jeu de cartes')
+        self.assertEqual(response.json['items'][0]['extraits'], [])
+        long = self.mutate('post', '/api/outils', {'nom': 'Long', 'fk_type_outil_id': 7, 'difficulte_id': 8, 'variante': '', 'materiel': '',
+                                                  'description': ''.join(f'<p>ligne {n}</p>' for n in range(1, 7)) + '<p>le zorglub final</p>'}).json
+        response = self.client.get('/api/search?q=zorglub&kind=outils')
+        self.assertEqual(response.json['items'][0]['debut'], 'ligne 1\nligne 2\nligne 3\nligne 4')
+        self.assertEqual([e['text'] for e in response.json['items'][0]['extraits']], ['ligne 5 ligne 6 le zorglub final'])
+        self.mutate('delete', f"/api/outils/{long['id']}")
         response = self.client.get('/api/search?q=castor&kind=media')
         self.assertEqual([entry['id'] for entry in response.json['items']], [media['id']])
         self.assertIn('castor', response.json['items'][0]['extraits'][0]['text'])

@@ -2560,3 +2560,7 @@ button.bare-icon svg {
     flex: 1 1 100%;
   }
 }
+.search-start {
+  margin: 0;
+  white-space: pre-line;
+}

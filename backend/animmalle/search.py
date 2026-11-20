@@ -46,6 +46,26 @@ def plain_text(value):
     return _SPACES.sub(' ', html.unescape(value)).strip()
 
 
+def first_lines(value, lines=4, limit=400):
+    """Début d'un contenu : ses premières lignes (paragraphes), tronquées à `limit` caractères."""
+    if not value:
+        return ''
+    value = _TAG.sub(' ', _BLOCK_END.sub('\n', value)) if '<' in value else value
+    rows = [_SPACES.sub(' ', row).strip() for row in html.unescape(value).split('\n')]
+    text = '\n'.join([row for row in rows if row][:lines])
+    if len(text) > limit:
+        cut = text.rfind(' ', 0, limit)
+        text = text[:cut if cut > 0 else limit].rstrip() + '…'
+    return text
+
+
+def after_start(value, start):
+    """Texte brut de `value` privé de son début déjà affiché (`start`, issu de first_lines)."""
+    full = plain_text(value)
+    shown = plain_text(start.removesuffix('…'))
+    return full[len(shown):].strip() if shown and full.startswith(shown) else full
+
+
 def _window(text, start, end):
     """Fenêtre de `text` autour de [start, end), coupée aux limites de mots."""
     left = max(0, start - SNIPPET_RADIUS)

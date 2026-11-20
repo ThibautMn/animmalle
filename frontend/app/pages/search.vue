@@ -94,6 +94,8 @@ async function go(target) {
   await search()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+// Critères de la recherche de médias, pour les flèches de l'aperçu.
+const media_query = computed(() => ({ q: terms.value, ...filters.media }))
 const parts = (text) => highlightParts(text, terms.value)
 const statuses = [
   [1, 'Validée'],
@@ -197,7 +199,25 @@ const link = (item) =>
             :busy="busy"
             @go="go"
           />
-          <div class="resource-list cards-list search-results">
+          <SequenceMedia
+            v-if="kind === 'media'"
+            :items="items"
+            :query="media_query"
+            details
+            @deleted="
+              (id) => {
+                items = items.filter((entry) => entry.id !== id)
+                search()
+              }
+            "
+            @updated="
+              (updated) =>
+                (items = items.map((entry) =>
+                  entry.id === updated.id ? { ...entry, ...updated } : entry
+                ))
+            "
+          />
+          <div v-else class="resource-list cards-list search-results">
             <article v-for="item in items" :key="item.id" class="card">
               <div class="card-title-row">
                 <h2>
@@ -224,6 +244,12 @@ const link = (item) =>
               </div>
               <p v-if="kind === 'animations'" class="pictos">
                 <PictoIcon v-for="tag in item.tags" :id="tag" :key="tag" />
+              </p>
+              <p v-if="item.debut" class="search-start">
+                <template v-for="(part, index) in parts(item.debut)" :key="index"
+                  ><mark v-if="part.hit">{{ part.text }}</mark
+                  ><template v-else>{{ part.text }}</template></template
+                >
               </p>
               <ul v-if="item.extraits?.length" class="search-snippets">
                 <li v-for="(extract, index) in item.extraits" :key="index">
