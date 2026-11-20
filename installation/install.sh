@@ -24,7 +24,7 @@ NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 PG_LOCAL=0
 KEEPALIVE_PID=''
 TEE_PID=''
-SYSTEM_PACKAGES=(python3 python3-venv ffmpeg poppler-utils curl ca-certificates nginx iproute2)
+SYSTEM_PACKAGES=(python3 python3-venv ffmpeg poppler-utils libreoffice-writer fonts-liberation curl ca-certificates nginx iproute2)
 
 say() { printf '==> %s\n' "$*"; }
 warn() { printf 'Attention : %s\n' "$*" >&2; }
@@ -42,7 +42,7 @@ usage() {
   cat <<'HELP'
 Usage : installation/install.sh PHASE
   check         Contrôler système, YAML et prérequis sans rien modifier (sans sudo)
-  dependencies  Paquets système (Python, Nginx, ffmpeg, poppler-utils, curl, PostgreSQL si local), venv et dépendances backend
+  dependencies  Paquets système (Python, Nginx, ffmpeg, poppler-utils, LibreOffice Writer, curl, PostgreSQL si local), venv et dépendances backend
   node          Installer nvm puis Node 24 LTS s'ils sont absents ou incompatibles (sans sudo, dans ~/.nvm)
   frontend      Installer Node si nécessaire, puis les dépendances verrouillées, tests et build Nuxt
   schema        Créer rôle et base absents, puis appliquer Alembic (étape 3)

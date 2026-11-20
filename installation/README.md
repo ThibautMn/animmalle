@@ -205,7 +205,7 @@ L’installateur comporte maintenant les phases suivantes, sans phase par défau
 | Phase | Opération |
 | --- | --- |
 | `check` | Contrôle en lecture seule, sans sudo : système, paquets, YAML complet (base, backend, rendu Nginx/systemd), serveur et cluster PostgreSQL local, Node, ports internes |
-| `dependencies` | Paquets système manquants (Python, Nginx, ffmpeg, poppler-utils, curl, iproute2), venv, dépendances backend, PostgreSQL local si `postgresql.host` est local (apt/sudo) |
+| `dependencies` | Paquets système manquants (Python, Nginx, ffmpeg, poppler-utils, libreoffice-writer, fonts-liberation, curl, iproute2), venv, dépendances backend, PostgreSQL local si `postgresql.host` est local (apt/sudo) |
 | `node` | Installe nvm (`NVM_VERSION`, défaut v0.40.3) dans `~/.nvm` puis Node 24 LTS (`NODE_MAJOR`) s’ils sont absents ou incompatibles ; sans sudo |
 | `frontend` | Appelle la logique de la phase `node` si besoin, puis `npm ci`, tests unitaires et build Nuxt |
 | `schema` | Provisionnement non destructeur et Alembic (sudo seulement si PostgreSQL est local) |

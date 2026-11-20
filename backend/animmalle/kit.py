@@ -11,6 +11,7 @@ from xml.sax.saxutils import escape, quoteattr
 from zipfile import ZipFile, ZIP_STORED, ZIP_DEFLATED
 
 from PIL import Image, ImageDraw, ImageFont
+from flask import current_app
 from werkzeug.exceptions import HTTPException, NotFound
 
 from . import files
@@ -545,7 +546,8 @@ def odt_to_pdf(odt_bytes, timeout=120):
             source = root / 'fiche.odt'
             source.write_bytes(odt_bytes)
             return files.office_to_pdf(source, root, timeout).read_bytes()
-    except HTTPException:
+    except HTTPException as error:
+        current_app.logger.warning('PDF du kit non généré : %s', error.description)
         return None
 
 
