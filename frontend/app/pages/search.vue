@@ -18,9 +18,9 @@ const query_text = computed(() =>
 const terms = computed(() => splitTerms(query_text.value))
 // Filtres propres à chaque onglet (cases à cocher), conservés quand on change d'onglet.
 const filters = reactive({
-  animations: { statut: [], tag: [] },
-  outils: { type: [], difficulte: [] },
-  media: { type: [], tag: [] }
+  animations: { statut: [], non_statut: [], tag: [], non_tag: [] },
+  outils: { type: [], non_type: [], difficulte: [], non_difficulte: [] },
+  media: { type: [], non_type: [], tag: [], non_tag: [] }
 })
 const items = ref([])
 const total = ref(0)
@@ -102,6 +102,17 @@ const statuses = [
   [2, 'À valider'],
   [3, 'Brouillon']
 ]
+const statusLabels = Object.fromEntries(statuses.map(([value, label]) => [String(value), label]))
+const summaryOf = (prefix = '') =>
+  ['statut', 'tag', 'type', 'difficulte']
+    .flatMap((key) =>
+      (filters[kind.value][prefix + key] || []).map((id) =>
+        key === 'statut' ? statusLabels[id] : catalog.label(id)
+      )
+    )
+    .filter(Boolean)
+const summary_included = computed(() => summaryOf())
+const summary_excluded = computed(() => summaryOf('non_'))
 const animationGroups = ['ref.thematiques', 'ref.lieux', 'ref.saison', 'ref.public', 'ref.duree']
 const legend = (group) =>
   catalog.items.value.find((item) => item.code === group)?.label || group.replace('ref.', '')
@@ -143,7 +154,11 @@ const link = (item) =>
           <fieldset class="status-box">
             <legend>Statut</legend>
             <label v-for="[value, label] in statuses" :key="value" class="check"
-              ><input v-model="filters.animations.statut" type="checkbox" :value="String(value)" />{{
+              ><TriCheck
+                v-model="filters.animations.statut"
+                v-model:excluded="filters.animations.non_statut"
+                :value="String(value)"
+              />{{
                 label
               }}</label
             >
@@ -152,6 +167,7 @@ const link = (item) =>
             v-for="group in animationGroups"
             :key="group"
             v-model="filters.animations.tag"
+            v-model:excluded="filters.animations.non_tag"
             :items="catalog.family(group)"
             :legend="legend(group)"
           />
@@ -159,11 +175,13 @@ const link = (item) =>
         <template v-else-if="kind === 'outils'">
           <TagPicker
             v-model="filters.outils.type"
+            v-model:excluded="filters.outils.non_type"
             :items="catalog.family('ref.type_outil')"
             legend="Type d'outil"
           />
           <TagPicker
             v-model="filters.outils.difficulte"
+            v-model:excluded="filters.outils.non_difficulte"
             :items="catalog.family('ref.difficulte')"
             legend="Difficulté"
           />
@@ -171,11 +189,13 @@ const link = (item) =>
         <template v-else>
           <TagPicker
             v-model="filters.media.type"
+            v-model:excluded="filters.media.non_type"
             :items="catalog.family('ref.type_mat')"
             legend="Types de ressources"
           />
           <TagPicker
             v-model="filters.media.tag"
+            v-model:excluded="filters.media.non_tag"
             :items="catalog.family('ref.thematiques')"
             legend="Thématiques"
           />
@@ -189,6 +209,7 @@ const link = (item) =>
           </p>
         </div>
         <div class="results-content" :inert="busy" :aria-busy="busy">
+          <FilterSummary :included="summary_included" :excluded="summary_excluded" />
           <p v-if="!busy && !error" class="muted" aria-live="polite">
             {{ total }} résultat{{ total > 1 ? 's' : '' }}
           </p>

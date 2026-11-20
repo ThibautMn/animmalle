@@ -255,6 +255,12 @@ def animation_query(deep=False, filtered=True):
         if not values <= {1, 2, 3}:
             raise ValidationError({'statut': ['Valeur hors limites.']})
         query = query.where(Animation.statut.in_(values))
+    # Cases cochées en « - » : les animations portant l'un de ces statuts sont écartées.
+    excluded_statuts = id_args('non_statut') if filtered else set()
+    if excluded_statuts:
+        if not excluded_statuts <= {1, 2, 3}:
+            raise ValidationError({'non_statut': ['Valeur hors limites.']})
+        query = query.where(Animation.statut.not_in(excluded_statuts))
     # Chaque mot de chaque paramètre q est un critère supplémentaire (ET).
     for word in finder.split_terms(request.args.getlist('q')):
         pattern = finder.like_pattern(word)
@@ -279,6 +285,10 @@ def animation_query(deep=False, filtered=True):
         query = (query.join(counts, counts.c.fk_anim_id == Animation.id)
                  .order_by(None).order_by(counts.c.matched.desc(), Animation.titre, Animation.id))
         query = query.add_columns(counts.c.matched)
+    excluded_tags = id_args('non_tag') if filtered else set()
+    if excluded_tags:
+        query = query.where(~select(RelAnimTag.id).where(RelAnimTag.fk_anim_id == Animation.id,
+                                                          RelAnimTag.fk_thes_id.in_(excluded_tags)).exists())
     return query, tags
 
 
@@ -533,6 +543,9 @@ def filtered_media(filtered=True):
     types = id_args('type') if filtered else []
     if types:
         query = query.where(Media.fk_type_mat_id.in_(types))
+    excluded_types = id_args('non_type') if filtered else set()
+    if excluded_types:
+        query = query.where(or_(Media.fk_type_mat_id.is_(None), Media.fk_type_mat_id.not_in(excluded_types)))
     for pattern, extension in search_terms():
         theme_alias = aliased(Thesaurus)
         theme = (select(RelMediaThematique.id)
@@ -541,9 +554,13 @@ def filtered_media(filtered=True):
         query = query.where(or_(like(Media.nom, pattern), like(Media.description, pattern),
                                 like(Media.url, extension), like(type_alias.label, pattern), theme.exists()))
     tags = set(id_args('tag')) if filtered else set()
+    excluded_tags = id_args('non_tag') if filtered else set()
     result = []
     for item in g.db.scalars(query):
-        matched = len(tags & {tag.id for tag in item.thematiques})
+        item_tags = {tag.id for tag in item.thematiques}
+        if excluded_tags & item_tags:
+            continue
+        matched = len(tags & item_tags)
         if tags and not matched:
             continue
         value = svc.media_dict(item)
@@ -653,9 +670,17 @@ def filtered_outils(filtered=True):
     types = id_args('type') if filtered else []
     if types:
         query = query.where(OutilFacilitateur.fk_type_outil_id.in_(types))
+    excluded_types = id_args('non_type') if filtered else set()
+    if excluded_types:
+        query = query.where(or_(OutilFacilitateur.fk_type_outil_id.is_(None),
+                                OutilFacilitateur.fk_type_outil_id.not_in(excluded_types)))
     difficulties = id_args('difficulte') if filtered else []
     if difficulties:
         query = query.where(OutilFacilitateur.difficulte_id.in_(difficulties))
+    excluded_difficulties = id_args('non_difficulte') if filtered else set()
+    if excluded_difficulties:
+        query = query.where(or_(OutilFacilitateur.difficulte_id.is_(None),
+                                OutilFacilitateur.difficulte_id.not_in(excluded_difficulties)))
     for pattern, extension in search_terms():
         query = query.where(or_(
             like(OutilFacilitateur.nom, pattern), like(OutilFacilitateur.description, pattern),

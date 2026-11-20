@@ -3,6 +3,7 @@
 // iconOnly : le libellé n'apparaît que si le pictogramme est absent (l'image porte alors le nom accessible).
 defineProps({ items: Array, legend: String, iconOnly: Boolean, plain: Boolean })
 const model = defineModel({ default: () => [] })
+const excluded = defineModel('excluded', { default: undefined })
 const missing = ref({})
 </script>
 <template>
@@ -10,7 +11,7 @@ const missing = ref({})
     <legend>{{ legend }}</legend>
     <div class="choices">
       <label v-for="item in items" :key="item.id"
-        ><input v-model="model" type="checkbox" :value="item.id" />
+        ><TriCheck v-model="model" v-model:excluded="excluded" :value="item.id" />
         <PictoIcon
           :id="item.id"
           :size="20"

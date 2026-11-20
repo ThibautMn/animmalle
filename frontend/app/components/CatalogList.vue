@@ -33,6 +33,11 @@ const items = ref([]);
 const tags = ref([]);
 const types = ref([]);
 const difficulties = ref([]);
+// Critères exclus (cases cochées en « - »).
+const non_tags = ref([]);
+const non_types = ref([]);
+const non_difficulties = ref([]);
+const non_statuses = ref([]);
 const author = ref(route.query.auteur || "");
 const authors = ref([]);
 const author_open = ref(false);
@@ -68,6 +73,15 @@ function highlight(raw) {
 const duration_min = ref(null);
 const duration_max = ref(null);
 const statuses = ref([]);
+const status_labels = { 1: "Validée", 2: "À valider", 3: "Brouillon" };
+const summary_included = computed(() => [
+  ...statuses.value.map((id) => status_labels[id]),
+  ...[...tags.value, ...types.value, ...difficulties.value].map((id) => catalog.label(id)),
+].filter(Boolean));
+const summary_excluded = computed(() => [
+  ...non_statuses.value.map((id) => status_labels[id]),
+  ...[...non_tags.value, ...non_types.value, ...non_difficulties.value].map((id) => catalog.label(id)),
+].filter(Boolean));
 const page = ref(1);
 const page_size = 20;
 const total = ref(0);
@@ -88,7 +102,7 @@ async function search(reset = false) {
   busy.value = true;
   error.value = "";
   try {
-    const query = { page: page.value, page_size, tag: tags.value };
+    const query = { page: page.value, page_size, tag: tags.value, non_tag: non_tags.value };
     if (animations) {
       if (author.value) query.auteur = author.value;
       const terms = [search_text.value, ...extra_terms.value]
@@ -96,6 +110,7 @@ async function search(reset = false) {
         .filter(Boolean);
       if (terms.length) query.q = terms;
       if (statuses.value.length) query.statut = statuses.value;
+      if (non_statuses.value.length) query.non_statut = non_statuses.value;
       // Champ numérique vidé = null ou chaîne vide : borne ignorée.
       if (Number.isInteger(duration_min.value))
         query.duree_min = duration_min.value;
@@ -103,7 +118,11 @@ async function search(reset = false) {
         query.duree_max = duration_max.value;
     } else {
       query.type = types.value;
-      if (props.kind === 'outil') query.difficulte = difficulties.value;
+      query.non_type = non_types.value;
+      if (props.kind === 'outil') {
+        query.difficulte = difficulties.value;
+        query.non_difficulte = non_difficulties.value;
+      }
       const terms = [search_text.value, ...extra_terms.value]
         .map((term) => term.trim())
         .filter(Boolean);
@@ -158,7 +177,7 @@ async function remove(item) {
 }
 let timer;
 watch(
-  [author, search_text, extra_terms, statuses, tags, types, difficulties, duration_min, duration_max],
+  [author, search_text, extra_terms, statuses, non_statuses, tags, non_tags, types, non_types, difficulties, non_difficulties, duration_min, duration_max],
   () => {
     if (skip_duration_watch) {
       skip_duration_watch = false;
@@ -316,6 +335,7 @@ onMounted(async () => {
       <TagPicker
         v-if="!animations"
         v-model="types"
+        v-model:excluded="non_types"
         :items="
           catalog.family(kind === 'outil' ? 'ref.type_outil' : 'ref.type_mat')
         "
@@ -331,7 +351,7 @@ onMounted(async () => {
           ]"
           :key="value"
           class="check"
-          ><input v-model="statuses" type="checkbox" :value="value" />{{
+          ><TriCheck v-model="statuses" v-model:excluded="non_statuses" :value="value" />{{
             label
           }}</label
         >
@@ -339,6 +359,7 @@ onMounted(async () => {
       <TagPicker
         v-if="kind === 'outil'"
         v-model="difficulties"
+        v-model:excluded="non_difficulties"
         :items="catalog.family('ref.difficulte')"
         legend="Difficulté"
       />
@@ -356,6 +377,7 @@ onMounted(async () => {
             : ['ref.thematiques']"
         :key="group"
         v-model="tags"
+        v-model:excluded="non_tags"
         :items="catalog.family(group)"
         :legend="
           catalog.items.value.find((item) => item.code === group)?.label ||
@@ -386,6 +408,7 @@ onMounted(async () => {
         </p>
       </div>
       <div class="results-content" :inert="busy" :aria-busy="busy">
+        <FilterSummary :included="summary_included" :excluded="summary_excluded" />
         <PaginationNav
           :page="page"
           :page-count="page_count"
