@@ -1,6 +1,8 @@
 """API JSON version initiale ; toutes les mutations utilisent POST/PUT/DELETE."""
 from datetime import date, timedelta
 import json
+import random
+from pathlib import Path
 
 from flask import Blueprint, abort, g, request, session, current_app, send_file
 from marshmallow import ValidationError
@@ -72,6 +74,23 @@ def paginate(items):
 def health():
     g.db.execute(text('SELECT 1'))
     return {'status': 'ok'}
+
+
+BANNERS_DIR = Path(__file__).resolve().parents[1] / 'bannières'
+
+
+@api.get('/banners/random')
+def random_banner():
+    """Bannière de la page d'accueil tirée au hasard dans backend/bannières."""
+    images = [p for p in BANNERS_DIR.glob('*') if p.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp')]
+    if not images:
+        abort(404, description='Aucune bannière.')
+    path = random.choice(images)
+    response = send_file(path, mimetype='image/png' if path.suffix.lower() == '.png' else
+                         'image/webp' if path.suffix.lower() == '.webp' else 'image/jpeg')
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @api.get('/auth/session')

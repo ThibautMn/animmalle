@@ -5,6 +5,9 @@ const api = useApi()
 const firstName = computed(() => (session.user?.name || '').split(' ')[0])
 const statuts = { 1: 'Validée', 2: 'À valider', 3: 'Brouillon' }
 const home = ref(null)
+// Bannière tirée au hasard par le backend (côté client, pour éviter un écart d'hydratation)
+const config = useRuntimeConfig()
+const banniere = ref('')
 const error = ref('')
 const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString('fr-FR') : ''
@@ -13,6 +16,7 @@ const excerpt = (text) => {
   return plain.length > 140 ? `${plain.slice(0, 140)}…` : plain
 }
 onMounted(async () => {
+  banniere.value = `${config.public.apiBase}/banners/random?t=${Date.now()}`
   try {
     home.value = await api('/home')
   } catch {
@@ -21,7 +25,11 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <section class="hero">
+  <section
+    class="hero"
+    :class="{ 'hero--image': banniere }"
+    :style="banniere ? { backgroundImage: `url(${banniere})` } : {}"
+  >
     <p class="eyebrow">Parc national des Cévennes</p>
     <h1>Bonjour {{ firstName }}, que préparez-vous aujourd’hui ?</h1>
     <p>

@@ -206,6 +206,20 @@ button + button {
   padding: 44px max(24px, 5%) 76px;
   background: linear-gradient(120deg, #d9d0f0 0%, #e8e2f6 50%, #f8f6fd 100%);
 }
+.hero--image {
+  background-size: cover;
+  background-position: center;
+}
+.hero--image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(30, 20, 60, 0.5) 0%, rgba(30, 20, 60, 0.25) 55%, rgba(30, 20, 60, 0) 100%);
+}
+.hero.hero--image h1,
+.hero.hero--image p {
+  color: #fff;
+}
 .hero::after {
   content: '';
   position: absolute;
