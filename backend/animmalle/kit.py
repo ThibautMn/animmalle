@@ -745,6 +745,18 @@ def export_kit(fiche, with_pdf=True):
     base = safe_name(fiche['titre'], 'fiche')
     with ZipFile(archive_io, 'w', compression=ZIP_DEFLATED) as archive:
         media_entries = []
+        by_content = {}
+
+        def register(source, name):
+            """Nom du fichier dans le ZIP ; un contenu identique n'est ajouté qu'une fois."""
+            digest = hashlib.sha1(source.read_bytes()).hexdigest()
+            if digest in by_content:
+                return by_content[digest]
+            filename = unique_name(name + source.suffix.lower(), taken)
+            by_content[digest] = filename
+            media_entries.append((source, filename))
+            return filename
+
         groups = [(seq['materiel'], seq['medias']) for seq in fiche['sequences']]
         if fiche.get('materiel'):
             fiche['medias'] = []
@@ -760,8 +772,7 @@ def export_kit(fiche, with_pdf=True):
                     except NotFound:
                         source = None
                     if source is not None:
-                        filename = unique_name(name + source.suffix.lower(), taken)
-                        media_entries.append((source, filename))
+                        filename = register(source, name)
                         label = filename
                         thumb = thumbnail_bytes(media, source)
                 labels.append((label, thumb))
@@ -774,8 +785,7 @@ def export_kit(fiche, with_pdf=True):
                     source = files.media_path(outil)
                 except NotFound:
                     continue
-                filename = unique_name(safe_name(outil.nom, f'outil-{outil.id}') + source.suffix.lower(), taken)
-                media_entries.append((source, filename))
+                filename = register(source, safe_name(outil.nom, f'outil-{outil.id}'))
                 card['fichier'] = filename
                 card['thumb'] = thumbnail_bytes(outil, source)
         odt = build_odt(fiche, pictures)
