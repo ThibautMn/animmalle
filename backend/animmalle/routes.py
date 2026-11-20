@@ -254,6 +254,32 @@ def animations():
     return {'items': items, 'total': total, 'page': page, 'page_size': size, 'duree_min': shortest, 'duree_max': longest}
 
 
+@api.get('/home')
+def home():
+    """Encarts de la page d'accueil : derniers commentaires et animations, animations à valider (admins)."""
+    visible = svc.visible_animations()
+    latest = g.db.execute(select(Animation.id, Animation.titre, Animation.description, Animation.auteurs,
+                                 Animation.date_modif).where(visible)
+                          .order_by(Animation.date_modif.desc().nulls_last(), Animation.titre).limit(1)).first()
+    comments_rows = g.db.execute(select(Commentaire.id, Commentaire.date, Commentaire.auteur, Commentaire.commentaire,
+                                        Animation.id, Animation.titre)
+                                 .join(Animation, Animation.id == Commentaire.fk_id_anim_id).where(visible)
+                                 .order_by(Commentaire.date.desc(), Commentaire.id.desc()).limit(5)).all()
+    result = {'latest': None if latest is None else {'id': latest[0], 'titre': latest[1], 'description': latest[2],
+                                                     'auteurs': latest[3], 'date_modif': latest[4]},
+              'comments': [{'id': row[0], 'date': row[1], 'auteur': row[2], 'commentaire': row[3],
+                            'animation_id': row[4], 'animation_titre': row[5]} for row in comments_rows],
+              'to_validate': None, 'mine': None}
+    if g.is_admin:
+        pending = select(Animation.id, Animation.titre).where(Animation.statut == 2).order_by(Animation.titre)
+        result['to_validate'] = [{'id': row[0], 'titre': row[1]} for row in g.db.execute(pending)]
+    else:
+        mine = (select(Animation.id, Animation.titre, Animation.statut).where(Animation.auteurs == g.user['name'])
+                .order_by(Animation.date_modif.desc().nulls_last(), Animation.titre))
+        result['mine'] = [{'id': row[0], 'titre': row[1], 'statut': row[2]} for row in g.db.execute(mine)]
+    return result
+
+
 @api.get('/sequences')
 def sequences_list():
     """Séquences des animations visibles, pour en ajouter une copie à une autre animation.
