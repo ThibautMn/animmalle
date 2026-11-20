@@ -93,7 +93,11 @@ onMounted(async () => {
         </li>
       </ul>
     </section>
-    <section v-else class="home-panel" aria-labelledby="home-mine">
+    <section
+      v-else
+      class="home-panel home-panel--alert"
+      aria-labelledby="home-mine"
+    >
       <h2 id="home-mine" class="section-title">Mes animations</h2>
       <p v-if="!home.mine?.length" class="muted">
         Vous n’avez pas encore créé d’animation.

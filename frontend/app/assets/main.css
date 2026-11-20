@@ -366,12 +366,31 @@ button + button {
 }
 .home-panel--wide {
   grid-column: 1 / -1;
-  background: var(--c-primary-soft);
+  border-color: #b9dcd8;
+  border-top-color: #1f8a82;
+  background: #eef8f7;
+  box-shadow: 0 4px 14px rgb(31 138 130 / 12%);
+}
+.home-panel--wide .section-title {
+  border-bottom-color: #b9dcd8;
+}
+.home-panel--wide .home-latest a {
+  color: #14635d;
 }
 .home-panel--alert {
-  border-color: var(--c-primary-dark);
-  border-top-color: var(--c-primary-dark);
-  background: var(--c-primary-mid);
+  border-color: #cfc4ec;
+  border-top-color: #6d4fc2;
+  background: #faf8fe;
+  box-shadow: 0 4px 14px rgb(109 79 194 / 12%);
+}
+.home-panel--alert .section-title {
+  border-bottom-color: #cfc4ec;
+}
+.home-panel--alert .home-list a {
+  color: #4e3592;
+}
+.home-panel--alert .home-count {
+  background: #6d4fc2;
 }
 .home-count {
   min-width: 28px;
