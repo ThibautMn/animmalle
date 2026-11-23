@@ -73,7 +73,8 @@ function highlight(raw) {
 }
 const duration_min = ref(null);
 const duration_max = ref(null);
-const statuses = ref([]);
+// Statut présélectionné par ?statut=2 (lien de l'encart « Animations à valider »).
+const statuses = ref(['1', '2', '3'].filter((id) => [].concat(route.query.statut || []).includes(id)));
 const status_labels = { 1: "Validée", 2: "À valider", 3: "Brouillon" };
 const summary_included = computed(() => [
   ...statuses.value.map((id) => status_labels[id]),

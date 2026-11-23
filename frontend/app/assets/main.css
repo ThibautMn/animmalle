@@ -323,6 +323,12 @@ button + button {
   font-size: 0.85rem;
   font-weight: 500;
 }
+.section-title a.section-title-link {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -413,6 +419,11 @@ button + button {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.home-list li.home-list-inline {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
 }
 .home-list small,
 .home-list span {

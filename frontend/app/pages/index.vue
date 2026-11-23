@@ -81,14 +81,19 @@ onMounted(async () => {
       aria-labelledby="home-validate"
     >
       <h2 id="home-validate" class="section-title">
-        Animations à valider
+        <NuxtLink
+          class="section-title-link"
+          :to="{ path: '/animations', query: { statut: 2 } }"
+          >Animations à valider</NuxtLink
+        >
         <span class="home-count">{{ home.to_validate.length }}</span>
       </h2>
       <p v-if="!home.to_validate.length" class="muted">
         Aucune animation en attente.
       </p>
       <ul v-else class="home-list">
-        <li v-for="item in home.to_validate" :key="item.id">
+        <li v-for="item in home.to_validate" :key="item.id" class="home-list-inline">
+          <small v-if="item.date_modif">{{ formatDate(item.date_modif) }}</small>
           <NuxtLink :to="`/animations/${item.id}`">{{ item.titre }}</NuxtLink>
         </li>
       </ul>

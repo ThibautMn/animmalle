@@ -348,8 +348,9 @@ def home():
                             'animation_id': row[4], 'animation_titre': row[5]} for row in comments_rows],
               'to_validate': None, 'mine': None}
     if g.is_admin:
-        pending = select(Animation.id, Animation.titre).where(Animation.statut == 2).order_by(Animation.titre)
-        result['to_validate'] = [{'id': row[0], 'titre': row[1]} for row in g.db.execute(pending)]
+        pending = select(Animation.id, Animation.titre, Animation.date_modif).where(Animation.statut == 2).order_by(
+            Animation.date_modif.desc().nulls_last(), Animation.titre)
+        result['to_validate'] = [{'id': row[0], 'titre': row[1], 'date_modif': row[2]} for row in g.db.execute(pending)]
     else:
         mine = (select(Animation.id, Animation.titre, Animation.statut).where(Animation.auteurs == g.user['name'])
                 .order_by(Animation.date_modif.desc().nulls_last(), Animation.titre))
