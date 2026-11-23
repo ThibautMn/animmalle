@@ -41,10 +41,11 @@ const non_statuses = ref([]);
 const author = ref(route.query.auteur || "");
 const authors = ref([]);
 const author_open = ref(false);
+const fold = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const author_matches = computed(() => {
-  const q = author.value.trim().toLowerCase();
+  const q = fold(author.value.trim());
   return authors.value
-    .filter((name) => name.toLowerCase().includes(q) && name !== author.value)
+    .filter((name) => fold(name).includes(q) && name !== author.value)
     .sort((a, b) => {
       // Les noms sont de la forme « Prénom Nom » : tri sur le nom, puis le prénom.
       const split = (full) => {

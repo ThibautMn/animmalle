@@ -513,7 +513,7 @@ def search_terms():
 
 
 def like(column, pattern):
-    return column.ilike(pattern, escape='\\')
+    return finder.folded(column).like(pattern, escape='\\')
 
 
 def multipart_data(schema):
@@ -1012,9 +1012,9 @@ def update_page(name):
 @api.get('/authors')
 def authors():
     # Les auteurs connus sont disponibles sans exposer l'annuaire complet.
-    prefix = request.args.get('q', '').casefold()
+    prefix = finder.fold(request.args.get('q', ''))
     names = g.db.scalars(select(Animation.auteurs).distinct().order_by(Animation.auteurs))
-    return {'items': [name for name in names if name.casefold().startswith(prefix)][:100]}
+    return {'items': [name for name in names if finder.fold(name).startswith(prefix)][:100]}
 
 
 def usage_stats(dates):

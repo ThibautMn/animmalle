@@ -1,8 +1,12 @@
 """Recherche générale : découpage en mots (ET) et extraits entourant les termes trouvés."""
 import html
 import re
+import unicodedata
 
 from marshmallow import ValidationError
+from sqlalchemy import String, event
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.sql.expression import FunctionElement
 
 MAX_TERM_LENGTH = 100
 MAX_TERMS = 10
@@ -12,6 +16,49 @@ MAX_SNIPPETS = 5
 _BLOCK_END = re.compile(r'</(p|li|h[1-6]|tr|blockquote)>|<br\s*/?>', re.IGNORECASE)
 _TAG = re.compile(r'<[^>]+>')
 _SPACES = re.compile(r'\s+')
+
+
+def _fold_char(char):
+    base = unicodedata.normalize('NFD', char)[0].lower()
+    return base if len(base) == 1 else char
+
+
+def fold(text):
+    """Texte sans accents ni majuscules, de même longueur (positions conservées)."""
+    return ''.join(_fold_char(char) for char in text)
+
+
+_ACCENTED = ''.join(char for char in map(chr, range(0xC0, 0x180)) if fold(char) != char.lower() or char != char.lower())
+_ACCENTED = ''.join(char for char in _ACCENTED if fold(char) != char and fold(char).isascii())
+_PLAIN = fold(_ACCENTED)
+
+
+class folded(FunctionElement):
+    """Colonne ramenée en minuscules sans accents (équivalent SQL de `fold`)."""
+    type = String()
+    inherit_cache = True
+    name = 'folded'
+
+
+@compiles(folded)
+def _folded_default(element, compiler, **kw):
+    column = compiler.process(element.clauses, **kw)
+    return f"lower(translate({column}, '{_ACCENTED}', '{_PLAIN}'))"
+
+
+@compiles(folded, 'sqlite')
+def _folded_sqlite(element, compiler, **kw):
+    return f'fold({compiler.process(element.clauses, **kw)})'
+
+
+def install(engine):
+    """SQLite (développement, tests) : déclare `fold`, absente du moteur ; sans effet sur PostgreSQL."""
+    if engine.dialect.name != 'sqlite':
+        return
+
+    @event.listens_for(engine, 'checkout')
+    def register(connection, _record, _proxy):
+        connection.create_function('fold', 1, lambda value: None if value is None else fold(value), deterministic=True)
 
 
 def split_terms(values):
@@ -25,8 +72,8 @@ def split_terms(values):
         for word in value.split():
             if len(word) > MAX_TERM_LENGTH:
                 raise ValidationError({'q': [f'{MAX_TERM_LENGTH} caractères maximum par mot.']})
-            if word.casefold() not in seen:
-                seen.add(word.casefold())
+            if fold(word) not in seen:
+                seen.add(fold(word))
                 terms.append(word)
     if len(terms) > MAX_TERMS:
         raise ValidationError({'q': [f'{MAX_TERMS} mots maximum.']})
@@ -34,7 +81,7 @@ def split_terms(values):
 
 
 def like_pattern(term):
-    escaped = term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    escaped = fold(term).replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     return f'%{escaped}%'
 
 
@@ -81,8 +128,8 @@ def _window(text, start, end):
 
 def snippet(text, terms):
     """Extrait autour de la première occurrence ; renvoie (extrait, nombre de mots distincts trouvés)."""
-    folded = text.casefold()
-    found = [(folded.find(term.casefold()), term) for term in terms]
+    plain = fold(text)
+    found = [(plain.find(fold(term)), term) for term in terms]
     found = [(position, term) for position, term in found if position != -1]
     if not found:
         return None, 0

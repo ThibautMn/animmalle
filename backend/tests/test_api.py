@@ -748,6 +748,9 @@ class ApiTests(unittest.TestCase):
         # Les mots sont combinés par ET, sans ordre ni adjacence, dans toutes les listes.
         self.assertEqual(self.client.get('/api/animations', query_string={'q': ' rivières   milieu '}).json['total'], 1)
         self.assertEqual(self.client.get('/api/animations', query_string={'q': 'rivières zzz'}).json['total'], 0)
+        # Casse et accents sont ignorés, dans les deux sens.
+        self.assertEqual(self.client.get('/api/animations', query_string={'q': 'RIVIERES milieu'}).json['total'], 1)
+        self.assertEqual(self.client.get('/api/animations', query_string={'q': 'rivIÈres'}).json['total'], 1)
         self.assertEqual(self.client.get('/api/media?q=loutre+castor').json['total'], 1)
         self.assertEqual(self.client.get('/api/media?q=loutre+zzz').json['total'], 0)
         self.assertEqual(self.client.get('/api/outils?q=jeu++castor').json['total'], 1)

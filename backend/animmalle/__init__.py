@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from . import search
 from .config import CONFIG_PATH, load_database_url, load_settings
 
 
@@ -23,6 +24,7 @@ def create_app(config_path=CONFIG_PATH, *, engine=None):
                       MAX_CONTENT_LENGTH=cfg['max_upload_mb'] * 1024 * 1024)
     app.extensions['settings'] = settings
     db_engine = engine if engine is not None else create_engine(load_database_url(config_path), pool_pre_ping=True, hide_parameters=True)
+    search.install(db_engine)
     app.extensions['db_engine'] = db_engine
     app.extensions['db_sessions'] = sessionmaker(db_engine, expire_on_commit=False)
     app.wsgi_app = ProxyFix(app.wsgi_app, **settings['proxy'])
