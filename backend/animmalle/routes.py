@@ -52,6 +52,30 @@ def integer_arg(name, default, minimum=1, maximum=1000000):
     return number
 
 
+def sort_args():
+    """Tri demandé par `tri` (nom|date) et `ordre` (asc|desc) ; None sans tri explicite."""
+    mode = request.args.get('tri')
+    if mode is None:
+        return None
+    if mode not in ('nom', 'date'):
+        raise ValidationError({'tri': ['Valeur hors limites.']})
+    direction = request.args.get('ordre', 'desc' if mode == 'date' else 'asc')
+    if direction not in ('asc', 'desc'):
+        raise ValidationError({'ordre': ['Valeur hors limites.']})
+    return mode, direction == 'desc'
+
+
+def apply_sort(query, model, name_column):
+    """Remplace l'ordre de la requête selon `tri`/`ordre` (date = date de dernière modification)."""
+    choice = sort_args()
+    if choice is None:
+        return query
+    mode, descending = choice
+    column = model.date_modif if mode == 'date' else name_column
+    column = column.desc().nulls_last() if descending else column.asc().nulls_last()
+    return query.order_by(None).order_by(column, name_column, model.id)
+
+
 def id_args(name):
     result = []
     for value in request.args.getlist(name):
@@ -285,6 +309,7 @@ def animation_query(deep=False, filtered=True):
         query = (query.join(counts, counts.c.fk_anim_id == Animation.id)
                  .order_by(None).order_by(counts.c.matched.desc(), Animation.titre, Animation.id))
         query = query.add_columns(counts.c.matched)
+    query = apply_sort(query, Animation, Animation.titre)
     excluded_tags = id_args('non_tag') if filtered else set()
     if excluded_tags:
         query = query.where(~select(RelAnimTag.id).where(RelAnimTag.fk_anim_id == Animation.id,
@@ -557,6 +582,7 @@ def filtered_media(filtered=True):
     tags = set(id_args('tag')) if filtered else set()
     excluded_tags = id_args('non_tag') if filtered else set()
     result = []
+    query = apply_sort(query, Media, Media.nom)
     for item in g.db.scalars(query):
         item_tags = {tag.id for tag in item.thematiques}
         if excluded_tags & item_tags:
@@ -567,7 +593,7 @@ def filtered_media(filtered=True):
         value = svc.media_dict(item)
         value['pertinence'] = {'matched': matched, 'requested': len(tags)}
         result.append(value)
-    if tags:
+    if tags and sort_args() is None:
         result.sort(key=lambda item: -item['pertinence']['matched'])
     return result
 
@@ -688,6 +714,7 @@ def filtered_outils(filtered=True):
             like(OutilFacilitateur.variante, pattern), like(OutilFacilitateur.materiel, pattern),
             like(OutilFacilitateur.url, extension), like(type_alias.label, pattern),
             like(difficulty_alias.label, pattern), like(media_alias.label, pattern)))
+    query = apply_sort(query, OutilFacilitateur, OutilFacilitateur.nom)
     return [svc.outil_dict(item) for item in g.db.scalars(query)]
 
 

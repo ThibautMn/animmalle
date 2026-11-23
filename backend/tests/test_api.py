@@ -745,6 +745,11 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 201, response.json)
         item = response.json
         other = self.mutate('post', '/api/animations', {**self.animation_data(), 'titre': 'Autre'}).json
+        # Tri explicite par nom (A→Z, Z→A) ; valeur inconnue refusée.
+        titles = lambda **args: [row['titre'] for row in self.client.get('/api/animations', query_string=args).json['items']]
+        self.assertEqual(titles(tri='nom'), sorted(titles(tri='nom')))
+        self.assertEqual(titles(tri='nom', ordre='desc'), titles(tri='nom')[::-1])
+        self.assertEqual(self.client.get('/api/animations', query_string={'tri': 'x'}).status_code, 422)
         # Les mots sont combinés par ET, sans ordre ni adjacence, dans toutes les listes.
         self.assertEqual(self.client.get('/api/animations', query_string={'q': ' rivières   milieu '}).json['total'], 1)
         self.assertEqual(self.client.get('/api/animations', query_string={'q': 'rivières zzz'}).json['total'], 0)

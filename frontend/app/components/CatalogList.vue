@@ -84,6 +84,21 @@ const summary_excluded = computed(() => [
   ...non_statuses.value.map((id) => status_labels[id]),
   ...[...non_tags.value, ...non_types.value, ...non_difficulties.value].map((id) => catalog.label(id)),
 ].filter(Boolean));
+// Tri choisi par l'utilisateur : sans choix, l'ordre par défaut du serveur (pertinence puis nom).
+const sort_mode = ref(null);
+const sort_desc = ref(false);
+function sort_by(mode) {
+  if (sort_mode.value === mode) sort_desc.value = !sort_desc.value;
+  else {
+    sort_mode.value = mode;
+    // Nom de A à Z, date la plus récente d'abord.
+    sort_desc.value = mode === 'date';
+  }
+}
+function sort_arrow(mode) {
+  if (sort_mode.value !== mode) return '';
+  return (mode === 'date') === sort_desc.value ? '↓' : '↑';
+}
 const page = ref(1);
 const page_size = 20;
 const total = ref(0);
@@ -105,6 +120,10 @@ async function search(reset = false) {
   error.value = "";
   try {
     const query = { page: page.value, page_size, tag: tags.value, non_tag: non_tags.value };
+    if (sort_mode.value) {
+      query.tri = sort_mode.value;
+      query.ordre = sort_desc.value ? 'desc' : 'asc';
+    }
     if (animations) {
       if (author.value) query.auteur = author.value;
       const terms = [search_text.value, ...extra_terms.value]
@@ -179,7 +198,7 @@ async function remove(item) {
 }
 let timer;
 watch(
-  [author, search_text, extra_terms, statuses, non_statuses, tags, non_tags, types, non_types, difficulties, non_difficulties, duration_min, duration_max],
+  [author, search_text, extra_terms, statuses, non_statuses, tags, non_tags, types, non_types, difficulties, non_difficulties, duration_min, duration_max, sort_mode, sort_desc],
   () => {
     if (skip_duration_watch) {
       skip_duration_watch = false;
@@ -418,6 +437,18 @@ onMounted(async () => {
           :busy="busy"
           @go="go"
         />
+        <p class="sort-links">
+          Trier par :
+          <a
+            v-for="[mode, label] in [['nom', 'Nom'], ['date', 'Date de modification']]"
+            :key="mode"
+            href="#"
+            :class="{ active: sort_mode === mode }"
+            :aria-current="sort_mode === mode ? 'true' : undefined"
+            @click.prevent="sort_by(mode)"
+            >{{ label }} {{ sort_arrow(mode) }}</a
+          >
+        </p>
         <SequenceMedia
           v-if="thumbnails"
           :items="items"

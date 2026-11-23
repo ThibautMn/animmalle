@@ -2748,3 +2748,14 @@ button.bare-icon svg {
 .filter-summary .without {
   color: #c62828;
 }
+
+.sort-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  align-items: baseline;
+  margin: 0 0 0.75rem;
+}
+.sort-links a.active {
+  font-weight: 700;
+}
