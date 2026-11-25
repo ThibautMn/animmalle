@@ -125,6 +125,8 @@ async function logout() {
     await api('/auth/logout', { method: 'POST' })
     remember(TRIED, '1') // déconnexion voulue : pas de reconnexion silencieuse dans cet onglet
     session.clear()
+    // arrivé connecté, la config OpenID n'a pas encore été chargée : sans elle, pas de bouton
+    oidc.value = await api('/auth/oidc/config').catch(() => oidc.value)
     await navigateTo('/')
   } catch (e) {
     error.value = e.message
@@ -228,7 +230,7 @@ onMounted(async () => {
         v-if="oidc.enabled"
         class="oidc-button"
         type="button"
-        :label="`Se connecter avec ${oidc.provider}`"
+        :label="`Connexion via &quot;${oidc.provider}&quot;`"
         @click="connectOidc()"
       />
       <p v-if="oidc.enabled && !oidc.only" class="muted">ou</p>

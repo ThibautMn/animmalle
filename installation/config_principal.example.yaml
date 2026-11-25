@@ -97,7 +97,7 @@ auth:
   # Le compte est ensuite cherché par login (preferred_username) dans auth.users (mode local) ou l’annuaire LDAP
   # (mode ldap, qui exige alors service_bind_dn et service_password) ; aucun compte n’est créé.
   oidc:
-    # Nom affiché sur le bouton « Se connecter avec … ».
+    # Nom affiché sur le bouton « Connexion via "…" ».
     provider_name: OpenID
     # Document de découverte du fournisseur, par exemple https://sso.example.org/.well-known/openid-configuration.
     discovery_url: ''
