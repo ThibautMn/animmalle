@@ -15,19 +15,46 @@ export function splitTerms(values) {
   return terms;
 }
 
-// Découpe un texte en segments ; ceux qui contiennent un terme recherché ont hit = true.
+// Caractère sans accent ni majuscule, toujours d'un seul caractère (même règle que fold côté backend).
+function foldChar(char) {
+  const base = char.normalize("NFD")[0].toLowerCase();
+  return base.length === 1 ? base : char;
+}
+
+// Texte replié de même longueur que l'original : les positions trouvées s'appliquent au texte affiché.
+export function fold(text) {
+  let folded = "";
+  for (let index = 0; index < text.length; index++)
+    folded += foldChar(text[index]);
+  return folded;
+}
+
+// Découpe un texte en segments ; ceux qui contiennent un terme recherché (sans tenir compte
+// de la casse ni des accents) ont hit = true.
 export function highlightParts(text, terms) {
   const value = text || "";
-  const sorted = [...terms].filter(Boolean).sort((a, b) => b.length - a.length);
+  const sorted = [...new Set(terms.filter(Boolean).map(fold))].sort(
+    (a, b) => b.length - a.length,
+  );
   if (!value || !sorted.length)
     return value ? [{ text: value, hit: false }] : [];
-  const pattern = sorted
-    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join("|");
-  return value
-    .split(new RegExp(`(${pattern})`, "i"))
-    .map((part, index) => ({ text: part, hit: index % 2 === 1 }))
-    .filter((part) => part.text);
+  const pattern = new RegExp(
+    sorted
+      .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|"),
+    "g",
+  );
+  const folded = fold(value);
+  const parts = [];
+  let last = 0;
+  for (const match of folded.matchAll(pattern)) {
+    if (match.index > last)
+      parts.push({ text: value.slice(last, match.index), hit: false });
+    last = match.index + match[0].length;
+    parts.push({ text: value.slice(match.index, last), hit: true });
+  }
+  if (last < value.length) parts.push({ text: value.slice(last), hit: false });
+  return parts;
 }
 
 // Numéros de pages affichés : première, dernière, page courante et ses voisines (null = coupure).

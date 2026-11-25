@@ -25,6 +25,22 @@ test("chaque mot trouvé est surligné, sans tenir compte de la casse", () => {
   );
 });
 
+test("les mots sont surlignés sans tenir compte des accents", () => {
+  const parts = highlightParts("Élection du délégué à l'école", [
+    "election",
+    "DELEGUE",
+    "écôle",
+  ]);
+  assert.deepEqual(
+    parts.filter((part) => part.hit).map((part) => part.text),
+    ["Élection", "délégué", "école"],
+  );
+  assert.equal(
+    parts.map((part) => part.text).join(""),
+    "Élection du délégué à l'école",
+  );
+});
+
 test("les caractères spéciaux sont recherchés littéralement", () => {
   assert.deepEqual(highlightParts("a (b) c", ["(b)"]), [
     { text: "a ", hit: false },
