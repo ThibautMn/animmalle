@@ -1725,6 +1725,74 @@ button.bare-icon svg {
   border-top: 2px solid #8a8f98;
   margin: 0.8em 0;
 }
+.rich-body .ProseMirror blockquote,
+.rich-view blockquote {
+  position: relative;
+  margin: 0.5em 0 1.4em;
+  padding: 0.6em 1.9em;
+  border: 1px solid #dcdcdc;
+  border-radius: 12px;
+  background: #f7f7f7;
+  color: #4d4d4d;
+  font-style: italic;
+}
+/* Pointe de la bulle en bas à gauche : contour puis remplissage. */
+.rich-body .ProseMirror blockquote::before,
+.rich-view blockquote::before,
+.rich-body .ProseMirror blockquote::after,
+.rich-view blockquote::after {
+  content: '';
+  position: absolute;
+  left: 1.4em;
+  border-style: solid;
+  border-color: transparent;
+  border-left-width: 0;
+}
+.rich-body .ProseMirror blockquote::before,
+.rich-view blockquote::before {
+  bottom: -12px;
+  border-width: 12px 14px 0 0;
+  border-top-color: #dcdcdc;
+}
+.rich-body .ProseMirror blockquote::after,
+.rich-view blockquote::after {
+  bottom: -10px;
+  margin-left: 1px;
+  border-width: 10px 12px 0 0;
+  border-top-color: #f7f7f7;
+}
+/* Grand guillemet en haut à gauche de la bulle (les pseudo-éléments
+   du blockquote servent déjà à la pointe). */
+.rich-body .ProseMirror blockquote > :first-child::before,
+.rich-view blockquote > :first-child::before {
+  content: '\201C';
+  position: absolute;
+  top: 0.15em;
+  left: 0.25em;
+  color: #000;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.9em;
+  font-style: normal;
+  line-height: 1;
+}
+/* Guillemet fermant en bas à droite ; le glyphe occupe le haut de sa boîte,
+   d'où le décalage négatif. */
+.rich-body .ProseMirror blockquote > :last-child::after,
+.rich-view blockquote > :last-child::after {
+  content: '\201D';
+  position: absolute;
+  right: 0.25em;
+  bottom: -0.3em;
+  color: #000;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.9em;
+  font-style: normal;
+  line-height: 1;
+}
+.rich-body .ProseMirror blockquote > :last-child,
+.rich-view blockquote > :last-child {
+  margin-bottom: 0;
+}
 .rich-body .ProseMirror hr.ProseMirror-selectednode {
   border-top-color: var(--c-primary);
 }

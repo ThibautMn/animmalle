@@ -20,6 +20,11 @@ PRIMARY = '#ed8b00'
 MUTED = '#7a7167'
 OUTIL = '#6a55b8'
 LINE = '#efe6da'
+QUOTE_BG = '#f7f7f7'
+QUOTE_LINE = '#dcdcdc'
+# Guillemets des citations, comme les « “ » et « ” » de la bulle à l'écran.
+QUOTE_OPEN = '<text:span text:style-name="Guillemet">“</text:span> '
+QUOTE_CLOSE = ' <text:span text:style-name="Guillemet">”</text:span>'
 STATUTS = {1: 'Validée', 2: 'À valider', 3: 'Brouillon'}
 
 # Couleurs des blocs, reprises de la fiche (id de bloc -> accent)
@@ -67,6 +72,7 @@ class RichConverter(HTMLParser):
         self.pending_href = []
         self.item_counter = []
         self.quote = 0
+        self.quote_pending = False  # guillemet ouvrant à placer au début du prochain paragraphe
 
     def para_style(self):
         if self.quote:
@@ -75,8 +81,21 @@ class RichConverter(HTMLParser):
 
     def start_paragraph(self, style=None):
         self.end_paragraph()
-        self.out.append(f'<text:p text:style-name="{style or self.para_style()}">')
+        self.out.append(f'<text:p text:style-name="{style or self.para_style()}">' + self.take_quote_open())
         self.open_p = True
+
+    def take_quote_open(self):
+        if not self.quote_pending:
+            return ''
+        self.quote_pending = False
+        return QUOTE_OPEN
+
+    def close_quote(self):
+        """Guillemet fermant à la fin du dernier paragraphe de la citation."""
+        if self.open_p:
+            self.out.append(QUOTE_CLOSE)
+        elif self.out and self.out[-1] == '</text:p>':
+            self.out.insert(len(self.out) - 1, QUOTE_CLOSE)
 
     def end_paragraph(self):
         if self.open_p:
@@ -110,12 +129,13 @@ class RichConverter(HTMLParser):
             self.item_counter[-1] += 1 if self.item_counter else 0
             depth = len(self.lists)
             marker = f'{self.item_counter[-1]}.' if self.lists and self.lists[-1] == 'ol' else '•'
-            self.out.append(f'<text:p text:style-name="Puce{min(depth, 3)}">')
+            self.out.append(f'<text:p text:style-name="Puce{min(depth, 3)}">' + self.take_quote_open())
             self.out.append(f'{marker}<text:s text:c="2"/>')
             self.open_p = True
         elif tag == 'blockquote':
             self.end_paragraph()
             self.quote += 1
+            self.quote_pending = True
         elif tag == 'hr':
             self.end_paragraph()
         elif tag == 'a':
@@ -142,6 +162,10 @@ class RichConverter(HTMLParser):
         elif tag == 'li':
             self.end_paragraph()
         elif tag == 'blockquote':
+            if self.quote_pending:
+                self.quote_pending = False  # citation vide : pas de guillemets
+            else:
+                self.close_quote()
             self.end_paragraph()
             self.quote = max(0, self.quote - 1)
         elif tag == 'a':
@@ -262,7 +286,8 @@ STATIC_STYLES = f'''
 <style:style style:name="Badge" style:family="text"><style:text-properties fo:font-weight="bold" fo:color="#ffffff" fo:background-color="{PRIMARY}"/></style:style>
 <style:style style:name="Titre2" style:family="paragraph"><style:paragraph-properties fo:margin-top="0.5cm" fo:margin-bottom="0.25cm" fo:keep-with-next="always"/><style:text-properties fo:font-size="15pt" fo:font-weight="bold" fo:color="{PRIMARY}"/></style:style>
 <style:style style:name="SousTitre" style:family="paragraph" style:parent-style-name="Corps"><style:paragraph-properties fo:margin-top="0.15cm" fo:keep-with-next="always"/><style:text-properties fo:font-weight="bold"/></style:style>
-<style:style style:name="Citation" style:family="paragraph" style:parent-style-name="Corps"><style:paragraph-properties fo:margin-left="0.6cm" fo:border-left="2pt solid {LINE}" fo:padding-left="0.2cm"/><style:text-properties fo:font-style="italic" fo:color="{MUTED}"/></style:style>
+<style:style style:name="Citation" style:family="paragraph" style:parent-style-name="Corps"><style:paragraph-properties fo:margin-top="0.1cm" fo:margin-bottom="0.15cm" fo:padding="0.2cm" fo:padding-left="0.4cm" fo:padding-right="0.4cm" fo:background-color="{QUOTE_BG}" fo:border="0.75pt solid {QUOTE_LINE}" style:join-border="true"/><style:text-properties fo:font-style="italic" fo:color="#4d4d4d"/></style:style>
+<style:style style:name="Guillemet" style:family="text"><style:text-properties fo:font-family="Georgia, 'Liberation Serif', serif" fo:font-size="16pt" fo:font-style="normal" fo:color="#000000"/></style:style>
 <style:style style:name="Puce1" style:family="paragraph" style:parent-style-name="Corps"><style:paragraph-properties fo:margin-left="0.9cm" fo:text-indent="-0.5cm" fo:margin-bottom="0.05cm"><style:tab-stops><style:tab-stop style:position="0cm"/></style:tab-stops></style:paragraph-properties></style:style>
 <style:style style:name="Puce2" style:family="paragraph" style:parent-style-name="Puce1"><style:paragraph-properties fo:margin-left="1.5cm"><style:tab-stops><style:tab-stop style:position="0cm"/></style:tab-stops></style:paragraph-properties></style:style>
 <style:style style:name="Puce3" style:family="paragraph" style:parent-style-name="Puce1"><style:paragraph-properties fo:margin-left="2.1cm"><style:tab-stops><style:tab-stop style:position="0cm"/></style:tab-stops></style:paragraph-properties></style:style>

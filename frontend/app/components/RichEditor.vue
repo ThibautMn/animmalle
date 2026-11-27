@@ -67,7 +67,8 @@ const allTools = [
   ['U', 'Souligné', 'toggleUnderline', 'underline'],
   ['S', 'Barré', 'toggleStrike', 'strike'],
   ['•', 'Liste à puces', 'toggleBulletList', 'bulletList'],
-  ['1.', 'Liste numérotée', 'toggleOrderedList', 'orderedList']
+  ['1.', 'Liste numérotée', 'toggleOrderedList', 'orderedList'],
+  ['❝', 'Citation', 'toggleBlockquote', 'blockquote']
 ]
 const SIMPLE_TOOLS = ['bold', 'italic', 'underline', 'bulletList']
 const tools = computed(() =>
